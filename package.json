@@ -3,6 +3,7 @@
   "version": "1.4.0",
   "private": true,
   "description": "Goblin Pawn Stars — a pawnshop management minigame for World of Warcraft: Forever",
+  "license": "MIT",
   "scripts": {
     "check": "node tools/check_syntax.js && node tools/check_toc.js",
     "test": "node tools/run_tests.js",

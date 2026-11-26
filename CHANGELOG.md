@@ -41,6 +41,7 @@ that survives the beta client's failure to load SavedVariables.
 - The dashboard Next Up flow now continues from ten sales into the debt, museum and
   Marta objectives.
 - Settings explains the automatic journal and keeps the full backup/restore path.
+- Released under the MIT License; the installable ZIP now ships `LICENSE`.
 
 ### Balance / safety
 - No offline earnings. The journal restores state at login but never simulates elapsed

@@ -8,6 +8,7 @@
   <img src="https://img.shields.io/badge/Lua-5.1-2c2d72?style=flat-square&logo=lua&logoColor=white" alt="Lua 5.1">
   <img src="https://img.shields.io/badge/tests-27%2F27-3f7d4e?style=flat-square" alt="27 of 27 tests passing">
   <img src="https://img.shields.io/badge/dependencies-none-6b4f2a?style=flat-square" alt="No runtime dependencies">
+  <img src="https://img.shields.io/badge/license-MIT-3f7d4e?style=flat-square" alt="MIT License">
 </p>
 
 <p align="center">
@@ -28,7 +29,8 @@
   <a href="#persistence-important-beta-note">Persistence</a> ·
   <a href="#compatibility-and-safety">Safety</a> ·
   <a href="#development">Development</a> ·
-  <a href="TESTING.md">Testing 1.4.0</a>
+  <a href="TESTING.md">Testing 1.4.0</a> ·
+  <a href="#license">License</a>
 </p>
 
 > **Status — 1.4.0 release candidate.** The addon is feature-complete and passes the
@@ -378,3 +380,18 @@ ticks. See `PROGRESS.md` for exactly what was and was not verified.
   See [TESTING.md](TESTING.md) for the in-game checklist.
 
 No code in this repository has been executed inside World of Warcraft.
+
+---
+
+## License
+
+Goblin Pawn Stars is released under the [MIT License](LICENSE).
+
+You may use, copy, modify, merge, publish, distribute, sublicense, and sell copies
+of the addon, provided the copyright notice and this permission notice are included.
+The addon is provided **"as is"**, without warranty of any kind.
+
+World of Warcraft and related marks are trademarks of Blizzard Entertainment. This
+is an unofficial fan project, not affiliated with or endorsed by Blizzard. Blizzard's
+add-on policy independently requires addons to be distributed free of charge; the
+MIT License does not change that policy.
