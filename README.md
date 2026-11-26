@@ -31,6 +31,7 @@
   <a href="#compatibility-and-safety">Safety</a> ·
   <a href="#development">Development</a> ·
   <a href="TESTING.md">Testing 1.4.0</a> ·
+  <a href="#ai-disclosure">AI disclosure</a> ·
   <a href="#license">License</a>
 </p>
 
@@ -381,6 +382,16 @@ ticks. See `PROGRESS.md` for exactly what was and was not verified.
   See [TESTING.md](TESTING.md) for the in-game checklist.
 
 No code in this repository has been executed inside World of Warcraft.
+
+---
+
+## AI disclosure
+
+Goblin Pawn Stars is **human-directed and AI-assisted**. **ErrorSeib** sets the
+requirements, reviews changes and approves releases; **Buffy (Codebuff)**, an AI
+coding agent, helped write the addon code, tests, documentation and release tooling.
+The addon uses no AI at runtime, makes no network requests, and collects no player
+data. Read the full [AI disclosure](AI-DISCLOSURE.md).
 
 ---
 

@@ -36,7 +36,7 @@ cp "$ROOT/CHANGELOG.md" "$STAGE/GoblinPawnStars/CHANGELOG.md"
 
 # Repository docs referenced by the README, kept alongside it inside the ZIP so
 # the banner and testing checklist still resolve after extraction.
-for extra in TESTING.md LICENSE docs/assets/banner.svg; do
+for extra in TESTING.md LICENSE AI-DISCLOSURE.md docs/assets/banner.svg; do
     if [[ -f "$ROOT/$extra" ]]; then
         mkdir -p "$STAGE/GoblinPawnStars/$(dirname "$extra")"
         cp "$ROOT/$extra" "$STAGE/GoblinPawnStars/$extra"

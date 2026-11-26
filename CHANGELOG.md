@@ -42,6 +42,7 @@ that survives the beta client's failure to load SavedVariables.
   Marta objectives.
 - Settings explains the automatic journal and keeps the full backup/restore path.
 - Released under the MIT License; the installable ZIP now ships `LICENSE`.
+- Added an AI disclosure covering the project's human-directed, AI-assisted development.
 
 ### Balance / safety
 - No offline earnings. The journal restores state at login but never simulates elapsed
