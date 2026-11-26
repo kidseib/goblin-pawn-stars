@@ -1,0 +1,61 @@
+name: VirusTotal
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to scan
+        required: true
+        default: v1.4.0
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    name: Scan release ZIP
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require VirusTotal API key
+        env:
+          VT_API_KEY: ${{ secrets.VT_API_KEY }}
+        run: |
+          if [ -z "$VT_API_KEY" ]; then
+            echo "::error title=VirusTotal API key missing::Add a repository secret named VT_API_KEY (Settings → Secrets and variables → Actions), then re-run this workflow."
+            exit 1
+          fi
+
+      - name: Resolve release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_ID: ${{ github.event.release.id }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "release" ]; then
+            id="$RELEASE_ID"
+          else
+            id="$(gh release view "$TAG" --json databaseId --jq .databaseId)"
+          fi
+          if [ -z "$id" ] || [ "$id" = "null" ]; then
+            echo "::error::Could not resolve the release ID."
+            exit 1
+          fi
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+      - name: Submit release assets to VirusTotal
+        uses: cssnr/virustotal-action@v2
+        with:
+          vt_api_key: ${{ secrets.VT_API_KEY }}
+          release_id: ${{ steps.release.outputs.id }}
+          rate_limit: 4
+          sha256: true
+          update_release: true
+          release_heading: "🛡️ VirusTotal"
+          summary: true
