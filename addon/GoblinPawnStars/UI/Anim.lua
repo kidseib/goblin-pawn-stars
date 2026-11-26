@@ -118,15 +118,14 @@ function A.Spin(texture, seconds)
     return play(group)
 end
 
--- Move between two anchors. Each step has its own pose, and a missing
--- Translation API still lands the customer at the resting anchor.
+-- Alternate two stride poses across four translations, then stand still.
 function A.CustomerWalk(region, setPose)
     if customerSteps[region] == nil then
         customerSteps[region] = {}
-        for i = 1, 2 do
+        for i = 1, 4 do
             local group = groupFor(region)
             local step = animationFor(group, "Translation")
-            if not (set(step, "SetDuration", 0.19) and set(step, "SetOffset", 14, 0)) then
+            if not (set(step, "SetDuration", 0.20) and set(step, "SetOffset", 10, 0)) then
                 customerSteps[region] = false
                 break
             end
@@ -140,16 +139,16 @@ function A.CustomerWalk(region, setPose)
     end
 
     for _, group in ipairs(steps) do set(group, "Stop") end
-    local function finish() setPose(0) end
-    local function secondStep()
-        setPose(2)
-        if not play(steps[2]) then finish() end
+    local function walk(step)
+        if not steps[step] then
+            setPose(0)
+            return
+        end
+        setPose((step - 1) % 2 + 1, step)
+        if not set(steps[step], "SetScript", "OnFinished", function() walk(step + 1) end)
+            or not play(steps[step]) then
+            setPose(0)
+        end
     end
-    if not set(steps[1], "SetScript", "OnFinished", secondStep)
-        or not set(steps[2], "SetScript", "OnFinished", finish) then
-        finish()
-        return
-    end
-    setPose(1)
-    if not play(steps[1]) then finish() end
+    walk(1)
 end

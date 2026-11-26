@@ -25,7 +25,7 @@ ns.UI.Tabs.employees = {
         ui.wages = W.Text(header, "Wages: 0 gc per shop day", 10, T.colors.muted)
         ui.wages:SetPoint("TOPLEFT", 12, -30)
 
-        ui.autoButton = W.Button(header, "Auto-sell: on", 140, 26, function(self)
+        ui.autoButton = W.Button(header, "Auto-sell: on", 140, 26, function(_, self)
             local db = ns.DB.Get()
             db.settings.autoSell = not (db.settings.autoSell ~= false)
             self:SetLabel("Auto-sell: " .. (db.settings.autoSell and "on" or "off"))

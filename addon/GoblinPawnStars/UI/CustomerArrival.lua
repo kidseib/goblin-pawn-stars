@@ -33,8 +33,6 @@ function arrival.Paint(texture, customer, pose)
     return true
 end
 
-local stepOffsets = { [0] = 23, -5, 9 }
-
 local card
 local revision = 0
 local current
@@ -117,16 +115,16 @@ function arrival.Show(customer, preview)
         arrival.Refresh()
     end
     card.name:ClearAllPoints()
-    card.name:SetPoint("LEFT", animated and 76 or 44, 7)
+    card.name:SetPoint("LEFT", animated and 96 or 44, 7)
     card.name:SetPoint("RIGHT", -12, 7)
     card.name:SetText(customer.name)
     card.door:SetShown(animated)
     card.glint:SetShown(animated and (customer.rare or customer.regular) and true or false)
     card.actor:SetSize(animated and 48 or 30, animated and 48 or 30)
 
-    local function setPose(pose)
+    local function setPose(pose, step)
         if shownRevision ~= revision then return end
-        local offset = animated and stepOffsets[pose] or 8
+        local offset = animated and (step and (step - 1) * 10 + 1 or 41) or 8
         card.actor:ClearAllPoints()
         card.actor:SetPoint("BOTTOMLEFT", offset, 5)
         if not arrival.Paint(card.actor, customer, pose) then

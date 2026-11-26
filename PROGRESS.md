@@ -28,8 +28,10 @@ The Lua 5.1 check, diagnostics and mocked UI smoke test cover the arrival card's
 closed/open layout selection, queue count, click-through, Compact/Off modes and
 overlapping dismissal timers. The smoke test also covers the original toast
 fallback and the `/gps arrival` preview on an empty queue. The Forever client
-still needs a visual pass for
-the sprite textures, stride animation and card placement.
+still needs a visual pass for the sprite textures, stride animation and card placement.
+The mock drives the four stride steps and clicks the Settings controls through
+their OnClick scripts. Diagnostics cover the adjustable arrival interval and
+rescaling the active countdown.
 
 ## What exists
 

@@ -80,6 +80,81 @@ function __smoke()
         assert(message == "Test merchant walked into the shop.", "fallback toast missing")
     end)
 
+    attempt("customer portrait alternates stride poses", function()
+        local poses, translations = {}, 0
+        local actor = { CreateAnimationGroup = function()
+            return {
+                CreateAnimation = function(_, kind)
+                    assert(kind == "Translation")
+                    return {
+                        SetDuration = function(_, seconds) assert(seconds == 0.20) end,
+                        SetOffset = function(_, x, y) assert(x == 10 and y == 0) end,
+                    }
+                end,
+                SetScript = function(group, name, callback)
+                    assert(name == "OnFinished")
+                    group.finished = callback
+                end,
+                Play = function(group)
+                    translations = translations + 1
+                    group.finished()
+                end,
+            }
+        end }
+        __NS.Anim.CustomerWalk(actor, function(pose)
+            poses[#poses + 1] = tostring(pose)
+        end)
+        assert(translations == 4 and table.concat(poses) == "12120", "walk cycle did not finish standing")
+        __NS.Anim.CustomerWalk({}, function(pose)
+            assert(pose == 0, "missing animation API did not fall back to a standing portrait")
+        end)
+    end)
+
+    attempt("settings clicks update labels and values", function()
+        local UI, widgets = __NS.UI, __NS.Widgets
+        local db = __NS.DB.Scratch()
+        local buttons = {}
+        local makeButton = widgets.Button
+        __NS.db = db
+        widgets.Button = function(parent, label, ...)
+            local button = makeButton(parent, label, ...)
+            buttons[#buttons + 1] = button
+            return button
+        end
+        local ok, problem = pcall(function()
+            UI.Open()
+            UI.ShowTab("settings")
+            local function click(button)
+                button:GetScript("OnClick")(button, "LeftButton")
+                return button.label:GetText()
+            end
+            local fields = { "sound", "minimap", "autoCollect", "autoSell", "paused" }
+            for index, field in ipairs(fields) do
+                local before = db.settings[field]
+                local button = buttons[index]
+                assert(click(button) == (before and "Off" or "On"), field .. " label did not toggle")
+                assert(db.settings[field] == (not before), field .. " value did not toggle")
+                click(button)
+            end
+            for _, mode in ipairs({ "Compact", "Off", "Animated" }) do
+                assert(click(buttons[6]) == mode and db.settings.customerArrival == mode,
+                    "notification mode did not change to " .. mode)
+            end
+            db.shop.nextArrival = 40
+            for _, state in ipairs({ { "Fast", 20 }, { "Relaxed", 80 }, { "Normal", 40 } }) do
+                assert(click(buttons[7]) == state[1] and db.settings.arrivalPace == state[1],
+                    "arrival pace did not change to " .. state[1])
+                assert(db.shop.nextArrival == state[2], "active countdown was not adjusted")
+            end
+            assert(click(buttons[8]) == "−" and db.settings.scale == 0.95, "scale minus did not work")
+            assert(click(buttons[9]) == "+" and db.settings.scale == 1, "scale plus did not work")
+        end)
+        widgets.Button = makeButton
+        __NS.db = clone
+        UI.Refresh()
+        assert(ok, problem)
+    end)
+
     attempt("main window open", function() __NS.UI.Open() end)
     attempt("main window toggle", function() __NS.UI.Toggle(); __NS.UI.Toggle() end)
 

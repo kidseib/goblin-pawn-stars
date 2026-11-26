@@ -265,7 +265,8 @@ function C.Tick(dt)
     local customer = C.TrySpawn()
     if customer then
         local interval = ns.Shop.ArrivalInterval() * U.randomBetween(0.82, 1.3)
-        db.shop.nextArrival = math.max(15, interval)
+        local _, speed = ns.Shop.ArrivalPace()
+        db.shop.nextArrival = math.max(15 * speed, interval)
         C.NotifyArrival(customer)
     else
         db.shop.nextArrival = 20

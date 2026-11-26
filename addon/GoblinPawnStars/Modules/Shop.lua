@@ -69,10 +69,29 @@ function S.WaitingSlots()
     return math.max(2, math.floor(base + (S.Bonuses().waiting or 0) + 0.001))
 end
 
+local arrivalSpeeds = { Fast = 0.5, Normal = 1, Relaxed = 2 }
+
+function S.ArrivalPace()
+    local pace = DB.Get().settings.arrivalPace
+    if arrivalSpeeds[pace] then return pace, arrivalSpeeds[pace] end
+    return "Normal", 1
+end
+
+function S.SetArrivalPace(pace)
+    local speed = arrivalSpeeds[pace]
+    if not speed then return end
+    local db = DB.Get()
+    local oldInterval = S.ArrivalInterval()
+    db.settings.arrivalPace = pace
+    local remaining = tonumber(db.shop.nextArrival) or oldInterval
+    db.shop.nextArrival = math.max(0, remaining * S.ArrivalInterval() / oldInterval)
+end
+
 function S.ArrivalInterval()
     local tier = S.TierInfo()
     local interval = (tier.arrival or 110) - (S.Bonuses().arrival or 0)
-    return U.clamp(interval, 8, 300)
+    local _, speed = S.ArrivalPace()
+    return U.clamp(interval, 8, 300) * speed
 end
 
 function S.BaseBudget()

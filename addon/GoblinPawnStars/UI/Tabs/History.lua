@@ -26,7 +26,7 @@ ns.UI.Tabs.history = {
         local filterButtons = {}
         local offset = 0
         for _, filter in ipairs(FILTERS) do
-            local button = W.Button(parent, filter.label, 96, 24, function(self)
+            local button = W.Button(parent, filter.label, 96, 24, function(_, self)
                 ui.filter = filter.key
                 for key, other in pairs(filterButtons) do
                     other:SetTone(key == filter.key and "gold" or "neutral")

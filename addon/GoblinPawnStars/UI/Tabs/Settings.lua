@@ -19,10 +19,12 @@ ns.UI.Tabs.settings = {
 
         local options = W.Panel(parent, "panel")
         options:SetPoint("TOPLEFT", 0, 0)
-        options:SetSize(380, 348)
+        options:SetSize(380, 378)
 
         local optionsTitle = W.Text(options, "OPTIONS", 10, T.colors.goldDim)
         optionsTitle:SetPoint("TOPLEFT", 12, -10)
+
+        local toggles = {}
 
         local function toggle(label, getter, setter, offset)
             local row = W.Create(options, "Frame")
@@ -34,14 +36,17 @@ ns.UI.Tabs.settings = {
             name:SetPoint("LEFT", 0, 0)
 
             local value = getter()
-            local button = W.Button(row, value and "On" or "Off", 64, 22, function(self)
+            local button = W.Button(row, value and "On" or "Off", 64, 22, function()
                 local newValue = not getter()
                 setter(newValue)
-                self:SetLabel(newValue and "On" or "Off")
-                self:SetTone(newValue and "primary" or "neutral")
+                ui.Refresh()
             end, value and "primary" or "neutral")
             button:SetPoint("RIGHT", 0, 0)
-            return row, button
+            toggles[#toggles + 1] = function()
+                local enabled = getter()
+                button:SetLabel(enabled and "On" or "Off")
+                button:SetTone(enabled and "primary" or "neutral")
+            end
         end
 
         toggle("Sound effects", function()
@@ -82,15 +87,24 @@ ns.UI.Tabs.settings = {
             return nextArrivalMode[value] and value or "Animated"
         end
 
-        local arrivalLabel = W.Text(options, "Customer arrivals", 11, T.colors.parchment)
+        local arrivalLabel = W.Text(options, "Arrival notification", 11, T.colors.parchment)
         arrivalLabel:SetPoint("TOPLEFT", 12, -236)
-        local arrivalButton = W.Button(options, arrivalMode(), 90, 22, function(self)
+        local arrivalButton = W.Button(options, arrivalMode(), 90, 22, function(_, self)
             local value = nextArrivalMode[arrivalMode()]
             ns.DB.Get().settings.customerArrival = value
             if ns.UI.CustomerArrival then ns.UI.CustomerArrival.Hide() end
             self:SetLabel(value)
         end, "neutral")
         arrivalButton:SetPoint("TOPRIGHT", -12, -232)
+
+        local nextPace = { Normal = "Fast", Fast = "Relaxed", Relaxed = "Normal" }
+        local paceLabel = W.Text(options, "Customer arrival pace", 11, T.colors.parchment)
+        paceLabel:SetPoint("TOPLEFT", 12, -266)
+        local paceButton = W.Button(options, ns.Shop.ArrivalPace(), 90, 22, function()
+            ns.Shop.SetArrivalPace(nextPace[ns.Shop.ArrivalPace()])
+            ns.UI.Refresh()
+        end, "neutral")
+        paceButton:SetPoint("TOPRIGHT", -12, -262)
 
         local scaleLabel = W.Text(options, "Window scale", 11, T.colors.parchment)
         scaleLabel:SetPoint("TOPLEFT", 12, -208)
@@ -124,25 +138,25 @@ ns.UI.Tabs.settings = {
             end
             ns.UI.Refresh()
         end, "gold")
-        scan:SetPoint("TOPLEFT", 12, -262)
+        scan:SetPoint("TOPLEFT", 12, -292)
 
         local diag = W.Button(options, "Diagnostics", 110, 24, function()
             ns.Diagnostics.Report()
             ns.UI.Toast("Diagnostics printed to chat.")
         end, "neutral")
-        diag:SetPoint("TOPLEFT", 126, -262)
+        diag:SetPoint("TOPLEFT", 126, -292)
 
         local welcome = W.Button(options, "Welcome", 110, 24, function()
             if ns.UI.Welcome then ns.UI.Welcome.Show() end
         end, "neutral")
-        welcome:SetPoint("TOPLEFT", 240, -262)
+        welcome:SetPoint("TOPLEFT", 240, -292)
 
         local about = W.Text(options,
             "|cff9c8a5aWorld of Warcraft: Forever · Interface 16001 · Created by ErrorSeib & Buffy (Codebuff).\n" ..
             "All currency, items and customers are fictional. Nothing here touches your real bags, gold or the game world.|r",
             9, T.colors.dim)
-        about:SetPoint("TOPLEFT", 12, -294)
-        about:SetPoint("TOPRIGHT", -12, -294)
+        about:SetPoint("TOPLEFT", 12, -324)
+        about:SetPoint("TOPRIGHT", -12, -324)
         about:SetHeight(46)
         about:SetWordWrap(true)
 
@@ -203,7 +217,7 @@ ns.UI.Tabs.settings = {
         ui.status:SetHeight(24)
         ui.status:SetWordWrap(true)
 
-        local resetButton = W.Button(backup, "Reset all progress", 170, 28, function(self)
+        local resetButton = W.Button(backup, "Reset all progress", 170, 28, function(_, self)
             if not resetArmed then
                 resetArmed = true
                 self:SetLabel("Click again to confirm")
@@ -230,6 +244,8 @@ ns.UI.Tabs.settings = {
         version:SetJustifyH("RIGHT")
 
         function ui.Refresh()
+            for _, refreshToggle in ipairs(toggles) do refreshToggle() end
+            paceButton:SetLabel(ns.Shop.ArrivalPace())
             arrivalButton:SetLabel(arrivalMode())
             scaleValue:SetText(math.floor((ns.DB.Get().settings.scale or 1) * 100 + 0.5) .. "%")
         end

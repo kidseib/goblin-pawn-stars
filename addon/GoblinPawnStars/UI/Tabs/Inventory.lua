@@ -36,7 +36,7 @@ ns.UI.Tabs.inventory = {
             ui.Refresh()
         end)
 
-        local filterButton = W.Button(parent, "Filter: All", 150, 24, function(self)
+        local filterButton = W.Button(parent, "Filter: All", 150, 24, function(_, self)
             local index = 1
             for position, key in ipairs(categories) do
                 if key == ui.category then index = position end
@@ -48,7 +48,7 @@ ns.UI.Tabs.inventory = {
         end, "neutral")
         filterButton:SetPoint("TOPLEFT", 218, 0)
 
-        local sortButton = W.Button(parent, "Sort: Value", 130, 24, function(self)
+        local sortButton = W.Button(parent, "Sort: Value", 130, 24, function(_, self)
             local order = { "value", "rarity", "name", "recent", "count" }
             local labels = { value = "Value", rarity = "Rarity", name = "Name", recent = "Recent", count = "Stack" }
             local index = 1

@@ -138,6 +138,23 @@ function D.Run()
     end)
 
     -----------------------------------------------------------------------
+    test("arrival pace adjusts the interval and active countdown", function()
+        withScratch(nil, function(scratch)
+            scratch.settings.arrivalPace = nil
+            local normal = ns.Shop.ArrivalInterval()
+            scratch.shop.nextArrival = 40
+            ns.Shop.SetArrivalPace("Fast")
+            expectEqual(ns.Shop.ArrivalInterval(), normal / 2, "Fast interval")
+            expectEqual(scratch.shop.nextArrival, 20, "Fast countdown")
+            ns.Shop.SetArrivalPace("Relaxed")
+            expectEqual(ns.Shop.ArrivalInterval(), normal * 2, "Relaxed interval")
+            expectEqual(scratch.shop.nextArrival, 80, "Relaxed countdown")
+            ns.Shop.SetArrivalPace("Normal")
+            expectEqual(scratch.shop.nextArrival, 40, "Normal countdown")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
     test("customers need stock and stay within budget", function()
         withScratch(nil, function(scratch)
             local customer = ns.Customers.TrySpawn()
