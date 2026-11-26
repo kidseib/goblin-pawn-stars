@@ -69,8 +69,10 @@ local function handler(message)
                 db.stats.customers, ns.Util.clock(elapsed)))
         end
         local autoSell = db.settings.autoSell ~= false and (tonumber(db.employees.salesperson) or 0) > 0
-        ns.Print(string.format("Arrival notification: %s · Salesperson auto-sell: %s",
-            db.settings.customerArrival or "Animated", autoSell and "On" or "Off"))
+        local seller = db.settings.questAutoSell == true and "Questing"
+            or (autoSell and "Salesperson" or "Off")
+        ns.Print(string.format("Arrival notification: %s · Auto-sell: %s",
+            db.settings.customerArrival or "Animated", seller))
         return
     end
 

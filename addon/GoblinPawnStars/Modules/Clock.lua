@@ -68,7 +68,7 @@ C.events = ns.Compat.EventFrame({
         db.lastSession = { login = ns.Util.now(), version = ns.VERSION }
         local firstVisit = (db.stats.sales or 0) == 0
         local delay = ns.Shop.ArrivalInterval() * (firstVisit and 0.28 or 0.5)
-        db.shop.nextArrival = math.max(8, delay)
+        db.shop.nextArrival = math.max(16, delay)
         ns.Wholesaler.GrantStarter()
         ns.Shop.RefreshDailyRequest()
         ns.Achievements.Check()

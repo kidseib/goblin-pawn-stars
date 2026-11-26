@@ -305,7 +305,7 @@ function J.TryLoad(force)
     -- Do not let a stale timer from the saved run fire a customer instantly on
     -- a later login. No elapsed time is credited here; this only schedules the
     -- next ordinary arrival.
-    fresh.shop.nextArrival = math.max(8, tonumber(fresh.shop.nextArrival) or 8)
+    fresh.shop.nextArrival = math.max(16, tonumber(fresh.shop.nextArrival) or 16)
     loaded = true
     J.status.error = nil
     J.status.savedAt = journalAt

@@ -142,6 +142,8 @@ function D.Run()
         withScratch(nil, function(scratch)
             scratch.settings.arrivalPace = nil
             local normal = ns.Shop.ArrivalInterval()
+            local oldNormal = U.clamp((ns.Shop.TierInfo().arrival or 110) - (ns.Shop.Bonuses().arrival or 0), 8, 300)
+            expectEqual(normal, oldNormal * 2, "Normal wait was not doubled")
             scratch.shop.nextArrival = 40
             ns.Shop.SetArrivalPace("Fast")
             expectEqual(ns.Shop.ArrivalInterval(), normal / 2, "Fast interval")
@@ -151,6 +153,18 @@ function D.Run()
             expectEqual(scratch.shop.nextArrival, 80, "Relaxed countdown")
             ns.Shop.SetArrivalPace("Normal")
             expectEqual(scratch.shop.nextArrival, 40, "Normal countdown")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("legacy arrival countdown is doubled only once", function()
+        withScratch(nil, function(scratch)
+            scratch.shop.nextArrival = 17
+            scratch.shop.arrivalTimingVersion = nil
+            expect(ns.DB.Import(ns.DB.Export(), true), "legacy backup failed to import")
+            expectEqual(ns.DB.Get().shop.nextArrival, 34, "legacy countdown")
+            expect(ns.DB.Import(ns.DB.Export(), true), "current backup failed to import")
+            expectEqual(ns.DB.Get().shop.nextArrival, 34, "countdown doubled twice")
         end)
     end)
 
@@ -466,6 +480,37 @@ function D.Run()
             local after = ns.Customers.Tick(13)
             expectEqual(scratch.stats.autoSales, 1, "salesperson sold without a customer")
             expect(after == nil, "a customer appeared with no stock")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("questing auto-sell pays a third without a salesperson", function()
+        withScratch(nil, function(scratch)
+            scratch.settings.autoSell = false
+            scratch.shop.nextArrival = 999
+            scratch.shop.request = {
+                day = U.today(), category = "cloth", label = "Cloth",
+                bonus = 0.2, fulfilled = false,
+            }
+            ns.Inventory.Add({ id = 2589, name = "Linen Cloth", category = "cloth", value = 800 })
+            local customer = ns.Customers.TrySpawn()
+            expect(customer, "customer failed to queue")
+            customer.maxPay = 300
+            local credits = scratch.credits
+
+            ns.Customers.Tick(60)
+            expectEqual(scratch.credits, credits, "quest sale ran with the toggle off")
+            expectEqual(#ns.Customers.Waiting(), 1, "customer disappeared before enabling questing")
+            scratch.settings.questAutoSell = true
+            ns.Customers.Tick(60)
+
+            expectEqual(scratch.credits - credits, 120, "quest sale price or daily bonus")
+            expectEqual(scratch.stats.autoSales, 1, "quest sale did not record an automatic sale")
+            expectEqual(scratch.stats.autoRevenue, 120, "quest sale did not record revenue")
+            expectEqual(ns.Inventory.Count(), 0, "quest sale did not consume stock")
+            expectEqual(#ns.Customers.Waiting(), 0, "quest sale did not serve the queued customer")
+            ns.Customers.Tick(60)
+            expectEqual(scratch.credits - credits, 120, "quest sale created credits without stock")
         end)
     end)
 

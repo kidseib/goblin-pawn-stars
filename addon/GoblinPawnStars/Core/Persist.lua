@@ -85,7 +85,8 @@ local function defaults()
         shop = {
             waiting = {},
             current = nil,
-            nextArrival = 90,
+            nextArrival = 180,
+            arrivalTimingVersion = 2,
             lastArrivalAt = 0,
             request = nil,
             requestDay = nil,
@@ -138,6 +139,7 @@ local function defaults()
             bagHintShown = false,
             starterGranted = false,
             autoSell = true,
+            questAutoSell = false,
             paused = false,
             macroJournal = true,
             journalHintShown = false,
@@ -155,7 +157,11 @@ end
 ---------------------------------------------------------------------------
 
 local function normalize(db)
+    local oldShop = type(db) == "table" and db.shop
+    local oldCountdown = type(oldShop) == "table" and not oldShop.arrivalTimingVersion
+        and tonumber(oldShop.nextArrival)
     db = U.applyDefaults(db, defaults())
+    if oldCountdown then db.shop.nextArrival = math.max(0, oldCountdown * 2) end
     db.version = SCHEMA_VERSION
 
     -- Arrays must stay arrays even after a broken/empty import.

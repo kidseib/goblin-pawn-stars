@@ -207,6 +207,10 @@ function __smoke()
             end
             assert(click(buttons[8]) == "−" and db.settings.scale == 0.95, "scale minus did not work")
             assert(click(buttons[9]) == "+" and db.settings.scale == 1, "scale plus did not work")
+            assert(click(buttons[10]) == "On" and db.settings.questAutoSell == true,
+                "questing toggle did not turn on")
+            assert(click(buttons[10]) == "Off" and db.settings.questAutoSell == false,
+                "questing toggle did not turn off")
         end)
         widgets.Button = makeButton
         __NS.db = clone

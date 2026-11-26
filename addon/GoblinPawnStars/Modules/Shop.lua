@@ -69,16 +69,16 @@ function S.WaitingSlots()
     return math.max(2, math.floor(base + (S.Bonuses().waiting or 0) + 0.001))
 end
 
-local arrivalSpeeds = { Fast = 0.5, Normal = 1, Relaxed = 2 }
+local arrivalMultipliers = { Fast = 1, Normal = 2, Relaxed = 4 }
 
 function S.ArrivalPace()
     local pace = DB.Get().settings.arrivalPace
-    if arrivalSpeeds[pace] then return pace, arrivalSpeeds[pace] end
-    return "Normal", 1
+    if arrivalMultipliers[pace] then return pace, arrivalMultipliers[pace] end
+    return "Normal", arrivalMultipliers.Normal
 end
 
 function S.SetArrivalPace(pace)
-    local speed = arrivalSpeeds[pace]
+    local speed = arrivalMultipliers[pace]
     if not speed then return end
     local db = DB.Get()
     local oldInterval = S.ArrivalInterval()

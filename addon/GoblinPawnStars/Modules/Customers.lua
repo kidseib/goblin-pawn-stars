@@ -222,10 +222,9 @@ end
 
 local function autoSellTick(dt)
     local db = DB.Get()
-    if db.settings.autoSell == false then return end
-
+    local questing = db.settings.questAutoSell == true
     local level = tonumber(db.employees.salesperson) or 0
-    if level <= 0 then return end
+    if not questing and (db.settings.autoSell == false or level <= 0) then return end
     if db.shop.current then return end
     if ns.Compat.InCombat() then
         autoTimer = math.max(autoTimer, 3)
@@ -240,13 +239,14 @@ local function autoSellTick(dt)
     if autoTimer > 0 then return end
 
     local customer = db.shop.waiting[1]
-    local interval = math.max(6, 12 - (level - 1) * 1.5)
-    local margin = U.clamp(0.72 + (ns.Shop.Bonuses().autosale or 0), 0.72, 0.94)
-    local ok, price, itemName = ns.Negotiation.AutoSell(customer, margin)
+    local interval = questing and 12 or math.max(6, 12 - (level - 1) * 1.5)
+    local margin = not questing and U.clamp(0.72 + (ns.Shop.Bonuses().autosale or 0), 0.72, 0.94)
+    local ok, price, itemName = ns.Negotiation.AutoSell(customer, margin, questing)
     if ok then
         autoTimer = interval
         if ns.UI and ns.UI.IsOpen and ns.UI.IsOpen() and ns.UI.Toast then
-            ns.UI.Toast(string.format("Your salesperson sold %s for %s gc.",
+            local seller = questing and "Questing auto-sell" or "Your salesperson"
+            ns.UI.Toast(string.format("%s sold %s for %s gc.", seller,
                 itemName or "an item", U.comma(price or 0)))
         end
     else
@@ -258,10 +258,10 @@ function C.Tick(dt)
     local db = DB.Get()
     if db.settings.paused == true then return end
 
-    -- Run the salesperson on every tick, not only when a new arrival is due.
+    -- Run auto-selling on every tick, not only when a new arrival is due.
     autoSellTick(dt)
 
-    db.shop.nextArrival = math.max(0, (db.shop.nextArrival or 30) - dt)
+    db.shop.nextArrival = math.max(0, (db.shop.nextArrival or 60) - dt)
     if db.shop.nextArrival > 0 then return end
 
     -- Hold a due arrival until the shop can accept it. Stocking an item or

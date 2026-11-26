@@ -89,7 +89,8 @@ local function completeSale(price, method)
         request.fulfilled = true
     end
 
-    price = math.max(1, U.floor(price * (1 + requestBonus)))
+    local bonusAdjustedPrice = price * (1 + requestBonus)
+    price = math.max(1, U.floor(method == "questsale" and bonusAdjustedPrice / 3 or bonusAdjustedPrice))
 
     ns.Inventory.Remove(customer.itemUid, 1)
 
@@ -120,7 +121,8 @@ local function completeSale(price, method)
 
     if ns.Throughput then ns.Throughput.RecordSale(price) end
 
-    local reputation = method == "autosale" and 1 or (customer.rare and 6 or 3)
+    local automated = method == "autosale" or method == "questsale"
+    local reputation = automated and 1 or (customer.rare and 6 or 3)
     ns.Shop.AddReputation(reputation)
 
     ns.Customers.RecordVisit(customer, "sale", string.format(
@@ -141,6 +143,7 @@ local function completeSale(price, method)
         detail = string.format("Market value %s · %s %s",
             U.comma(baseValue),
             method == "counter" and "counteroffer"
+                or (method == "questsale" and "questing auto-sale")
                 or (method == "autosale" and "salesperson sale" or "accepted offer"),
             requestBonus > 0 and "(daily request bonus)" or ""),
     })
@@ -155,10 +158,9 @@ end
 -- Player actions
 ---------------------------------------------------------------------------
 
--- Called by the salesperson on the waiting queue. The price is a discount to
--- live market value, never to a non-existent sale, and the item is consumed by
--- completeSale just like a counter sale.
-function N.AutoSell(customer, margin)
+-- Both automatic modes consume an item through completeSale. The salesperson
+-- discounts live market value. Questing takes a third of the maximum offer.
+function N.AutoSell(customer, margin, questing)
     local db = DB.Get()
     if not customer or db.shop.current then return false end
 
@@ -176,13 +178,17 @@ function N.AutoSell(customer, margin)
     if not queued then return false end
 
     local value = ns.Market.Value(record)
-    local price = math.max(1, U.floor(value * U.clamp(tonumber(margin) or 0.76, 0.5, 0.95)))
-    if customer.maxPay and customer.maxPay > 0 and price > customer.maxPay then
-        price = math.max(1, math.floor(customer.maxPay))
+    local maxPay = tonumber(customer.maxPay)
+    local price
+    if questing then
+        price = maxPay and maxPay > 0 and maxPay or value
+    else
+        price = math.max(1, U.floor(value * U.clamp(tonumber(margin) or 0.76, 0.5, 0.95)))
+        if maxPay and maxPay > 0 then price = math.min(price, math.max(1, math.floor(maxPay))) end
     end
 
     db.shop.current = customer
-    local soldPrice, itemName = completeSale(price, "autosale")
+    local soldPrice, itemName = completeSale(price, questing and "questsale" or "autosale")
     if not soldPrice then
         db.shop.current = nil
         return false

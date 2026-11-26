@@ -19,7 +19,7 @@ ns.UI.Tabs.settings = {
 
         local options = W.Panel(parent, "panel")
         options:SetPoint("TOPLEFT", 0, 0)
-        options:SetSize(380, 378)
+        options:SetSize(380, 410)
 
         local optionsTitle = W.Text(options, "OPTIONS", 10, T.colors.goldDim)
         optionsTitle:SetPoint("TOPLEFT", 12, -10)
@@ -128,6 +128,12 @@ ns.UI.Tabs.settings = {
         local plus = W.Button(options, "+", 30, 22, function() applyScale(0.05) end, "neutral")
         plus:SetPoint("TOPLEFT", 286, -204)
 
+        toggle("Questing auto-sell (1/3 max offer)", function()
+            return ns.DB.Get().settings.questAutoSell == true
+        end, function(value)
+            ns.DB.Get().settings.questAutoSell = value
+        end, -286)
+
         local scan = W.Button(options, "Scan bags", 110, 24, function()
             local added, deferred = ns.Loot.Scan(true)
             if added > 0 then
@@ -139,25 +145,25 @@ ns.UI.Tabs.settings = {
             end
             ns.UI.Refresh()
         end, "gold")
-        scan:SetPoint("TOPLEFT", 12, -292)
+        scan:SetPoint("TOPLEFT", 12, -322)
 
         local diag = W.Button(options, "Diagnostics", 110, 24, function()
             ns.Diagnostics.Report()
             ns.UI.Toast("Diagnostics printed to chat.")
         end, "neutral")
-        diag:SetPoint("TOPLEFT", 126, -292)
+        diag:SetPoint("TOPLEFT", 126, -322)
 
         local welcome = W.Button(options, "Welcome", 110, 24, function()
             if ns.UI.Welcome then ns.UI.Welcome.Show() end
         end, "neutral")
-        welcome:SetPoint("TOPLEFT", 240, -292)
+        welcome:SetPoint("TOPLEFT", 240, -322)
 
         local about = W.Text(options,
             "|cff9c8a5aWorld of Warcraft: Forever · Interface 16001 · Created by ErrorSeib & Buffy (Codebuff).\n" ..
             "All currency, items and customers are fictional. Nothing here touches your real bags, gold or the game world.|r",
             9, T.colors.dim)
-        about:SetPoint("TOPLEFT", 12, -324)
-        about:SetPoint("TOPRIGHT", -12, -324)
+        about:SetPoint("TOPLEFT", 12, -354)
+        about:SetPoint("TOPRIGHT", -12, -354)
         about:SetHeight(46)
         about:SetWordWrap(true)
 

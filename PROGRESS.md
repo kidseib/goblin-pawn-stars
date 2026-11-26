@@ -32,6 +32,13 @@ animations and framing, and the brighter negotiation panel. The clock smoke
 check verifies that a due arrival waits for stock, combat to end, or a free
 slot. The header and `/gps arrivals` show the active blocker.
 
+## Arrival pacing and questing auto-sell
+
+The mock diagnostics verify doubled arrival intervals, one-time migration of
+the pending countdown, and a questing sale that pays a third of the maximum
+manual offer and consumes stock. The UI smoke test clicks the questing toggle.
+The new pacing and toggle still need a live-client pass.
+
 ## What exists
 
 * 55 Lua files, 12,976 lines, loaded by a single TOC at Interface 16001.
