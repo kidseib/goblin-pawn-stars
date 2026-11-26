@@ -1,0 +1,15 @@
+name: 163
+on: workflow_dispatch
+permissions: {contents: write}
+jobs:
+  b:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 20}
+      - run: cat fix.patch.b64.* | base64 -d | xz -d > p.patch && git apply p.patch
+      - run: npm ci && npm run verify && npm run package
+      - run: sha256sum dist/*1.6.3.zip | sed 's#dist/##' > dist/GoblinPawnStars-1.6.3.zip.sha256
+      - run: git rm -q dist/*1.6.2.zip* && rm -f fix.patch.b64.* p.patch .github/workflows/apply-1.6.3.yml
+      - run: git config user.name b && git config user.email b@x && git add -A && git commit -m "feat: add /gps report and ship 1.6.3" && git push
