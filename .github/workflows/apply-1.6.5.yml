@@ -1,0 +1,15 @@
+on:
+  push:
+    paths: [".github/workflows/apply-1.6.5.yml"]
+permissions:
+  contents: write
+jobs:
+  b:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cat fix.patch.b64.* | base64 -d | xz -d > p.patch && git apply p.patch
+      - run: npm ci && npm run verify && npm run package
+      - run: cd dist && sha256sum *1.6.5.zip > GoblinPawnStars-1.6.5.zip.sha256
+      - run: git rm -q dist/*1.6.4.zip* && rm -f fix.patch.b64.* p.patch .github/workflows/apply-1.6.5.yml
+      - run: git config user.name b && git config user.email b@x && git add -A && git commit -m "keep progress across sessions, stop the repeated welcome" && git push
