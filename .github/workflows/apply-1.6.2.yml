@@ -20,7 +20,7 @@ jobs:
 
       - name: Apply the queued patch
         run: |
-          base64 -d fix.patch.b64 | gunzip > "$RUNNER_TEMP/fix.patch"
+          cat fix.patch.b64.* | base64 -d | xz -d > "$RUNNER_TEMP/fix.patch"
           git apply --check "$RUNNER_TEMP/fix.patch"
           git apply "$RUNNER_TEMP/fix.patch"
 
@@ -42,7 +42,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm -q dist/GoblinPawnStars-1.6.1.zip
-          git rm -q .github/workflows/apply-1.6.2.yml fix.patch.b64
+          git rm -q .github/workflows/apply-1.6.2.yml
+          git rm -q fix.patch.b64.*
           git add -A
           git commit -m "fix: restore macro-journal saves and ship 1.6.2"
           git push origin HEAD:main
