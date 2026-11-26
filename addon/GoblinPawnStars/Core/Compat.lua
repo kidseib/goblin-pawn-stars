@@ -366,10 +366,24 @@ end
 
 function C.MacroCount()
     local fn = macroFunction("GetNumMacros")
-    if not fn then return nil end
-    local ok, account, character = pcall(fn)
-    if not ok then return nil end
-    return (tonumber(account) or 0) + (tonumber(character) or 0)
+    if fn then
+        local ok, account, character = pcall(fn)
+        if ok and tonumber(account) then
+            return (tonumber(account) or 0) + (tonumber(character) or 0)
+        end
+    end
+    -- No usable GetNumMacros: count through GetMacroInfo, which every client has.
+    -- Reporting "unavailable" here used to switch the whole journal off.
+    local info = macroFunction("GetMacroInfo")
+    if not info then return nil end
+    local count = 0
+    for index = 1, 40 do
+        local ok, name = pcall(info, index)
+        if not ok then return nil end
+        if name == nil then break end
+        count = count + 1
+    end
+    return count
 end
 
 function C.MacroInfo(index)
@@ -377,6 +391,9 @@ function C.MacroInfo(index)
     if not fn then return nil end
     local ok, name, icon, body = pcall(fn, index)
     if not ok or not name then return nil end
+    -- Some builds answer with only (name, body), which puts the body in the icon
+    -- slot. Reading it there beats treating every journal chunk as unreadable.
+    if body == nil and type(icon) == "string" then return name, icon end
     return name, body, icon
 end
 

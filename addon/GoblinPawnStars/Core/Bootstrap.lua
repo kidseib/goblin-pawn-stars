@@ -8,7 +8,7 @@
 local ADDON, ns = ...
 
 ns.ADDON = ADDON
-ns.VERSION = "1.6.4"
+ns.VERSION = "1.6.5"
 ns.CREDIT = "ErrorSeib & Buffy (Codebuff)"
 ns.INTERFACE = 16001
 ns.PREFIX = "|cff7bd66bGoblin Pawn Stars|r: "

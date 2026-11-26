@@ -1,6 +1,6 @@
 # PROGRESS
 
-## Current state — v1.6.4
+## Current state — v1.6.5
 
 Phases 1–4 are implemented. Phase 5 (optional multiplayer) is deliberately not
 started. The addon is feature-complete for a single-player shop simulation and is
@@ -19,7 +19,12 @@ coin's ring, background and waiting-customer pip. **v1.6.3** adds `/gps report`
 last eight Lua errors for it, and lowers the tier-3 shop to 5,000 gc. **v1.6.4** makes
 the macro journal crash-safe: two alternating generations, a read-back check on every
 chunk, a commit header written last, and a regression test that fails a write halfway
-and at the commit step and still restores the previous run.
+and at the commit step and still restores the previous run. **v1.6.5** fixes progress
+vanishing on every logout and the welcome screen reappearing: SavedVariables handed over
+late are adopted instead of overwritten with defaults, a save refuses to replace a
+journal the session has not read, the first empty read is retried before it is treated
+as a fresh install, and the journal starts saving ten seconds into a session. 37 tests
+pass.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
@@ -67,7 +72,7 @@ Commands, run from the repository root:
 
 ```
 npm run check              -> Lua 5.1 syntax OK: 55 files, 12,976 lines; TOC OK
-npm test                   -> 34 passed, 0 failed; UI smoke: all tabs and overlays
+npm test                   -> 37 passed, 0 failed; UI smoke: all tabs and overlays
 node tools/sim_30min.js    -> scripted 30-minute progression + 10-minute idle probe
 ```
 

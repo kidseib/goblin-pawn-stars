@@ -549,6 +549,8 @@ function D.Run()
         original.regular.visits = 1
         original.regular.unlocked = true
         ns.db = original
+        -- A save only runs once the journal state is known, exactly as after login.
+        ns.Journal.TryLoad(true)
 
         local ok, status = ns.Journal.SaveNow()
         expect(ok, "journal save failed: " .. tostring(status))
@@ -601,6 +603,7 @@ function D.Run()
         db.tier = 2
         db.stats.sales = 3
         ns.db = db
+        ns.Journal.TryLoad(true)
         expect(ns.Journal.SaveNow(), "seed save failed: " .. tostring(ns.Journal.status.error))
 
         local first = ns.Journal.status.generation
@@ -701,6 +704,7 @@ function D.Run()
         db.credits = 6789
         db.stats.sales = 5
         ns.db = db
+        ns.Journal.TryLoad(true)
         expect(ns.Journal.SaveNow(), "could not seed a save")
 
         -- Rewrite the committed generation as the 1.6.3 single-generation format.
@@ -739,6 +743,110 @@ function D.Run()
             end
         end
         expectEqual(legacyLeft, 0, "pre-1.6.4 chunks were left behind after the upgrade save")
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __clearMacros()
+    end)
+
+    -----------------------------------------------------------------------
+    test("SavedVariables handed over late are adopted, not overwritten", function()
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+        -- What a session looks like before the client hands over its table.
+        local session = ns.DB.Scratch()
+        ns.db = session
+
+        local stored = ns.DB.Scratch()
+        -- Scratch() flags the module; this test needs the live adoption path.
+        ns.DB.scratch = false
+        stored.credits = 9001
+        stored.stats.sales = 42
+        stored.settings.welcomeVersion = ns.VERSION
+        stored.savedAt = 12345
+        _G.GoblinPawnStarsDB = stored
+
+        expect(ns.DB.Sync(), "a late SavedVariables table was not adopted")
+        expectEqual(ns.DB.Get().credits, 9001, "late SavedVariables were ignored")
+        expectEqual(ns.DB.Get().stats.sales, 42, "late SavedVariables lost stats")
+        expectEqual(ns.DB.Get().settings.welcomeVersion, ns.VERSION,
+            "the seen-splash flag did not survive")
+
+        ns.DB.Save(true)
+        expectEqual(_G.GoblinPawnStarsDB.credits, 9001,
+            "a save wrote defaults over the table the client handed over")
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+    end)
+
+    -----------------------------------------------------------------------
+    test("a save never overwrites a journal the session could not read", function()
+        if type(__clearMacros) ~= "function" or type(MACRO_STORE) ~= "table" then return end
+        __clearMacros()
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+
+        local db = ns.DB.Scratch()
+        db.settings.macroJournal = true
+        db.credits = 777
+        db.stats.sales = 5
+        ns.db = db
+        expect(ns.Journal.SaveNow(), "seed save failed: " .. tostring(ns.Journal.status.error))
+
+        -- New session whose macro list is not answering yet. The first autosave
+        -- must refuse instead of writing fresh defaults over that save.
+        local session = ns.DB.Scratch()
+        session.settings.macroJournal = true
+        ns.db = session
+        local originalCount = ns.Compat.MacroCount
+        ns.Compat.MacroCount = function() return nil end
+        ns.Journal.TryLoad(true)
+        local ok = ns.Journal.SaveNow()
+        ns.Compat.MacroCount = originalCount
+        expect(not ok, "a save replaced a journal the session could not read")
+        expect(ns.Journal.status.error ~= nil, "the refused save reported no error")
+
+        local fresh = ns.DB.Scratch()
+        fresh.settings.macroJournal = true
+        ns.db = fresh
+        expect(ns.Journal.TryLoad(true), "the last good journal was lost: " ..
+            tostring(ns.Journal.status.error))
+        expectEqual(ns.DB.Get().credits, 777, "the refused save destroyed the last good journal")
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __clearMacros()
+    end)
+
+    -----------------------------------------------------------------------
+    test("a landed macro write counts even without a return value", function()
+        if type(__clearMacros) ~= "function" or type(MACRO_STORE) ~= "table" then return end
+        __clearMacros()
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+
+        local db = ns.DB.Scratch()
+        db.settings.macroJournal = true
+        db.credits = 432
+        db.stats.sales = 2
+        ns.db = db
+
+        local originalCreate = ns.Compat.CreateMacro
+        ns.Compat.CreateMacro = function(name, icon, body)
+            originalCreate(name, icon, body)
+            return nil
+        end
+        local ok, status = ns.Journal.SaveNow()
+        ns.Compat.CreateMacro = originalCreate
+        expect(ok, "a write that landed was reported as a failure: " .. tostring(status))
+
+        local fresh = ns.DB.Scratch()
+        fresh.settings.macroJournal = true
+        ns.db = fresh
+        expect(ns.Journal.TryLoad(true), "the save could not be read back: " ..
+            tostring(ns.Journal.status.error))
+        expectEqual(ns.DB.Get().credits, 432, "the save lost credits")
 
         ns.db = real
         _G.GoblinPawnStarsDB = realGlobal

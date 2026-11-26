@@ -38,6 +38,11 @@ local STEPS = {
 }
 
 local WHATS_NEW = {
+    ["1.6.5"] = {
+        "Progress and settings survive a logout again, so this screen stops reappearing.",
+        "A save can no longer overwrite a good one before the macro list is ready.",
+        "Saving starts ten seconds in, so a short session still keeps its progress.",
+    },
     ["1.6.4"] = {
         "Saving is crash-safe: a failed or interrupted save can no longer lose the last good run.",
         "The journal now keeps two alternating copies and verifies every write.",
@@ -330,7 +335,7 @@ ns.UI.Welcome = {
         if db.settings.welcomeVersion == ns.VERSION then return end
         -- The macro journal can settle a few seconds after login. Deciding before
         -- it does is what re-showed the splash on every login.
-        if ns.Journal and ns.Journal.Loaded and not ns.Journal.Loaded() and waitAttempts < 8 then
+        if ns.Journal and ns.Journal.Loaded and not ns.Journal.Loaded() and waitAttempts < 12 then
             waitAttempts = waitAttempts + 1
             ns.Compat.After(1, function()
                 if ns.UI.Welcome then ns.UI.Welcome.MaybeShow() end

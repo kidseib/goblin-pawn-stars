@@ -1,4 +1,4 @@
-# Testing Goblin Pawn Stars 1.6.4 in-game
+# Testing Goblin Pawn Stars 1.6.5 in-game
 
 This is the live-client pass for **The Deed**. The headless suite already covers the
 economy and state math; this checklist covers what mocks cannot: real macros,
@@ -10,11 +10,11 @@ scale, and any Lua error.
 
 ## Before you start
 
-- Install the ZIP from [`dist/GoblinPawnStars-1.6.4.zip`](dist/GoblinPawnStars-1.6.4.zip).
+- Install the ZIP from [`dist/GoblinPawnStars-1.6.5.zip`](dist/GoblinPawnStars-1.6.5.zip).
   The folder layout must be
   `Interface/AddOns/GoblinPawnStars/GoblinPawnStars.toc`.
-- `/gps version` should report **1.6.4** and interface **16001**.
-- `/gps test` should report **34 passed, 0 failed**. The macro-journal tests skip
+- `/gps version` should report **1.6.5** and interface **16001**.
+- `/gps test` should report **37 passed, 0 failed**. The macro-journal tests skip
   themselves in the live client so they never touch your real macros; the journal is
   tested for real in the cold-restart pass below.
 - Run `/console scriptErrors 1` before testing.

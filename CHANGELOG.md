@@ -2,6 +2,38 @@
 
 All notable changes to Goblin Pawn Stars. Format loosely follows Keep a Changelog.
 
+## [1.6.5] — 2026-11-26
+
+### Fixed
+
+- Progress and settings survive a logout again, so the welcome screen stops showing up
+  on every login. The client can hand SavedVariables to the addon after the files have
+  already built a fresh database; the session kept running on those defaults and the
+  next save wrote them over the real character data. `DB.Sync` now adopts the table the
+  client supplies, and `DB.Get`/`DB.Save` check for it, so a late handover is used
+  instead of being replaced by defaults.
+- A save can no longer overwrite a journal the session has not read. Writing now
+  requires a settled journal: if the macro list is still arriving, the journal retries
+  and refuses to write rather than replacing a good save with fresh defaults.
+- An empty first read is provisional. "No chunks" is retried a few times before it is
+  treated as a fresh install, so a macro list that lands a moment after login no
+  longer looks like a blank account — which is what made the first autosave destroy
+  the previous run.
+- Journal saves start about ten seconds into a session and retry quickly after a
+  failure, so a short logout still lands a save. Unchanged state is detected and not
+  rewritten, which keeps the visible macro list quiet.
+- Macro writes are judged by reading them back, not by return values: a client that
+  answers `CreateMacro`/`EditMacro` with nothing, that returns `(name, body)` from
+  `GetMacroInfo`, or that has no `GetNumMacros` no longer fails or switches the journal
+  off.
+- The welcome screen waits longer for the journal before deciding the player is new.
+
+### Tests
+
+- Three new diagnostics: late SavedVariables are adopted instead of overwritten, a save
+  refuses to replace a journal it could not read, and a landed macro write counts even
+  when the client returns no index. 37 tests pass.
+
 ## [1.6.4] — 2026-11-26
 
 ### Fixed

@@ -260,8 +260,32 @@ local function normalize(db)
     return db
 end
 
+-- The client can hand SavedVariables to the addon after the files have already
+-- built a fresh database. Without this the session keeps running on defaults and
+-- the next save writes those defaults over the real character data, which wiped
+-- progress (and the welcome flag) on every logout.
+function DB.Sync()
+    -- Tests and diagnostics run on throwaway tables; they must never adopt the
+    -- player's real database through this path.
+    if DB.scratch then return false end
+    local stored = _G.GoblinPawnStarsDB
+    if type(stored) ~= "table" or stored == ns.db then return false end
+    -- A table the client supplies empty is not data; never adopt nothing.
+    if not next(stored) then return false end
+    local current = ns.db
+    if current and (tonumber(current.savedAt) or 0) > (tonumber(stored.savedAt) or 0) then
+        -- This session is ahead of what the client just handed over; adopting it
+        -- would roll progress back.
+        return false
+    end
+    ns.db = normalize(stored)
+    _G.GoblinPawnStarsDB = ns.db
+    return true
+end
+
 function DB.Get()
     if not ns.db then DB.Init() end
+    DB.Sync()
     return ns.db
 end
 
@@ -269,6 +293,7 @@ function DB.Init()
     local stored = _G.GoblinPawnStarsDB
     if type(stored) ~= "table" then stored = {} end
     ns.db = normalize(stored)
+    DB.scratch = false
     -- Do not stamp savedAt here. The macro journal compares this value with its
     -- own timestamp; a fresh client starting at 0 must accept the journal.
     DB.Save(true)
@@ -277,6 +302,8 @@ end
 
 function DB.Save(skipStamp)
     if not ns.db then return end
+    -- Never stamp a session's defaults over a table the client loaded late.
+    DB.Sync()
     if not skipStamp then ns.db.savedAt = U.now() end
     _G.GoblinPawnStarsDB = ns.db
     if ns.Journal then ns.Journal.Save() end
@@ -293,6 +320,7 @@ function DB.Scratch()
     -- Diagnostics must never write test data into the real account macros.
     -- Journal tests switch this back on explicitly.
     db.settings.macroJournal = false
+    DB.scratch = true
     return db
 end
 
@@ -478,6 +506,7 @@ function DB.Import(text, skipSave)
     -- so an immediate payment, donation, or reset operates on the active table.
     ns.db = normalize(data)
     _G.GoblinPawnStarsDB = ns.db
+    DB.scratch = false
     if not skipSave then
         DB.Save()
         if ns.Journal and ns.Journal.SaveNow then ns.Journal.SaveNow() end
@@ -534,12 +563,14 @@ function DB.Snapshot()
     return snap
 end
 
-function DB.Encode(data, minimize)
+-- savedAt is overridable so a caller can encode the same state twice and get
+-- the same bytes (the journal uses that to tell whether anything changed).
+function DB.Encode(data, minimize, savedAt)
     if minimize then data = DB.Compact(data) end
     local payload = {
         version = SCHEMA_VERSION,
         addon = ns.ADDON,
-        savedAt = U.now(),
+        savedAt = tonumber(savedAt) or U.now(),
         data = data,
     }
     return S.Encode(payload)

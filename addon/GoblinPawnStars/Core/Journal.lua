@@ -28,8 +28,12 @@ local PREFIX_V1 = "--GPSJ1:"
 local PREFIX_V2 = "--GPSJ2:"
 local GENERATIONS = { "A", "B" }
 local MACRO_ICON = 134400
-local SAVE_THROTTLE = 45
+local SAVE_THROTTLE = 30
+local RETRY_DELAY = 8
+local FIRST_SAVE = 10
+local EMPTY_ATTEMPTS = 3
 
+local startedAt = U.now()
 local lastSave = 0
 local loaded = false
 local loading = false
@@ -43,6 +47,9 @@ J.status = {
     error = nil,
     generation = nil,
     counter = 0,
+    stamp = nil,
+    fingerprint = nil,
+    attempts = 0,
 }
 
 -- A broken save path is invisible until the next login, so the first failure of
@@ -390,16 +397,19 @@ local function scheduleRetry()
     ns.Compat.After(10, function() J.TryLoad() end)
 end
 
+-- Returns settled, restored. "Settled" means the journal state is known, so a
+-- save may replace it; "restored" means this call imported an older run and the
+-- macros already hold it.
 function J.TryLoad(force)
-    if loading then return false end
-    if loaded and not force then return true end
+    if loading then return false, false end
+    if loaded and not force then return true, false end
     if force then loaded = false end
 
     local db = DB.Get()
     if db.settings.macroJournal == false then
         loaded = true
         J.status.error = nil
-        return true
+        return true, false
     end
 
     if ns.Compat.MacroCount() == nil then
@@ -419,15 +429,23 @@ function J.TryLoad(force)
             local candidate, candidateTotal = assemble(chunks, MAX_CHUNKS, true)
             local counter = chunks[1] and chunks[1].counter or 0
             if candidate and (not best or counter > best.counter) then
-                best = { encoded = candidate, total = candidateTotal, generation = name, counter = counter }
+                best = {
+                    encoded = candidate,
+                    total = candidateTotal,
+                    generation = name,
+                    counter = counter,
+                    stamp = chunks[1] and chunks[1].stamp,
+                }
             end
         end
     end
 
-    local encoded, total, generation, counter
+    local encoded, total, generation, counter, loadedStamp
     if best then
         encoded, total, generation, counter = best.encoded, best.total, best.generation, best.counter
+        loadedStamp = best.stamp
     elseif next(legacy) then
+        loadedStamp = legacy[1] and legacy[1].stamp
         -- Single-generation save from 1.6.3 or earlier: no commit header exists.
         local legacyEncoded, legacyTotal, legacyError = assemble(legacy, LEGACY_CHUNKS, false)
         if not legacyEncoded then
@@ -448,15 +466,29 @@ function J.TryLoad(force)
             -- be filling in, or the last save stopped before its commit header.
             J.status.error = "journal is incomplete"
             scheduleRetry()
-            return false
+            return false, false
         end
+        -- No chunks at all looks identical on a fresh install and on a client
+        -- whose macro list lands a moment after login. Treat the first reads as
+        -- provisional and only settle as empty once they keep coming back empty,
+        -- because settling early lets the first autosave overwrite a real save.
+        if not force and (tonumber(J.status.attempts) or 0) < EMPTY_ATTEMPTS then
+            J.status.attempts = (tonumber(J.status.attempts) or 0) + 1
+            J.status.empty = true
+            J.status.error = nil
+            scheduleRetry()
+            return false, false
+        end
+        J.status.attempts = 0
         loaded = true
         J.status.error = nil
         J.status.savedAt = 0
         J.status.chunks = 0
+        J.status.stamp = nil
         J.status.generation = nil
+        J.status.counter = 0
         J.status.empty = true
-        return true
+        return true, false
     end
 
     local text = base64Decode(encoded)
@@ -484,10 +516,13 @@ function J.TryLoad(force)
         J.status.error = nil
         J.status.savedAt = journalAt
         J.status.chunks = total
+        J.status.stamp = loadedStamp
+        J.status.fingerprint = nil
+        J.status.attempts = 0
         J.status.generation = generation
         J.status.counter = counter or 0
         J.status.empty = false
-        return true
+        return true, false
     end
 
     local repacked = unpackInventory(payload.data)
@@ -515,6 +550,9 @@ function J.TryLoad(force)
     J.status.error = nil
     J.status.savedAt = journalAt
     J.status.chunks = total
+    J.status.stamp = loadedStamp
+    J.status.fingerprint = nil
+    J.status.attempts = 0
     J.status.generation = generation
     J.status.counter = counter or 0
     J.status.empty = false
@@ -527,7 +565,7 @@ function J.TryLoad(force)
         local refreshOk = pcall(ns.UI.Refresh)
         if not refreshOk then ns.Debug("UI refresh after journal load failed") end
     end
-    return true
+    return true, true
 end
 
 ---------------------------------------------------------------------------
@@ -540,25 +578,23 @@ end
 local function writeChunk(name, body)
     local index = ns.Compat.MacroIndexByName(name)
     if index and index > 0 then
-        local existingName, existingBody = ns.Compat.MacroInfo(index)
+        local _, existingBody = ns.Compat.MacroInfo(index)
         if existingBody and not bodyLooksLikeJournal(existingBody) then
             return false, "macro name collision on " .. name
         end
         if existingBody ~= body then
-            if not ns.Compat.EditMacro(index, name, MACRO_ICON, body) then
-                return false, "could not update " .. name
-            end
+            -- Some clients answer EditMacro with nothing at all even when it
+            -- worked, so the read-back below decides, not the return value.
+            ns.Compat.EditMacro(index, name, MACRO_ICON, body)
         end
     else
-        local created = ns.Compat.CreateMacro(name, MACRO_ICON, body)
-        if not created then
-            return false, "could not create " .. name .. " (macro slots may be full)"
-        end
+        ns.Compat.CreateMacro(name, MACRO_ICON, body)
     end
 
     local stored = storedBody(name)
     if stored ~= body then
-        return false, "verification failed for " .. name
+        if index and index > 0 then return false, "could not update " .. name end
+        return false, "could not create " .. name .. " (macro slots may be full)"
     end
     return true
 end
@@ -631,6 +667,26 @@ function J.SaveNow()
         return false
     end
 
+    -- Never write over a journal this session has not read. The macro list can
+    -- appear a moment after login, and the first autosave used to replace a
+    -- good save with fresh defaults when that happened.
+    if not loaded then
+        local settled, restored = J.TryLoad()
+        if not settled then
+            -- Usually just the macro list arriving late. Saying nothing here is
+            -- deliberate: the retries and the next tick save on their own, and a
+            -- chat warning at login would only alarm a player whose save is fine.
+            J.status.error = "waiting for the macro list"
+            return false
+        end
+        if restored then
+            -- TryLoad imported the saved run; the macros already hold it.
+            lastSave = U.now()
+            pending = false
+            return true, J.status
+        end
+    end
+
     saving = true
     local snapshot = DB.Snapshot()
     -- Pack first: the journal's budget is measured on what is actually written,
@@ -646,6 +702,21 @@ function J.SaveNow()
     end
 
     local stamp = checksum(encoded)
+
+    -- The payload timestamp changes on every save, so compare the shop itself.
+    -- Writing 24 macros every half minute rewrites a list the player can see,
+    -- and most saves carry identical data.
+    snapshot.savedAt = nil
+    local fingerprint = checksum(DB.Encode(snapshot, true, 0))
+    if J.status.fingerprint == fingerprint and J.status.generation then
+        lastSave = U.now()
+        pending = false
+        J.status.error = nil
+        J.status.savedAt = lastSave
+        J.status.trimmed = trimmed and true or false
+        J.status.empty = false
+        return true, J.status
+    end
 
     -- Write the generation that is not current. If nothing was loaded this
     -- session, look first so an existing save is never blindly overwritten.
@@ -690,20 +761,33 @@ function J.SaveNow()
     J.status.savedAt = lastSave
     J.status.trimmed = trimmed and true or false
     J.status.empty = false
+    J.status.stamp = stamp
+    J.status.fingerprint = fingerprint
     J.status.generation = generation
     J.status.counter = counter
     return true, J.status
 end
 
+-- Saves start early (a short session must still land one) and retry quickly
+-- after a failure instead of waiting out the full throttle.
 function J.Save()
     if not ns.db or loaded == false then return false end
     local now = U.now()
-    if now - lastSave < SAVE_THROTTLE and not pending then return false end
+    if now - startedAt < FIRST_SAVE then return false end
+    local wait = J.status.error and RETRY_DELAY or SAVE_THROTTLE
+    if now - lastSave < wait and not pending then return false end
     return J.SaveNow()
 end
 
+-- Drives the save schedule itself, so a short session still lands a save about
+-- ten seconds in instead of waiting for the next thirty-second autosave.
 function J.Tick()
-    if pending and not ns.Compat.InCombat() then J.SaveNow() end
+    if not loaded then return end
+    if pending and not ns.Compat.InCombat() then
+        J.SaveNow()
+        return
+    end
+    J.Save()
 end
 
 function J.Clear()
@@ -715,6 +799,9 @@ function J.Clear()
     J.status.chunks = 0
     J.status.error = nil
     J.status.empty = true
+    J.status.stamp = nil
+    J.status.fingerprint = nil
+    J.status.attempts = 0
     J.status.generation = nil
     J.status.counter = 0
     return true
