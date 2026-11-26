@@ -79,6 +79,7 @@ ns.UI.Tabs.settings = {
             return ns.DB.Get().settings.paused == true
         end, function(value)
             ns.DB.Get().settings.paused = value
+            ns.UI.Refresh()
         end, -174)
 
         local nextArrivalMode = { Animated = "Compact", Compact = "Off", Off = "Animated" }

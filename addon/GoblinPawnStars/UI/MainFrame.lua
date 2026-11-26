@@ -338,8 +338,8 @@ local function refreshHeader()
     end
 
     local waiting = #db.shop.waiting
-    header.trafficValue:SetText(string.format("%s · %d waiting",
-        U.clock(db.shop.nextArrival or 0), waiting))
+    local traffic = ns.Customers.ArrivalBlocker() or U.clock(db.shop.nextArrival or 0)
+    header.trafficValue:SetText(string.format("%s · %d waiting", traffic, waiting))
     header.dayBar:SetValue(ns.Shop.ShopDayProgress(), 1)
 
     local creditsPerMin, customersPerMin = ns.Throughput.Rates()

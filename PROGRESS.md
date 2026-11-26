@@ -28,7 +28,9 @@ The preview uses the client's native NPC models for arrivals and portraits. The
 mock tests cover model loading, icon fallback, walk and idle requests, centered
 layouts, independent drag positions, arrival pace, and Settings clicks. A live
 Forever visual pass is still needed to verify the selected models, their
-animations and framing, and the brighter negotiation panel.
+animations and framing, and the brighter negotiation panel. The clock smoke
+check verifies that a due arrival waits for stock, combat to end, or a free
+slot. The header and `/gps arrivals` show the active blocker.
 
 ## What exists
 

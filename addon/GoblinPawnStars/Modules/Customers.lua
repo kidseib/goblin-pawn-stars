@@ -154,6 +154,13 @@ function C.CanAccept()
     return #DB.Get().shop.waiting < ns.Shop.WaitingSlots()
 end
 
+function C.ArrivalBlocker()
+    if DB.Get().settings.paused == true then return "Paused" end
+    if ns.Inventory.Count() == 0 then return "No stock" end
+    if not C.CanAccept() then return "Queue full" end
+    if ns.Compat.InCombat() then return "In combat" end
+end
+
 function C.Personality(customer)
     if not customer then return nil end
     return ns.Data.PersonalityByKey[customer.personality]
@@ -249,18 +256,17 @@ end
 
 function C.Tick(dt)
     local db = DB.Get()
-    if db.settings.paused then return end
+    if db.settings.paused == true then return end
 
     -- Run the salesperson on every tick, not only when a new arrival is due.
     autoSellTick(dt)
 
-    db.shop.nextArrival = (db.shop.nextArrival or 30) - dt
+    db.shop.nextArrival = math.max(0, (db.shop.nextArrival or 30) - dt)
     if db.shop.nextArrival > 0 then return end
 
-    if ns.Compat.InCombat() then
-        db.shop.nextArrival = 8
-        return
-    end
+    -- Hold a due arrival until the shop can accept it. Stocking an item or
+    -- freeing a waiting slot should not restart an already elapsed wait.
+    if C.ArrivalBlocker() then return end
 
     local customer = C.TrySpawn()
     if customer then

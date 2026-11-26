@@ -608,6 +608,51 @@ function __smoke()
         __NS.UI.Close()
     end)
 
+    attempt("scheduled customer arrives when a blocker clears", function()
+        local ns = __NS
+        local db, old = ns.DB.Scratch(), ns.db
+        local inCombat = ns.Compat.InCombat
+        ns.db = db
+        local ok, problem = pcall(function()
+            db.settings.customerArrival = "Off"
+            db.shop.nextArrival = 2
+            local function update()
+                ns.Clock.frame:GetScript("OnUpdate")(ns.Clock.frame, 1)
+            end
+            update()
+            update()
+            assert(db.shop.nextArrival == 0 and ns.Customers.ArrivalBlocker() == "No stock",
+                "empty shelves restarted the timer")
+            ns.Inventory.Add({ id = 2589, name = "Linen Cloth", category = "cloth", value = 60 })
+            ns.Compat.InCombat = function() return true end
+            update()
+            assert(db.shop.nextArrival == 0 and #ns.Customers.Waiting() == 0
+                and ns.Customers.ArrivalBlocker() == "In combat", "combat did not hold the due arrival")
+            ns.Compat.InCombat = function() return false end
+            update()
+            assert(db.shop.nextArrival > 0 and #ns.Customers.Waiting() == 1 and db.stats.customers == 1,
+                "restocked shop did not get a customer when combat ended")
+            db.shop.nextArrival = 1
+            update()
+            db.shop.nextArrival = 1
+            update()
+            assert(db.shop.nextArrival == 0 and ns.Customers.ArrivalBlocker() == "Queue full",
+                "full queue restarted the timer")
+            ns.Customers.Dismiss(1)
+            update()
+            assert(db.stats.customers == 3 and #ns.Customers.Waiting() == 2,
+                "a due customer did not fill the freed slot")
+            db.settings.paused = true
+            local remaining = db.shop.nextArrival
+            update()
+            assert(db.shop.nextArrival == remaining and ns.Customers.ArrivalBlocker() == "Paused",
+                "pause did not preserve the countdown")
+        end)
+        ns.Compat.InCombat = inCombat
+        ns.db = old
+        assert(ok, problem)
+    end)
+
     attempt("simulated hour of play", function()
         local real = __NS.db
         local fresh = __NS.DB.Scratch()
@@ -627,6 +672,7 @@ function __smoke()
         if (fresh.stats.playtime or 0) < 3500 then error("playtime did not advance") end
         if (fresh.stats.shopDays or 0) < 3 then error("shop days did not fire") end
         if (fresh.credits or 0) < 0 then error("credits went negative") end
+        if fresh.stats.customers == 0 then error("no customer arrived in an hour of play") end
         if #fresh.shop.waiting > __NS.Shop.WaitingSlots() then error("customer queue overflowed") end
         if type(fresh.shop.nextArrival) ~= "number" or fresh.shop.nextArrival ~= fresh.shop.nextArrival then
             error("next customer timer became invalid")
@@ -647,6 +693,7 @@ function __smoke()
         if not handler then error("slash command not registered") end
         handler("help")
         handler("version")
+        handler("arrivals")
         handler("debug")
         handler("welcome")
         handler("")

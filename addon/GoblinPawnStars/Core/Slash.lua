@@ -12,6 +12,7 @@ local function printHelp()
     ns.Print("Commands:")
     ns.Print("  |cff7bd66b/gps|r — open or close the shop")
     ns.Print("  |cff7bd66b/gps arrival|r — preview the customer entrance")
+    ns.Print("  |cff7bd66b/gps arrivals|r — check why customers are waiting to arrive")
     ns.Print("  |cff7bd66b/gps test|r — run the built-in diagnostics")
     ns.Print("  |cff7bd66b/gps debug|r — toggle debug messages")
     ns.Print("  |cff7bd66b/gps reset|r — wipe all shop progress (asks twice)")
@@ -51,6 +52,25 @@ local function handler(message)
 
     if first == "test" or first == "diag" or first == "diagnostics" then
         ns.Diagnostics.Report()
+        return
+    end
+
+    if first == "arrivals" then
+        local db = ns.DB.Get()
+        local blocker = ns.Customers.ArrivalBlocker()
+        local status = blocker or ("Next in " .. ns.Util.clock(db.shop.nextArrival))
+        local pace = ns.Shop.ArrivalPace()
+        ns.Print(string.format("%s · %d/%d waiting · %d stock stacks · %s pace",
+            status, #ns.Customers.Waiting(), ns.Customers.WaitingSlots(),
+            ns.Inventory.Count(), pace))
+        if (db.stats.customers or 0) > 0 then
+            local elapsed = (db.stats.playtime or 0) - (db.shop.lastArrivalAt or 0)
+            ns.Print(string.format("%d arrived this run · last arrival %s of playtime ago",
+                db.stats.customers, ns.Util.clock(elapsed)))
+        end
+        local autoSell = db.settings.autoSell ~= false and (tonumber(db.employees.salesperson) or 0) > 0
+        ns.Print(string.format("Arrival notification: %s · Salesperson auto-sell: %s",
+            db.settings.customerArrival or "Animated", autoSell and "On" or "Off"))
         return
     end
 
