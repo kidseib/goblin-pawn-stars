@@ -21,8 +21,9 @@ Run `python3 build_preview.py` to produce three local helpers:
 - `index.html` — the preview with a "Copy description HTML" button.
 
 Those three are generated output and are not committed. The optional 1280×340
-gallery banners (`banner-*.png`) and their editable `banners/*.svg` sources stay
-with the project art rather than the repository.
+gallery banners are editable SVGs in `banners/*.svg`, which are committed so the
+art cannot be lost; render them at 1280×340 into `banner-*.png` when you need the
+flattened images, and keep those PNGs out of the repository.
 
 ## Suggested project fields
 
