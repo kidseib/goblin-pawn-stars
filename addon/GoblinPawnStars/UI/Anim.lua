@@ -7,7 +7,8 @@
 
 local ADDON, ns = ...
 local A = {}
-local customerSteps = setmetatable({}, { __mode = "k" })
+local customerWalks = setmetatable({}, { __mode = "k" })
+local flashes = setmetatable({}, { __mode = "k" })
 ns.Anim = A
 
 local function groupFor(region)
@@ -118,37 +119,46 @@ function A.Spin(texture, seconds)
     return play(group)
 end
 
--- Alternate two stride poses across four translations, then stand still.
-function A.CustomerWalk(region, setPose)
-    if customerSteps[region] == nil then
-        customerSteps[region] = {}
-        for i = 1, 4 do
-            local group = groupFor(region)
-            local step = animationFor(group, "Translation")
-            if not (set(step, "SetDuration", 0.20) and set(step, "SetOffset", 10, 0)) then
-                customerSteps[region] = false
-                break
-            end
-            customerSteps[region][i] = group
-        end
-    end
-    local steps = customerSteps[region]
-    if not steps then
-        setPose(0)
-        return
-    end
+-- The model plays its own walk cycle while its frame crosses the doorway.
+function A.StopCustomerWalk(region)
+    local animation = customerWalks[region]
+    if animation then set(animation.group, "Stop") end
+end
 
-    for _, group in ipairs(steps) do set(group, "Stop") end
-    local function walk(step)
-        if not steps[step] then
-            setPose(0)
-            return
-        end
-        setPose((step - 1) % 2 + 1, step)
-        if not set(steps[step], "SetScript", "OnFinished", function() walk(step + 1) end)
-            or not play(steps[step]) then
-            setPose(0)
+function A.CustomerWalk(region, distance, finish)
+    if customerWalks[region] == nil then
+        local group = groupFor(region)
+        local step = animationFor(group, "Translation")
+        if set(step, "SetDuration", 1.1) then
+            customerWalks[region] = { group = group, step = step }
+        else
+            customerWalks[region] = false
         end
     end
-    walk(1)
+    local animation = customerWalks[region]
+    if not animation
+        or not set(animation.step, "SetOffset", distance, 0)
+        or not set(animation.group, "SetScript", "OnFinished", finish)
+        or not play(animation.group) then
+        finish()
+    end
+end
+
+function A.Flash(region)
+    if flashes[region] == nil then
+        local group = groupFor(region)
+        local alpha = animationFor(group, "Alpha")
+        local ready = set(alpha, "SetDuration", 0.55)
+            and set(alpha, "SetFromAlpha", 1)
+            and set(alpha, "SetToAlpha", 0)
+            and set(group, "SetScript", "OnFinished", function() region:SetAlpha(0) end)
+        flashes[region] = ready and group or false
+    end
+    local group = flashes[region]
+    if group then
+        set(group, "Stop")
+        region:SetAlpha(1)
+        if play(group) then return end
+    end
+    region:SetAlpha(0)
 end

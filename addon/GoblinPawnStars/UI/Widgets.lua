@@ -155,7 +155,18 @@ function W.Icon(parent, size, texture)
     return frame
 end
 
--- Circular class portrait used for customers (no custom art required).
+-- Use built-in game artwork until the native customer model loads.
+function W.SetClassIcon(icon, class)
+    local coords = CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[tostring(class or ""):upper()]
+    if type(coords) == "table" and #coords >= 4 then
+        icon:SetTexture("Interface\\TargetingFrame\\UI-Classes-Circles")
+        icon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+    else
+        icon:SetTexture(134400) -- INV_Misc_QuestionMark
+        icon:SetTexCoord(0, 1, 0, 1)
+    end
+end
+
 function W.Portrait(parent, size, class, rareColor)
     local frame = W.Create(parent, "Frame")
     if not frame then return nil end
@@ -164,8 +175,7 @@ function W.Portrait(parent, size, class, rareColor)
     local ring = frame:CreateTexture(nil, "BACKGROUND")
     ring:SetAllPoints()
     T.Fill(ring, rareColor and rareColor[1] or 0.5,
-        rareColor and rareColor[2] or 0.42,
-        rareColor and rareColor[3] or 0.22, 1)
+        rareColor and rareColor[2] or 0.42, rareColor and rareColor[3] or 0.22, 1)
 
     local inner = frame:CreateTexture(nil, "ARTWORK")
     inner:SetPoint("TOPLEFT", 2, -2)
@@ -175,34 +185,19 @@ function W.Portrait(parent, size, class, rareColor)
     local icon = frame:CreateTexture(nil, "ARTWORK")
     icon:SetPoint("TOPLEFT", 3, -3)
     icon:SetPoint("BOTTOMRIGHT", -3, 3)
-    icon:SetTexture("Interface\\Icons\\ClassIcon_" .. tostring(class or "WARRIOR"))
-    icon:SetTexCoord(0.05, 0.95, 0.05, 0.95)
-    frame.icon = icon
+    W.SetClassIcon(icon, class)
 
-    local coords = CLASS_ICON_TCOORDS and CLASS_ICON_TCOORDS[tostring(class or ""):upper()]
-    if coords and type(coords) == "table" and #coords >= 4 then
-        local portrait = frame:CreateTexture(nil, "ARTWORK")
-        portrait:SetPoint("TOPLEFT", 3, -3)
-        portrait:SetPoint("BOTTOMRIGHT", -3, 3)
-        portrait:SetTexture("Interface\\TargetingFrame\\UI-Classes-Circles")
-        portrait:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
-        icon:Hide()
-        frame.icon = portrait
-    end
-
-    function frame:SetPortrait(classKey)
-        self.icon:SetTexture("Interface\\Icons\\ClassIcon_" .. tostring(classKey or "WARRIOR"))
-        self.icon:SetTexCoord(0.05, 0.95, 0.05, 0.95)
-        self.icon:SetVertexColor(1, 1, 1)
-    end
-
+    local model
     function frame:SetCustomer(customer)
-        local arrival = ns.UI.CustomerArrival
-        local ok, painted
-        if arrival then ok, painted = pcall(arrival.Paint, self.icon, customer) end
-        if not ok or not painted then
-            self:SetPortrait(customer.class)
+        W.SetClassIcon(icon, customer.class)
+        if model == nil then
+            local factory = ns.UI.CustomerModel
+            local ok, widget = pcall(function()
+                return factory and factory.Attach(frame, icon, 0.85)
+            end)
+            model = ok and widget or false
         end
+        if model then pcall(model.SetCustomer, model, customer) end
     end
 
     return frame

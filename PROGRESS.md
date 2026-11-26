@@ -24,14 +24,11 @@ endless mode, franchise prestige and the macro save journal.
 
 ## Customer arrival preview
 
-The Lua 5.1 check, diagnostics and mocked UI smoke test cover the arrival card's
-closed/open layout selection, queue count, click-through, Compact/Off modes and
-overlapping dismissal timers. The smoke test also covers the original toast
-fallback and the `/gps arrival` preview on an empty queue. The Forever client
-still needs a visual pass for the sprite textures, stride animation and card placement.
-The mock drives the four stride steps and clicks the Settings controls through
-their OnClick scripts. Diagnostics cover the adjustable arrival interval and
-rescaling the active countdown.
+The preview uses the client's native NPC models for arrivals and portraits. The
+mock tests cover model loading, icon fallback, walk and idle requests, centered
+layouts, independent drag positions, arrival pace, and Settings clicks. A live
+Forever visual pass is still needed to verify the selected models, their
+animations and framing, and the brighter negotiation panel.
 
 ## What exists
 

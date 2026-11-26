@@ -128,6 +128,7 @@ local function defaults()
             scale = 1.0,
             customerArrival = "Animated",
             arrivalPace = "Normal",
+            arrivalPositions = {},
             autoCollect = true,
             modestDialog = false,
             showWelcome = true,

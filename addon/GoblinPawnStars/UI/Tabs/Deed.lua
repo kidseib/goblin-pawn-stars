@@ -168,6 +168,7 @@ ns.UI.Tabs.deed = {
 
         local portrait = W.Portrait(regular, 46, "WARRIOR")
         portrait:SetPoint("TOPLEFT", 12, -30)
+        portrait:SetCustomer({ regular = true, class = "WARRIOR" })
 
         ui.regularName = W.Text(regular, "Marta Copperpin", 16, T.colors.gold)
         ui.regularName:SetPoint("TOPLEFT", 70, -30)

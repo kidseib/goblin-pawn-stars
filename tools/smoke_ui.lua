@@ -38,16 +38,37 @@ function __smoke()
             assert(panel and panel:IsShown() and panel.door:IsShown(), "missing closed-shop entrance")
             assert(panel.name:GetText() == "Test merchant", "customer name missing")
             assert(panel.detail:GetText():find("1 waiting", 1, true), "queue count missing")
+            local firstPoint = panel.__points[#panel.__points]
+            assert(firstPoint.point == "CENTER" and firstPoint[3] == 0 and firstPoint[4] == 0,
+                "closed-shop card did not start centered")
             local expired = TIMERS[#TIMERS].callback
+            panel.GetCenter = function() return 45, 85 end
+            panel:GetScript("OnDragStart")(panel)
+            expired()
+            assert(panel:IsShown(), "arrival vanished during a drag")
+            panel:GetScript("OnDragStop")(panel)
+            panel:GetScript("OnMouseUp")(panel, "LeftButton")
+            assert(panel:IsShown() and not UI.IsOpen(), "drag also triggered click-through")
+            local positions = arrivalDb.settings.arrivalPositions
+            assert(positions.screen.x == 45 and positions.screen.y == 85 and not positions.shop,
+                "drag did not save the closed-shop position independently")
             UI.Open()
             UI.CustomerArrival.Position()
-            assert(panel:GetWidth() == 260, "open-shop card was not resized")
+            local shopPoint = panel.__points[#panel.__points]
+            assert(panel:GetWidth() == 420 and shopPoint[3] == 0 and shopPoint[4] == 0,
+                "open-shop card did not enlarge and center independently")
+            panel.GetCenter = function() return -60, 130 end
+            panel:GetScript("OnDragStart")(panel)
+            panel:GetScript("OnDragStop")(panel)
+            assert(positions.shop.x == -60 and positions.shop.y == 130 and positions.screen.x == 45,
+                "dragging the shop card moved the closed-shop card")
             arrivalDb.settings.customerArrival = "Compact"
             arrivalDb.shop.waiting[2] = { name = "Second merchant", rare = true }
             UI.CustomerArrival.Show(arrivalDb.shop.waiting[2])
             expired()
             assert(panel:IsShown() and not panel.door:IsShown(), "old timer hid the compact card")
             assert(panel.detail:GetText():find("2 waiting", 1, true), "queue count did not update")
+            panel:GetScript("OnMouseDown")(panel, "LeftButton")
             panel:GetScript("OnMouseUp")(panel, "LeftButton")
             assert(not panel:IsShown() and UI.IsOpen() and UI.Tabs.customers.frame:IsShown(),
                 "arrival click did not open Customers")
@@ -59,6 +80,8 @@ function __smoke()
             SlashCmdList.GOBLINPAWNSTARS("arrival")
             assert(panel:IsShown() and panel.door:IsShown(), "preview requires live arrivals")
             assert(panel.detail:GetText() == "Arrival preview", "preview label is missing")
+            local savedPoint = panel.__points[#panel.__points]
+            assert(savedPoint[3] == 45 and savedPoint[4] == 85, "preview did not restore the saved position")
             assert(#arrivalDb.shop.waiting == 0 and arrivalDb.settings.customerArrival == "Off",
                 "preview changed the queue or arrival setting")
 
@@ -80,34 +103,70 @@ function __smoke()
         assert(message == "Test merchant walked into the shop.", "fallback toast missing")
     end)
 
-    attempt("customer portrait alternates stride poses", function()
-        local poses, translations = {}, 0
+    attempt("native customer model keeps an icon until loaded and plays walk and idle", function()
+        local C, widgets = __NS.Compat, __NS.Widgets
+        local createFrame = C.CreateFrame
+        local parent = widgets.Create(UIParent, "Frame")
+        local icon = parent:CreateTexture()
+        local display, fileID, played
+        local model = {
+            SetPoint = function() end,
+            SetAlpha = function() end,
+            EnableMouse = function() end,
+            Show = function() end,
+            SetScript = function(self, name, callback)
+                assert(name == "OnModelLoaded")
+                self.loaded = callback
+            end,
+            ClearModel = function() fileID = nil end,
+            SetDisplayInfo = function(_, id) display = id end,
+            GetDisplayInfo = function() return display end,
+            GetModelFileID = function() return fileID or 0 end,
+            SetAnimation = function(_, id) played = id end,
+        }
+        C.CreateFrame = function(kind)
+            assert(kind == "PlayerModel")
+            return model
+        end
+        local ok, widget = pcall(__NS.UI.CustomerModel.Attach, parent, icon, 0)
+        C.CreateFrame = createFrame
+        assert(ok and widget, widget)
+        widget:SetCustomer({ name = "Goblin merchant", race = "Goblin" }, function(customerModel)
+            customerModel:SetWalking(true)
+        end)
+        assert(icon:IsShown() and type(display) == "number", "pending model hid the icon")
+        fileID = 9999
+        model.loaded()
+        assert(not icon:IsShown() and played == 4, "native model did not start its walk after loading")
+        widget:SetWalking(false)
+        assert(played == 0, "native model did not return to idle")
+        widget:SetCustomer({ name = "Dwarf vendor", race = "Dwarf" })
+        assert(icon:IsShown(), "new pending model kept the old portrait")
+        TIMERS[#TIMERS].callback()
+        assert(icon:IsShown() and display == 7094, "unavailable model did not try the goblin fallback")
+    end)
+
+    attempt("customer model frame moves across the doorway", function()
+        local finished = 0
         local actor = { CreateAnimationGroup = function()
             return {
                 CreateAnimation = function(_, kind)
                     assert(kind == "Translation")
                     return {
-                        SetDuration = function(_, seconds) assert(seconds == 0.20) end,
-                        SetOffset = function(_, x, y) assert(x == 10 and y == 0) end,
+                        SetDuration = function(_, seconds) assert(seconds == 1.1) end,
+                        SetOffset = function(_, x, y) assert(x == 34 and y == 0) end,
                     }
                 end,
                 SetScript = function(group, name, callback)
                     assert(name == "OnFinished")
                     group.finished = callback
                 end,
-                Play = function(group)
-                    translations = translations + 1
-                    group.finished()
-                end,
+                Play = function(group) group.finished() end,
             }
         end }
-        __NS.Anim.CustomerWalk(actor, function(pose)
-            poses[#poses + 1] = tostring(pose)
-        end)
-        assert(translations == 4 and table.concat(poses) == "12120", "walk cycle did not finish standing")
-        __NS.Anim.CustomerWalk({}, function(pose)
-            assert(pose == 0, "missing animation API did not fall back to a standing portrait")
-        end)
+        __NS.Anim.CustomerWalk(actor, 34, function() finished = finished + 1 end)
+        __NS.Anim.CustomerWalk({}, 34, function() finished = finished + 1 end)
+        assert(finished == 2, "missing animation API did not settle the model")
     end)
 
     attempt("settings clicks update labels and values", function()
