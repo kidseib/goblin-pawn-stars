@@ -178,7 +178,9 @@ Rules:
 ## Packaging
 
 `tools/build_zip.sh` reads the version from the TOC and produces
-`dist/GoblinPawnStars-<version>.zip` containing a single `GoblinPawnStars/` folder
+`dist/GoblinPawnStars-<version>.zip` containing a single `GoblinPawnStars/` folder.
+`dist/` is build output and is not committed: the tag-driven release workflow
+builds the ZIP and attaches it to the GitHub release.
 with the addon plus `README.md`, `CHANGELOG.md`, `LICENSE`, `AI-DISCLOSURE.md`,
 `TESTING.md`, the README banner, and the `docs/screenshots/` render gallery. Bump the TOC version, `ns.VERSION`,
 `package.json` and the changelog together, then rebuild and delete the superseded ZIP.

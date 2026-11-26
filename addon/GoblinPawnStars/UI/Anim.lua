@@ -7,9 +7,26 @@
 
 local ADDON, ns = ...
 local A = {}
+-- Animation groups are children of their region and live as long as it does, so
+-- they must be created once and replayed, never created per call. The old code
+-- built a fresh group (and its animations) on every fade and every pulse; with
+-- the credits number pulsing on each sale that grew without bound and slowly
+-- ground the client to a halt. The caches are weak-keyed by region.
 local customerWalks = setmetatable({}, { __mode = "k" })
 local flashes = setmetatable({}, { __mode = "k" })
+local fadeGroups = setmetatable({}, { __mode = "k" })
+local scaleGroups = setmetatable({}, { __mode = "k" })
 ns.Anim = A
+
+-- Settings → Motion can turn every effect off. Each helper then takes its
+-- instant path, which is the same fallback a client without animation support
+-- already uses, so the UI is fully usable either way.
+local function still()
+    local db = ns.DB
+    if not db or type(db.Get) ~= "function" then return false end
+    local ok, current = pcall(db.Get)
+    return ok and current and current.settings and current.settings.animations == false
+end
 
 local function groupFor(region)
     if not region or type(region.CreateAnimationGroup) ~= "function" then return nil end
@@ -36,31 +53,78 @@ local function play(group)
     return pcall(group.Play, group)
 end
 
--- Alpha fade-in. Used for windows, tabs, toasts and the splash screen.
-function A.Reveal(region, duration, fromAlpha)
-    if not region then return false end
-    local start = tonumber(fromAlpha) or 0
+-- Restarting a finished group needs a Stop first; Play alone can leave it at
+-- its final values.
+local function replay(group)
+    if not group then return false end
+    if type(group.Stop) == "function" then pcall(group.Stop, group) end
+    return play(group)
+end
 
+local function fadeFor(region)
+    local cached = fadeGroups[region]
+    if cached ~= nil then return cached or nil end
     local group = groupFor(region)
     local alpha = group and animationFor(group, "Alpha") or nil
     local ready = alpha ~= nil
-        and set(alpha, "SetDuration", tonumber(duration) or 0.2)
-        and set(alpha, "SetFromAlpha", start)
+        and set(alpha, "SetFromAlpha", 0)
         and set(alpha, "SetToAlpha", 1)
-    set(alpha, "SetSmoothing", "OUT")
+    if ready then
+        set(alpha, "SetSmoothing", "OUT")
+        if type(group.SetScript) == "function" then
+            pcall(group.SetScript, group, "OnFinished", function()
+                if type(region.SetAlpha) == "function" then pcall(region.SetAlpha, region, 1) end
+            end)
+        end
+        cached = { group = group, alpha = alpha }
+        fadeGroups[region] = cached
+        return cached
+    end
+    fadeGroups[region] = false
+    return nil
+end
 
-    if not ready or not group then
+local function scaleFor(region)
+    local cached = scaleGroups[region]
+    if cached ~= nil then return cached or nil end
+    local group = groupFor(region)
+    local up = group and animationFor(group, "Scale") or nil
+    local down = group and animationFor(group, "Scale") or nil
+    local ready = up ~= nil and down ~= nil
+        and set(up, "SetSmoothing", "OUT")
+        and set(down, "SetSmoothing", "IN")
+    if ready then
+        cached = { group = group, up = up, down = down, restore = 1 }
+        if type(group.SetScript) == "function" then
+            pcall(group.SetScript, group, "OnFinished", function()
+                if type(region.SetScale) == "function" then
+                    pcall(region.SetScale, region, cached.restore or 1)
+                end
+            end)
+        end
+        scaleGroups[region] = cached
+        return cached
+    end
+    scaleGroups[region] = false
+    return nil
+end
+
+-- Alpha fade-in. Used for windows, tabs, toasts and the splash screen.
+function A.Reveal(region, duration, fromAlpha)
+    if not region then return false end
+    if still() then
         if type(region.SetAlpha) == "function" then pcall(region.SetAlpha, region, 1) end
         return false
     end
-
-    if type(group.SetScript) == "function" then
-        pcall(group.SetScript, group, "OnFinished", function()
-            if type(region.SetAlpha) == "function" then pcall(region.SetAlpha, region, 1) end
-        end)
+    local cached = fadeFor(region)
+    if not cached then
+        if type(region.SetAlpha) == "function" then pcall(region.SetAlpha, region, 1) end
+        return false
     end
-
-    if not play(group) then
+    local ready = set(cached.alpha, "SetDuration", tonumber(duration) or 0.2)
+        and set(cached.alpha, "SetFromAlpha", tonumber(fromAlpha) or 0)
+        and set(cached.alpha, "SetToAlpha", 1)
+    if not ready or not replay(cached.group) then
         if type(region.SetAlpha) == "function" then pcall(region.SetAlpha, region, 1) end
         return false
     end
@@ -71,33 +135,23 @@ end
 -- region's original scale when it finishes.
 function A.Pulse(region, factor, duration)
     if not region or type(region.GetScale) ~= "function" then return false end
+    if still() then return false end
     local base = tonumber(region:GetScale()) or 1
     local peak = base * (tonumber(factor) or 1.06)
     local half = (tonumber(duration) or 0.24) / 2
 
-    local group = groupFor(region)
-    if not group then return false end
-    local up = animationFor(group, "Scale")
-    local down = animationFor(group, "Scale")
-    if not up or not down then return false end
+    local cached = scaleFor(region)
+    if not cached then return false end
+    cached.restore = base
 
-    local ready = set(up, "SetDuration", half)
-        and set(up, "SetScaleFrom", base)
-        and set(up, "SetScaleTo", peak)
-        and set(up, "SetSmoothing", "OUT")
-        and set(down, "SetDuration", half)
-        and set(down, "SetStartDelay", half)
-        and set(down, "SetScaleFrom", peak)
-        and set(down, "SetScaleTo", base)
-        and set(down, "SetSmoothing", "IN")
-    if not ready then return false end
-
-    if type(group.SetScript) == "function" then
-        pcall(group.SetScript, group, "OnFinished", function()
-            if type(region.SetScale) == "function" then pcall(region.SetScale, region, base) end
-        end)
-    end
-    if not play(group) then
+    local ready = set(cached.up, "SetDuration", half)
+        and set(cached.up, "SetScaleFrom", base)
+        and set(cached.up, "SetScaleTo", peak)
+        and set(cached.down, "SetDuration", half)
+        and set(cached.down, "SetStartDelay", half)
+        and set(cached.down, "SetScaleFrom", peak)
+        and set(cached.down, "SetScaleTo", base)
+    if not ready or not replay(cached.group) then
         if type(region.SetScale) == "function" then pcall(region.SetScale, region, base) end
         return false
     end
@@ -106,7 +160,7 @@ end
 
 -- Slow continuous rotation for decorative coins on the splash screen.
 function A.Spin(texture, seconds)
-    if not texture then return false end
+    if not texture or still() then return false end
     local group = groupFor(texture)
     if not group then return false end
     local rotation = animationFor(group, "Rotation")
@@ -126,6 +180,10 @@ function A.StopCustomerWalk(region)
 end
 
 function A.CustomerWalk(region, distance, finish)
+    if still() then
+        finish()
+        return
+    end
     if customerWalks[region] == nil then
         local group = groupFor(region)
         local step = animationFor(group, "Translation")
@@ -145,6 +203,10 @@ function A.CustomerWalk(region, distance, finish)
 end
 
 function A.Flash(region)
+    if still() then
+        if region and type(region.SetAlpha) == "function" then pcall(region.SetAlpha, region, 0) end
+        return
+    end
     if flashes[region] == nil then
         local group = groupFor(region)
         local alpha = animationFor(group, "Alpha")

@@ -1,6 +1,6 @@
 # PROGRESS
 
-## Current state — v1.6.5
+## Current state — v1.7.0
 
 Phases 1–4 are implemented. Phase 5 (optional multiplayer) is deliberately not
 started. The addon is feature-complete for a single-player shop simulation and is
@@ -23,8 +23,16 @@ and at the commit step and still restores the previous run. **v1.6.5** fixes pro
 vanishing on every logout and the welcome screen reappearing: SavedVariables handed over
 late are adopted instead of overwritten with defaults, a save refuses to replace a
 journal the session has not read, the first empty read is retried before it is treated
-as a fresh install, and the journal starts saving ten seconds into a session. 37 tests
-pass.
+as a fresh install, and the journal starts saving ten seconds into a session. **v1.7.0** makes the save path
+checkable and the opening minutes teachable: `/gps verify` saves and then reads the
+journal back to compare it with the run, the header shows the save state, `/gps uicheck`
+reports windows that sit off-screen, the first three customers are scripted around a
+winnable opening counter, `/gps motion` turns animations off, and logging in prints a
+one-line shop summary. Saving no longer freezes on a full stockroom: trimming used to
+re-encode the whole shop for every four stacks it dropped, and an unchanged autosave now
+skips that step entirely. Effects no longer leak animation groups either: each region
+keeps one group per effect and replays it, so a long session stays at the same speed.
+Releases are now built by a tag-driven workflow. 43 tests pass.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
@@ -53,7 +61,7 @@ The new pacing and toggle still need a live-client pass.
 
 ## What exists
 
-* 55 Lua files, 12,976 lines, loaded by a single TOC at Interface 16001.
+* 58 Lua files, 15,237 lines, loaded by a single TOC at Interface 16001.
 * Ten-tab main window, movable negotiation window, wholesaler window, encounter popup,
   minimap coin, toasts, tooltips, optional sound.
 * The Deed: three payments, an ending choice, endless mode, franchise prestige, one
@@ -71,8 +79,8 @@ The new pacing and toggle still need a live-client pass.
 Commands, run from the repository root:
 
 ```
-npm run check              -> Lua 5.1 syntax OK: 55 files, 12,976 lines; TOC OK
-npm test                   -> 37 passed, 0 failed; UI smoke: all tabs and overlays
+npm run check              -> Lua 5.1 syntax OK: 58 files, 15,237 lines; TOC OK
+npm test                   -> 43 passed, 0 failed; UI smoke: all tabs and overlays
 node tools/sim_30min.js    -> scripted 30-minute progression + 10-minute idle probe
 ```
 

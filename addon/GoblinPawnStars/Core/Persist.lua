@@ -128,6 +128,7 @@ local function defaults()
             minimapAngle = 195,
             scale = 1.0,
             customerArrival = "Animated",
+            animations = true,
             arrivalPace = "Normal",
             arrivalPositions = {},
             autoCollect = true,
@@ -377,7 +378,9 @@ local function encodeValue(value, out)
         if value ~= value or value == math.huge or value == -math.huge then
             out[#out + 1] = "d0;"
         else
-            out[#out + 1] = "d" .. string.format("%.14g", value) .. ";"
+            -- Lua 5.1 formats a number with "%.14g" in tostring anyway, and
+            -- the journal encodes thousands of them per save.
+            out[#out + 1] = "d" .. tostring(value) .. ";"
         end
     elseif kind == "string" then
         out[#out + 1] = "s" .. #value .. ":" .. value

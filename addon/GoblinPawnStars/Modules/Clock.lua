@@ -80,6 +80,17 @@ C.events = ns.Compat.EventFrame({
         ns.Achievements.Check()
         if firstVisit then
             ns.Print("Your stall is open. A starter crate is on the counter; the wholesaler can keep it stocked. Type |cff7bd66b/gps|r to begin.")
+        else
+            -- Nothing is earned while the shop is closed, so the summary says what
+            -- is waiting rather than pretending the salesperson traded overnight.
+            local waiting = #db.shop.waiting
+            local stock = ns.Inventory.Count()
+            local capacity = ns.Inventory.Capacity()
+            local saved = ns.Journal and ns.Journal.status and (ns.Journal.status.savedAt or 0) or 0
+            local age = saved > 0 and ns.Util.clock(ns.Util.now() - saved) or "never"
+            ns.Print(string.format(
+                "|cff7bd66bWelcome back|r · %s gc · %d waiting · %d/%d stock · last save %s ago. Type |cff7bd66b/gps verify|r to check the save path.",
+                ns.Util.comma(db.credits or 0), waiting, stock, capacity, age))
         end
         ns.Debug("simulation clock started")
     end,

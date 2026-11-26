@@ -14,6 +14,11 @@ ns.Customers = C
 -- slower than a player at the counter and sells below the best haggled price.
 local autoTimer = 8
 
+-- The first three visitors are scripted, and the first one is guaranteed to be
+-- worth countering. A new player's opening haggling round should be a win: the
+-- odds readout has nothing to teach if the first counter is a coin flip.
+local ONBOARDING = { "gullible", "trader", "impatient" }
+
 ---------------------------------------------------------------------------
 -- Helpers
 ---------------------------------------------------------------------------
@@ -83,6 +88,8 @@ local function buildCustomer(options)
     -- will pay for stock. They never create credits outside a completed sale.
     if ns.Campaign then willingness = willingness * (1 + ns.Campaign.OfferBonus()) end
     if rare then willingness = willingness * 1.12 end
+    -- The scripted first buyer is keen, so the counter the window suggests lands.
+    if options.firstDeal then willingness = math.max(willingness, 1.45) end
 
     -- Hidden ceiling: what this customer would actually pay for this item.
     local maxPay = math.floor(math.min(
@@ -91,6 +98,11 @@ local function buildCustomer(options)
         value * 2.8
     ))
     maxPay = math.max(1, maxPay)
+    if options.firstDeal then
+        -- Their own budget grows to cover it; nothing is granted outside the sale.
+        maxPay = math.max(maxPay, U.floor(value * 1.45))
+        budget = math.max(budget, maxPay)
+    end
 
     local opening = U.randomBetween(personality.opening[1], personality.opening[2])
     local offer = U.round(maxPay * opening, 5)
@@ -177,6 +189,15 @@ function C.TrySpawn(options)
     if #db.shop.waiting >= ns.Shop.WaitingSlots() then return nil, "shop is full" end
     if db.shop.current and options and options.force then
         -- Only used by encounters with a dedicated "invite" flow.
+    end
+
+    -- Scripted opening customers, before the named-regular path can claim them.
+    if not options then
+        local arrived = tonumber(db.stats.customers) or 0
+        local scripted = ONBOARDING[arrived + 1]
+        if scripted and (db.stats.sales or 0) == 0 then
+            options = { personality = scripted, firstDeal = (arrived == 0) }
+        end
     end
 
     -- A due named regular replaces one ordinary arrival. This is still a

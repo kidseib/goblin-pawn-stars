@@ -349,7 +349,15 @@ local function refreshHeader()
     header.rates:SetText(string.format("%s gc/min · %.1f customers/min",
         U.comma(math.floor(creditsPerMin + 0.5)), customersPerMin))
 
-    header.clock:SetText(string.format("%s · %s", ns.Shop.TierInfo().name, U.clock(db.stats.playtime or 0)))
+    -- The save state belongs next to the shop name: if the journal stops
+    -- working, the player should see it before the next logout, not after.
+    local health = ""
+    if ns.Journal and ns.Journal.Health then
+        local ok, text = pcall(ns.Journal.Health)
+        if ok then health = tostring(text or "") end
+    end
+    header.clock:SetText(string.format("%s · %s · %s", ns.Shop.TierInfo().name,
+        U.clock(db.stats.playtime or 0), health))
 end
 
 ---------------------------------------------------------------------------
@@ -421,6 +429,56 @@ function ns.UI.Tick(dt)
     end
 
     if ns.UI.RefreshOverlays then ns.UI.RefreshOverlays() end
+end
+
+-- Reports frames that sit outside the screen at the current UI scale. It never
+-- moves or shows anything, so it is safe to run before reporting a layout bug.
+local function inspectFrame(label, target, problems)
+    if not target or type(target.GetLeft) ~= "function" then return end
+    local ok, err = pcall(function()
+        if type(target.IsShown) == "function" and not target:IsShown() then return end
+        local left, right = target:GetLeft(), target:GetRight()
+        local top, bottom = target:GetTop(), target:GetBottom()
+        if not left or not right or not top or not bottom then return end
+        local width = type(UIParent.GetWidth) == "function" and UIParent:GetWidth() or 0
+        local height = type(UIParent.GetHeight) == "function" and UIParent:GetHeight() or 0
+        if width > 0 and (left < -1 or right > width + 1 or bottom < -1 or top > height + 1) then
+            problems[#problems + 1] = string.format("%s is off-screen (%.0f,%.0f to %.0f,%.0f)",
+                label, left, bottom, right, top)
+        end
+    end)
+    if not ok then problems[#problems + 1] = label .. " could not be measured" end
+end
+
+local function moduleFrame(module)
+    local getter = module and module.Frame
+    if type(getter) ~= "function" then return nil end
+    local ok, target = pcall(getter)
+    return ok and target or nil
+end
+
+function ns.UI.CheckLayout()
+    local problems = {}
+    inspectFrame("Shop window", frame, problems)
+    inspectFrame("Negotiation window", moduleFrame(ns.UI.Negotiation), problems)
+    inspectFrame("Encounter window", moduleFrame(ns.UI.Event), problems)
+    inspectFrame("Wholesaler window", moduleFrame(ns.UI.Wholesaler), problems)
+    inspectFrame("Welcome window", moduleFrame(ns.UI.Welcome), problems)
+
+    local scale = 1
+    if frame and type(frame.GetScale) == "function" then
+        local ok, value = pcall(frame.GetScale, frame)
+        if ok and tonumber(value) then scale = tonumber(value) end
+    end
+    if #problems == 0 then
+        ns.Print(string.format("Layout check at %d%% scale: no window sits off-screen.",
+            math.floor(scale * 100 + 0.5)))
+    else
+        ns.Print(string.format("Layout check at %d%% scale: %d problem(s).",
+            math.floor(scale * 100 + 0.5), #problems))
+        for _, problem in ipairs(problems) do ns.Print("  " .. problem) end
+    end
+    return problems
 end
 
 function ns.UI.StartNegotiation(index)

@@ -2,6 +2,58 @@
 
 All notable changes to Goblin Pawn Stars. Format loosely follows Keep a Changelog.
 
+## [1.7.0] — 2026-11-26
+
+### Added
+
+- `/gps verify` saves, reads the committed journal back off the macro list and compares
+  credits, tier, sales and served customers with the run in memory, so a save problem can
+  be proven without logging out. It names the generation it read and how much stock that
+  save holds. A journal over budget drops low-value stacks on purpose, so stock is reported
+  but never treated as a mismatch.
+- The header now ends with the save state (`saved 12s ago`, `save pending`, `save error`,
+  `save off`), so a broken save path is visible before the next logout instead of after it.
+- `/gps uicheck` reports any shop, negotiation, encounter, wholesaler or welcome window
+  that sits outside the screen at the current UI scale.
+- The first three customers are scripted (gullible, trader, impatient) and the first buyer's
+  ceiling rises to 1.45× market value and budget, so a new player's opening counter leaves a
+  real margin instead of a coin flip. The money still comes from their own completed sale.
+- `/gps motion` turns window fades, pulses, flashes and walk-ins off. Every animation helper
+  falls back to its instant path, the same path a client without animation support uses.
+- Logging in prints a one-line summary: credits, customers waiting, stock, and how long ago
+  the last save landed. Nothing is earned while the shop is closed.
+
+### Fixed
+
+- A full stockroom no longer freezes the game while the journal saves. Trimming
+  re-encoded the whole shop every four stacks it dropped, so a big shop paid for dozens
+  of full encodes on every save; it now measures the fixed cost once and drops whole
+  batches instead (about five times cheaper here, and no longer quadratic).
+- A no-change autosave left the journal marked as saving, so nothing else was written
+  for the rest of the session. The unchanged path now clears the flag, and a test covers
+  the save that follows it.
+- Fades and pulses no longer leak animation groups. Every call used to create a new
+  group and animations that the client keeps for the frame's lifetime; the credits number
+  pulses on every sale, so a long session piled up thousands of them until the client
+  crawled. Each region now keeps one group per effect and replays it, and the UI smoke
+  test asserts forty fades plus forty pulses build exactly two groups.
+- `/gps journal` reports how long the last save took, and an unchanged save is skipped
+  before the expensive trimming step.
+
+### Changed
+
+- A tag-driven `Release` workflow builds the ZIP, writes the checksum, takes the notes from
+  this file and publishes the GitHub release with the asset attached. CurseForge upload is
+  optional and only runs when the repository secrets exist.
+
+### Tests
+
+- Six new diagnostics: the scripted opening customers, `/gps verify` reading a save back,
+  a second login restoring the first session's shop through the real login event, the
+  codec surviving hostile text plus truncation at every tested byte, a 300-stack stockroom
+  trimming down without losing the best stock, and a save that still writes after an
+  unchanged autosave. 43 tests pass.
+
 ## [1.6.5] — 2026-11-26
 
 ### Fixed

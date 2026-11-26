@@ -23,6 +23,7 @@ ns.Journal = J
 
 local CHUNK_SIZE = 210
 local MAX_CHUNKS = 12          -- per generation; a save needs two of them
+local BUDGET = MAX_CHUNKS * CHUNK_SIZE -- one generation's payload, in base64
 local LEGACY_CHUNKS = 24       -- pre-1.6.4 single-generation saves
 local PREFIX_V1 = "--GPSJ1:"
 local PREFIX_V2 = "--GPSJ2:"
@@ -40,6 +41,14 @@ local loading = false
 local saving = false
 local pending = false
 
+-- U.now() is whole seconds, so a save's duration is measured with GetTime.
+local function millis()
+    if type(GetTime) ~= "function" then return nil end
+    local ok, value = pcall(GetTime)
+    value = ok and tonumber(value) or nil
+    return value and value * 1000 or nil
+end
+
 J.status = {
     chunks = 0,
     savedAt = 0,
@@ -50,6 +59,7 @@ J.status = {
     stamp = nil,
     fingerprint = nil,
     attempts = 0,
+    saveMs = 0,
 }
 
 -- A broken save path is invisible until the next login, so the first failure of
@@ -62,6 +72,27 @@ local function reportSaveFailure(detail)
     reportedFailures[detail] = true
     ns.Warn("Could not save progress to the macro journal: " .. tostring(detail) ..
         ". This session may not survive a logout. Type |cffffffff/gps journal|r for details.")
+end
+
+-- Both success paths end the same way: the journal is no longer in flight and
+-- the status describes the save that just landed.
+local function finishSave(started)
+    saving = false
+    lastSave = U.now()
+    pending = false
+    J.status.error = nil
+    J.status.empty = false
+    J.status.savedAt = lastSave
+    local finished = millis()
+    J.status.saveMs = (started and finished)
+        and math.max(0, math.floor(finished - started + 0.5)) or 0
+    return true, J.status
+end
+
+local function abandonSave(detail)
+    saving = false
+    reportSaveFailure(detail)
+    return false
 end
 
 ---------------------------------------------------------------------------
@@ -132,6 +163,15 @@ local function checksum(text)
     return math.floor(value)
 end
 
+-- The payload timestamp changes on every save, so the fingerprint covers the
+-- encoded shop with the savedAt value masked out. Hashing the bytes already in
+-- hand avoids a second full encode just to prove nothing changed. If the codec
+-- ever stopped writing that key the timestamp would be hashed and every save
+-- would look changed, which only costs work, never correctness.
+local function payloadFingerprint(text)
+    return checksum((text:gsub("s7:savedAtd[^;]*;", "s7:savedAtd;")))
+end
+
 local function chunkName(generation, index)
     return string.format("GPS%s%02d", generation, index)
 end
@@ -190,65 +230,59 @@ local function encodedSnapshot(snapshot)
     return base64Encode(DB.Encode(snapshot, true))
 end
 
+-- Packed stock carries its value at 7 and its count at 8 (see packInventory).
 local function inventoryWeight(record)
-    if type(record) ~= "table" then return 0 end
-    local value = tonumber(record.value) or tonumber(record[7]) or 1
-    local count = tonumber(record.count) or tonumber(record[8]) or 1
-    return value * count
+    return (record[7] or 1) * (record[8] or 1)
 end
 
 -- Trims the cheapest stock until the encoded snapshot fits one generation. Runs
 -- after packing, so the budget is measured on the bytes that actually ship.
+--
+-- Each pass drops the number of stacks the remaining overflow needs, estimated
+-- from the average encoded size of one stack. Dropping four stacks per pass and
+-- re-encoding everything made a full stockroom cost dozens of full encodes,
+-- which a player felt as a multi-second freeze on every save.
 local function trimSnapshot(snapshot, encoded)
-    local limit = MAX_CHUNKS * CHUNK_SIZE
-    if #encoded <= limit then return encoded, false end
+    if #encoded <= BUDGET then return encoded, false end
 
-    local packed = snapshot.inventoryFormat == PACK_FORMAT
     local records = {}
-    for key, record in pairs(snapshot.inventory or {}) do
-        records[#records + 1] = { key = key, record = record, weight = inventoryWeight(record) }
+    for _, record in pairs(snapshot.inventory or {}) do
+        records[#records + 1] = record
     end
-    table.sort(records, function(a, b) return a.weight < b.weight end)
+    local count = #records
+    if count == 0 then return encoded, false end
 
-    local removed = 0
-    local function rebuild()
-        if packed then
-            local kept = {}
-            for _, entry in ipairs(records) do
-                if not entry.dropped then kept[#kept + 1] = entry.record end
-            end
-            snapshot.inventory = kept
-        else
-            for _, entry in ipairs(records) do
-                if entry.dropped then snapshot.inventory[entry.key] = nil end
-            end
-        end
+    -- Cheapest first: stock is the least valuable thing to lose, and the order
+    -- is what keeps the expensive pieces after a trim.
+    table.sort(records, function(a, b) return inventoryWeight(a) < inventoryWeight(b) end)
+
+    -- Re-encodes the shop keeping everything after the `dropped` cheapest stacks.
+    local function rebuilt(dropped)
+        local kept = {}
+        for index = dropped + 1, count do kept[#kept + 1] = records[index] end
+        snapshot.inventory = kept
         return encodedSnapshot(snapshot)
     end
 
-    local index = 1
-    while #encoded > limit and index <= #records do
-        for _ = 1, 4 do
-            local entry = records[index]
-            index = index + 1
-            if not entry then break end
-            entry.dropped = true
-            removed = removed + 1
-        end
-        encoded = rebuild()
+    -- One encode without stock gives the fixed cost, so the first pass can drop
+    -- close to the right number instead of guessing.
+    local fixed = rebuilt(count)
+    local perRecord = math.max(1, (#encoded - #fixed) / count)
+
+    local dropped = 0
+    for _ = 1, 4 do
+        if #encoded <= BUDGET then break end
+        local step = math.ceil((#encoded - BUDGET) / perRecord)
+        dropped = math.min(count, dropped + math.max(1, step))
+        encoded = rebuilt(dropped)
     end
-    -- Stock is the cheapest thing to lose; economy, campaign, museum and stats
-    -- matter more than the shelves. Never refuse to save over a full stockroom.
-    if #encoded > limit then
-        for _, entry in ipairs(records) do
-            if not entry.dropped then
-                entry.dropped = true
-                removed = removed + 1
-            end
-        end
-        encoded = rebuild()
+    -- Never refuse to save over a full stockroom: the economy, campaign, museum
+    -- and stats matter more than the shelves.
+    if #encoded > BUDGET and dropped < count then
+        dropped = count
+        encoded = rebuilt(count)
     end
-    return encoded, removed > 0
+    return encoded, dropped > 0
 end
 
 ---------------------------------------------------------------------------
@@ -652,7 +686,7 @@ local function writeGeneration(generation, counter, encoded, stamp)
     return true, total
 end
 
-function J.SaveNow()
+function J.SaveNow(force)
     if saving or loading then return false end
     local db = DB.Get()
     if db.settings.macroJournal == false then
@@ -688,84 +722,49 @@ function J.SaveNow()
     end
 
     saving = true
+    local started = millis()
     local snapshot = DB.Snapshot()
     -- Pack first: the journal's budget is measured on what is actually written,
     -- and packing is what makes a normal shop fit without losing stock.
     packInventory(snapshot)
     local encoded = encodedSnapshot(snapshot)
+
+    -- Compare the shop before trimming. Most autosaves carry identical data,
+    -- and trimming is by far the expensive half of a save, so an unchanged
+    -- save must not pay for it (or rewrite 24 macros the player can see).
+    local fingerprint = payloadFingerprint(encoded)
+    if not force and J.status.fingerprint == fingerprint and J.status.generation then
+        return finishSave(started)
+    end
+
     local trimmed
     encoded, trimmed = trimSnapshot(snapshot, encoded)
-    if #encoded > MAX_CHUNKS * CHUNK_SIZE then
-        saving = false
-        reportSaveFailure("journal is too large, even without stock")
-        return false
+    if #encoded > BUDGET then
+        return abandonSave("journal is too large, even without stock")
     end
 
-    local stamp = checksum(encoded)
-
-    -- The payload timestamp changes on every save, so compare the shop itself.
-    -- Writing 24 macros every half minute rewrites a list the player can see,
-    -- and most saves carry identical data.
-    snapshot.savedAt = nil
-    local fingerprint = checksum(DB.Encode(snapshot, true, 0))
-    if J.status.fingerprint == fingerprint and J.status.generation then
-        lastSave = U.now()
-        pending = false
-        J.status.error = nil
-        J.status.savedAt = lastSave
-        J.status.trimmed = trimmed and true or false
-        J.status.empty = false
-        return true, J.status
-    end
-
-    -- Write the generation that is not current. If nothing was loaded this
-    -- session, look first so an existing save is never blindly overwritten.
-    if not J.status.generation then
-        local generations = collectJournal()
-        local newest
-        for _, name in ipairs(GENERATIONS) do
-            local chunks = generations[name]
-            local header = chunks and chunks[1]
-            if header and header.state == "c" then
-                if not newest or (header.counter or 0) > newest.counter then
-                    newest = { name = name, counter = header.counter or 0 }
-                end
-            end
-        end
-        if newest then
-            J.status.generation = newest.name
-            J.status.counter = newest.counter
-        end
-    end
-
+    -- Write the generation that is not current, so a crash at any point leaves
+    -- the previous committed save intact.
     local previous = J.status.generation
     local generation = previous == "A" and "B" or "A"
-    local counter = (tonumber(J.status.counter) or 0) + 1
+    local counter = (J.status.counter or 0) + 1
+    local stamp = checksum(encoded)
 
-    local ok, detail = writeGeneration(generation, counter, encoded, stamp)
-    saving = false
-    if not ok then
-        reportSaveFailure(detail)
-        return false
-    end
+    local ok, result = writeGeneration(generation, counter, encoded, stamp)
+    if not ok then return abandonSave(result) end
 
     -- The new generation is complete, verified and committed. Only now is the
     -- previous save allowed to disappear.
     deleteGeneration(previous)
     deleteLegacy()
 
-    lastSave = U.now()
-    pending = false
-    J.status.error = nil
-    J.status.chunks = detail
-    J.status.savedAt = lastSave
-    J.status.trimmed = trimmed and true or false
-    J.status.empty = false
+    J.status.chunks = result
+    J.status.trimmed = trimmed
     J.status.stamp = stamp
     J.status.fingerprint = fingerprint
     J.status.generation = generation
     J.status.counter = counter
-    return true, J.status
+    return finishSave(started)
 end
 
 -- Saves start early (a short session must still land one) and retry quickly
@@ -804,6 +803,7 @@ function J.Clear()
     J.status.attempts = 0
     J.status.generation = nil
     J.status.counter = 0
+    J.status.saveMs = 0
     return true
 end
 
@@ -832,7 +832,9 @@ function J.Report()
         J.status.chunks or 0, MAX_CHUNKS, tostring(J.status.generation or "none"),
         slots and (tostring(slots) .. " slot(s) visible") or "|cffff5555unavailable|r"))
     if (J.status.savedAt or 0) > 0 then
+        local spent = tonumber(J.status.saveMs) or 0
         ns.Print("  Last save: " .. U.clock(math.max(0, U.now() - J.status.savedAt)) .. " ago" ..
+            (spent > 0 and string.format(" (took %d ms)", spent) or "") ..
             (J.status.trimmed and " · stock trimmed to fit" or ""))
     else
         ns.Print("  Last save: none recorded")
@@ -847,6 +849,92 @@ function J.Report()
     else
         ns.Print("  No save errors reported this session.")
     end
+end
+
+-- One short line for the header. The full story stays in /gps journal; this is
+-- what a player can read without being told to run a command.
+function J.Health()
+    local status = J.status
+    if not J.Active() then return "|cffff6b5esave off|r", "off" end
+    if status.error then return "|cffff5555save error|r", "error" end
+    if (status.savedAt or 0) > 0 then
+        local age = math.max(0, U.now() - status.savedAt)
+        if age <= 90 then return "|cff7bd66bsaved " .. U.clock(age) .. " ago|r", "ok" end
+        return "|cffe0c060saved " .. U.clock(age) .. " ago|r", "stale"
+    end
+    if loaded then return "|cffe0c060save pending|r", "pending" end
+    return "|cffe0c060waiting for macros|r", "pending"
+end
+
+-- Reads the committed journal back off the macro list and compares it with the
+-- run in memory. This answers "did my progress actually save?" without a
+-- logout, and it is the check every save bug report should start with.
+function J.Verify()
+    local db = DB.Get()
+    if db.settings.macroJournal == false then
+        return false, "the macro journal is off; use a backup string in Settings"
+    end
+    if ns.Compat.MacroCount() == nil then
+        return false, "the macro API is unavailable on this client"
+    end
+    if ns.Compat.InCombat() then
+        return false, "cannot save in combat; try again after the fight"
+    end
+
+    local written = J.SaveNow(true)
+    if not written then
+        return false, "the journal did not save: " .. tostring(J.status.error or "unknown reason")
+    end
+
+    local generations = collectJournal()
+    local best
+    for _, name in ipairs(GENERATIONS) do
+        local chunks = generations[name]
+        if chunks then
+            local candidate = assemble(chunks, MAX_CHUNKS, true)
+            local counter = chunks[1] and chunks[1].counter or 0
+            if candidate and (not best or counter > best.counter) then
+                best = { encoded = candidate, generation = name, counter = counter }
+            end
+        end
+    end
+    if not best then return false, "no committed save was found in the macro list" end
+
+    local text = base64Decode(best.encoded)
+    if not text then return false, "the saved payload is not readable base64" end
+    local payload, decodeError = ns.Serialize.Decode(text)
+    if not payload then return false, "the saved data did not decode: " .. tostring(decodeError) end
+    local stored = payload.data or {}
+    local storedStats = stored.stats or {}
+
+    -- Stock is deliberately not compared: a journal over budget drops the
+    -- lowest-value stacks, so a smaller inventory is a correct save.
+    local mismatches = {}
+    if (stored.credits or 0) ~= (db.credits or 0) then
+        mismatches[#mismatches + 1] = string.format("credits %s vs %s",
+            U.comma(stored.credits or 0), U.comma(db.credits or 0))
+    end
+    if (stored.tier or 1) ~= (db.tier or 1) then
+        mismatches[#mismatches + 1] = string.format("tier %s vs %s",
+            tostring(stored.tier), tostring(db.tier))
+    end
+    if (storedStats.sales or 0) ~= (db.stats.sales or 0) then
+        mismatches[#mismatches + 1] = string.format("sales %d vs %d",
+            storedStats.sales or 0, db.stats.sales or 0)
+    end
+    if (storedStats.customersServed or 0) ~= (db.stats.customersServed or 0) then
+        mismatches[#mismatches + 1] = string.format("served %d vs %d",
+            storedStats.customersServed or 0, db.stats.customersServed or 0)
+    end
+    if #mismatches > 0 then
+        return false, string.format("generation %s does not match this run (%s)",
+            tostring(best.generation), table.concat(mismatches, ", "))
+    end
+
+    local stock = 0
+    for _ in pairs(stored.inventory or {}) do stock = stock + 1 end
+    return true, string.format("generation %s verified: %s gc, %d sales, %d stock stacks",
+        tostring(best.generation), U.comma(stored.credits or 0), storedStats.sales or 0, stock)
 end
 
 function J.StatusText()

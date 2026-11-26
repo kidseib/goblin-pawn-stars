@@ -4,10 +4,10 @@
 
 <p align="center">
   <a href="https://github.com/kidseib/goblin-pawn-stars/actions/workflows/ci.yml"><img src="https://github.com/kidseib/goblin-pawn-stars/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
-  <img src="https://img.shields.io/badge/version-1.6.5-c9a24a?style=flat-square" alt="Version 1.6.5">
+  <img src="https://img.shields.io/badge/version-1.7.0-c9a24a?style=flat-square" alt="Version 1.7.0">
   <img src="https://img.shields.io/badge/interface-16001-3f7d4e?style=flat-square" alt="Interface 16001">
   <img src="https://img.shields.io/badge/Lua-5.1-2c2d72?style=flat-square&logo=lua&logoColor=white" alt="Lua 5.1">
-  <img src="https://img.shields.io/badge/tests-37%2F37-3f7d4e?style=flat-square" alt="37 of 37 tests passing">
+  <img src="https://img.shields.io/badge/tests-43%2F43-3f7d4e?style=flat-square" alt="43 of 43 tests passing">
   <img src="https://img.shields.io/badge/dependencies-none-6b4f2a?style=flat-square" alt="No runtime dependencies">
   <img src="https://img.shields.io/badge/license-MIT-3f7d4e?style=flat-square" alt="MIT License">
 </p>
@@ -32,12 +32,12 @@
   <a href="#persistence-important-beta-note">Persistence</a> ·
   <a href="#compatibility-and-safety">Safety</a> ·
   <a href="#development">Development</a> ·
-  <a href="TESTING.md">Testing 1.6.5</a> ·
+  <a href="TESTING.md">Testing 1.7.0</a> ·
   <a href="#ai-disclosure">AI disclosure</a> ·
   <a href="#license">License</a>
 </p>
 
-> **Status — 1.6.5.** The addon is feature-complete and passes the
+> **Status — 1.7.0.** The addon is feature-complete and passes the
 > 37-test headless suite plus the UI smoke pass. Live-client validation is still in
 > progress: see [TESTING.md](TESTING.md) for the in-game checklist and
 > [Testing status](#testing-status) for what is and is not verified.
@@ -96,8 +96,10 @@ customers are procedural, and no real item, bag slot or copper is ever touched.
 
 ## Install
 
-1. Download [`dist/GoblinPawnStars-1.6.5.zip`](dist/GoblinPawnStars-1.6.5.zip), or
-   build it with `npm run package`.
+1. Download
+   [`GoblinPawnStars-1.7.0.zip`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.0/GoblinPawnStars-1.7.0.zip)
+   from the [v1.7.0 release](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.0),
+   or build it with `npm run package`.
 2. Extract it so the folder layout is:
 
    ```
@@ -117,16 +119,18 @@ Check it before extracting:
 
 ```powershell
 # Windows PowerShell
-Get-FileHash .\GoblinPawnStars-1.6.5.zip -Algorithm SHA256
+Get-FileHash .\GoblinPawnStars-1.7.0.zip -Algorithm SHA256
 ```
 
 ```bash
 # macOS / Linux
-shasum -a 256 GoblinPawnStars-1.6.5.zip
-# or: sha256sum GoblinPawnStars-1.6.5.zip
+shasum -a 256 GoblinPawnStars-1.7.0.zip
+# or: sha256sum GoblinPawnStars-1.7.0.zip
 ```
 
-Compare the result with [`dist/GoblinPawnStars-1.6.5.zip.sha256`](dist/GoblinPawnStars-1.6.5.zip.sha256).
+Compare the result with the
+[`GoblinPawnStars-1.7.0.zip.sha256`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.0/GoblinPawnStars-1.7.0.zip.sha256)
+attached to the same release.
 
 ---
 
@@ -230,6 +234,9 @@ alert, toasts, optional sound cues, and item tooltips throughout.
 /gps reset               wipe all progress (asks twice)
 /gps journal             whether progress is saving, chunk count and last error
 /gps report              pasteable client, save, error and economy report
+/gps verify              save, read the save back and compare it with this run
+/gps uicheck             report any window that sits off-screen at this scale
+/gps motion              turn window animations and flourishes on or off
 /gps version             version, interface number and authors
 /gps help                command list
 ```
@@ -427,7 +434,7 @@ ticks. See `PROGRESS.md` for exactly what was and was not verified.
 
 ## Testing status
 
-* Lua 5.1 syntax check: **passing** (55 files, 12,976 lines).
+* Lua 5.1 syntax check: **passing** (58 files, 15,237 lines).
 * Headless simulation suite: **27/27 passing** (the exact count is printed by
   `npm test`).
 * UI smoke (all tabs, splash modes, guided tour, goal card, options panel, negotiation,

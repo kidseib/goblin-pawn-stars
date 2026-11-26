@@ -951,6 +951,81 @@ function D.Run()
     end)
 
     -----------------------------------------------------------------------
+    test("journal trims a huge stockroom without losing the best stock", function()
+        if type(__clearMacros) ~= "function" or type(MACRO_STORE) ~= "table" then return end
+        __clearMacros()
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+        local db = ns.DB.Scratch()
+        db.settings.macroJournal = true
+        db.credits = 900
+        for index = 1, 300 do
+            db.inventory[index] = {
+                uid = index, name = "Journal Crate " .. index, quality = 2, ilvl = 20,
+                classID = 15, subclassID = 0, category = "misc",
+                value = index, count = 1, acquired = 1,
+            }
+        end
+        ns.db = db
+
+        local ok, status = ns.Journal.SaveNow()
+        expect(ok, "huge journal save failed: " .. tostring(status))
+        expect(status.trimmed, "a 300-stack shop must trim")
+        expect(status.chunks <= 12, "a trimmed save must fit one generation")
+
+        local fresh = ns.DB.Scratch()
+        fresh.settings.macroJournal = true
+        ns.db = fresh
+        expect(ns.Journal.TryLoad(true), "huge trimmed journal did not load")
+        local loaded = ns.DB.Get().inventory
+        local kept, cheapest, priciest = 0, math.huge, 0
+        for _, record in pairs(loaded) do
+            kept = kept + 1
+            local value = tonumber(record.value) or 0
+            if value < cheapest then cheapest = value end
+            if value > priciest then priciest = value end
+        end
+        expect(kept > 0, "trimming dropped the entire inventory")
+        expect(kept < 300, "trimming kept the entire inventory")
+        expect(priciest == 300, "trimming dropped the most valuable stack")
+        expect(cheapest >= 200, "trimming kept cheap stacks instead of the best ones")
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __clearMacros()
+    end)
+
+    -----------------------------------------------------------------------
+    test("journal keeps writing after an unchanged autosave", function()
+        if type(__clearMacros) ~= "function" or type(MACRO_STORE) ~= "table" then return end
+        __clearMacros()
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+        local db = ns.DB.Scratch()
+        db.settings.macroJournal = true
+        db.credits = 4321
+        ns.db = db
+
+        expect(ns.Journal.SaveNow(), "seed save failed")
+        -- The same shop again: the save is skipped as unchanged.
+        expect(ns.Journal.SaveNow(), "an unchanged save must still report success")
+        -- A skipped save used to leave the journal locked, so nothing ever wrote
+        -- again in that session. The next real change has to land.
+        ns.DB.Get().credits = 8765
+        expect(ns.Journal.SaveNow(), "the save after an unchanged one failed")
+
+        local fresh = ns.DB.Scratch()
+        fresh.settings.macroJournal = true
+        ns.db = fresh
+        expect(ns.Journal.TryLoad(true), "journal did not load after the skipped save")
+        expectEqual(ns.DB.Get().credits, 8765, "the journal stopped writing after an unchanged save")
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __clearMacros()
+    end)
+
+    -----------------------------------------------------------------------
     test("journal rebinds the live database before an immediate payment or reset", function()
         if type(__clearMacros) ~= "function" or type(MACRO_STORE) ~= "table" then return end
         __clearMacros()
@@ -1170,6 +1245,135 @@ function D.Run()
             "quest items should be ineligible")
         expect(ns.Data.IsEligible({ name = "Fine Sword", quality = 3, classID = 2, ilvl = 40 }) == true,
             "weapons should be eligible")
+    end)
+
+    -----------------------------------------------------------------------
+    test("the scripted opening customers make the first counter a good bet", function()
+        withScratch(nil, function(scratch)
+            ns.Inventory.Add({
+                id = 2592, name = "Wool Cloth", quality = 1, ilvl = 15,
+                classID = 7, subclassID = 5, category = "cloth", value = 200,
+            })
+            local first, record = ns.Customers.TrySpawn()
+            expect(first and record, "the first customer did not arrive")
+            expectEqual(first.personality, "gullible", "first customer should be the scripted buyer")
+            expect(first.maxPay >= ns.Market.Value(record), "the first buyer cannot cover a counter")
+
+            expect(ns.Customers.StartNegotiation(1), "first negotiation did not start")
+            -- A suggested low counter leaves at least a quarter of their ceiling on
+            -- the table, which is the margin the acceptance roll rewards.
+            local low = ns.Negotiation.Suggested("low")
+            local margin = (first.maxPay - low) / math.max(1, first.maxPay)
+            expect(margin >= 0.25, "the first counter leaves too little margin: " .. tostring(margin))
+            ns.Negotiation.Reject()
+
+            local second = ns.Customers.TrySpawn()
+            expectEqual(second.personality, "trader", "second customer should be the scripted trader")
+            ns.Customers.Dismiss(1)
+            local third = ns.Customers.TrySpawn()
+            expectEqual(third.personality, "impatient", "third customer should be the scripted buyer")
+            ns.Customers.Dismiss(1)
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("verify reads the save back off the macros and matches the run", function()
+        if type(__clearMacros) ~= "function" then return end
+        __clearMacros()
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+
+        ns.db = ns.DB.Scratch()
+        ns.db.settings.macroJournal = true
+        ns.db.credits = 999
+        ns.db.stats.sales = 4
+        ns.Journal.TryLoad(true)
+
+        local ok, detail = ns.Journal.Verify()
+        expect(ok, "verify failed: " .. tostring(detail))
+        expect(tostring(detail):find("999", 1, true) ~= nil, "verify did not report the saved credits")
+
+        local text, state = ns.Journal.Health()
+        expect(state == "ok", "health should report a fresh save, got " .. tostring(state))
+        expect(tostring(text):find("saved", 1, true) ~= nil, "health text is missing the age")
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __clearMacros()
+    end)
+
+    -----------------------------------------------------------------------
+    test("a second login restores the shop the first one sold from", function()
+        if type(__clearMacros) ~= "function" or type(MACRO_STORE) ~= "table" then return end
+        __clearMacros()
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+
+        -- Session A: one real sale, then the save the client would write.
+        local first = ns.DB.Scratch()
+        first.settings.macroJournal = true
+        first.settings.welcomeVersion = ns.VERSION
+        ns.db = first
+        ns.Inventory.Add({
+            id = 2592, name = "Wool Cloth", quality = 1, ilvl = 15,
+            classID = 7, subclassID = 5, category = "cloth", value = 300,
+        })
+        ns.Customers.TrySpawn({ personality = "gullible" })
+        expect(ns.Customers.StartNegotiation(1), "session A could not start")
+        expect(ns.Negotiation.Accept(), "session A sale failed")
+        local credits = ns.DB.Get().credits
+        ns.Journal.TryLoad(true)
+        expect(ns.Journal.SaveNow(true), "session A save failed")
+
+        -- Session B: a brand new database, the journal is read, then the login
+        -- event runs in the order the client runs it.
+        ns.db = ns.DB.Scratch()
+        ns.db.settings.macroJournal = true
+        ns.Journal.TryLoad(true)
+        ns.Clock.events.handlers.PLAYER_LOGIN()
+
+        local restored = ns.DB.Get()
+        expectEqual(restored.credits, credits, "session B lost the credits")
+        expectEqual(restored.stats.sales, 1, "session B lost the sale")
+        expect(restored.settings.welcomeVersion == ns.VERSION,
+            "session B lost the seen-splash flag")
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __clearMacros()
+    end)
+
+    -----------------------------------------------------------------------
+    test("the save codec survives hostile text and every truncation", function()
+        withScratch(nil, function(scratch)
+            local pieces = { '"', '\\', '\n', '\r', '\t', '|', '{', '}', ',', '=', '%', '\194\169', '\240\159\146\128' }
+            for round = 1, 25 do
+                local parts = {}
+                for index = 1, 8 do
+                    parts[index] = pieces[math.random(#pieces)]
+                end
+                local name = table.concat(parts)
+                scratch.inventory[round] = {
+                    uid = round, id = 1000 + round, name = name,
+                    icon = "Interface\\Icons\\INV_Misc_Coin_01", quality = 1 + (round % 5),
+                    ilvl = round, category = "misc", value = round * 7, count = 1,
+                    counterfeit = false,
+                }
+                scratch.achievements["hostile_" .. round] = { at = round, name = name }
+            end
+
+            local encoded = ns.DB.Export()
+            local payload, err = ns.Serialize.Decode(encoded)
+            expect(payload, "hostile round trip failed: " .. tostring(err))
+            expectEqual(payload.data.inventory[25].name, scratch.inventory[25].name,
+                "hostile text changed in the round trip")
+
+            -- A cut save must be refused, never crash the login path.
+            for cut = 1, #encoded - 1, 17 do
+                local ok = pcall(ns.Serialize.Decode, encoded:sub(1, cut))
+                expect(ok, "decode threw on a payload truncated at " .. cut)
+            end
+        end)
     end)
 
     -----------------------------------------------------------------------

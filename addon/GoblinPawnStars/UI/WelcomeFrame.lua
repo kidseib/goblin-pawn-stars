@@ -38,6 +38,12 @@ local STEPS = {
 }
 
 local WHATS_NEW = {
+    ["1.7.0"] = {
+        "New /gps verify reads your save back and proves progress is stored.",
+        "The header shows the save state, and logging in prints a short shop summary.",
+        "Your first three customers are scripted so the opening haggle can be won.",
+        "Saving is about five times cheaper on a full stockroom, and effects no longer pile up in memory.",
+    },
     ["1.6.5"] = {
         "Progress and settings survive a logout again, so this screen stops reappearing.",
         "A save can no longer overwrite a good one before the macro list is ready.",

@@ -26,6 +26,9 @@ local function printHelp()
     ns.Print("  |cff7bd66b/gps version|r — print the version and interface number")
     ns.Print("  |cff7bd66b/gps journal|r — check whether progress is saving to the macro journal")
     ns.Print("  |cff7bd66b/gps report|r — print a pasteable client, save and economy report")
+    ns.Print("  |cff7bd66b/gps verify|r — save now, read the save back and compare it")
+    ns.Print("  |cff7bd66b/gps uicheck|r — check the windows fit on screen at this scale")
+    ns.Print("  |cff7bd66b/gps motion|r — turn window animations and flourishes on or off")
 end
 
 local function handleReset()
@@ -54,6 +57,39 @@ local function handler(message)
 
     if first == "test" or first == "diag" or first == "diagnostics" then
         ns.Diagnostics.Report()
+        return
+    end
+
+    if first == "verify" then
+        if not ns.Journal or not ns.Journal.Verify then
+            ns.Warn("The save journal did not load.")
+            return
+        end
+        local ok, detail = ns.Journal.Verify()
+        if ok then
+            ns.Print("|cff7bd66bSave verified|r — " .. tostring(detail))
+        else
+            ns.Warn("Save check failed: " .. tostring(detail))
+        end
+        return
+    end
+
+    if first == "motion" then
+        local db = ns.DB.Get()
+        db.settings.animations = not (db.settings.animations ~= false)
+        ns.Print("Animations " .. (db.settings.animations and "enabled" or "off") .. ".")
+        if db.settings.animations and ns.Anim then
+            if ns.UI and ns.UI.Refresh then ns.UI.Refresh(true) end
+        end
+        return
+    end
+
+    if first == "uicheck" then
+        if not ns.UI or not ns.UI.CheckLayout then
+            ns.Warn("The UI did not load.")
+            return
+        end
+        ns.UI.CheckLayout()
         return
     end
 

@@ -146,6 +146,45 @@ function __smoke()
         assert(icon:IsShown() and display == 7094, "unavailable model did not try the goblin fallback")
     end)
 
+    attempt("animation helpers reuse one group per region", function()
+        -- Animation groups belong to their region for its whole life. Creating
+        -- one per call leaked thousands of them in a long session, which is what
+        -- made the client slower and slower.
+        local created = 0
+        local function animation()
+            return {
+                SetDuration = function() end,
+                SetFromAlpha = function() end,
+                SetToAlpha = function() end,
+                SetSmoothing = function() end,
+                SetScaleFrom = function() end,
+                SetScaleTo = function() end,
+                SetStartDelay = function() end,
+                SetDegrees = function() end,
+            }
+        end
+        local region = {
+            GetScale = function() return 1 end,
+            SetScale = function() end,
+            SetAlpha = function() end,
+            CreateAnimationGroup = function()
+                created = created + 1
+                return {
+                    CreateAnimation = function() return animation() end,
+                    SetScript = function() end,
+                    SetLooping = function() end,
+                    Play = function() end,
+                    Stop = function() end,
+                }
+            end,
+        }
+        for _ = 1, 40 do
+            __NS.Anim.Reveal(region, 0.2, 0)
+            __NS.Anim.Pulse(region, 1.1, 0.2)
+        end
+        assert(created == 2, "animation groups are recreated per call: " .. created)
+    end)
+
     attempt("customer model frame moves across the doorway", function()
         local finished = 0
         local actor = { CreateAnimationGroup = function()
