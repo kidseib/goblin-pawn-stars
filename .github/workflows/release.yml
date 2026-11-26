@@ -1,0 +1,115 @@
+name: Release
+
+# Publishes an existing tag: builds the ZIP, writes the checksum, takes the
+# release notes straight out of CHANGELOG.md and attaches the asset. v1.6.5 had
+# to be released by hand and ended up without an asset; this makes every release
+# one dispatch instead.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to publish (for example v1.6.5)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    env:
+      CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+      CURSEFORGE_PROJECT_ID: ${{ secrets.CURSEFORGE_PROJECT_ID }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify before publishing
+        run: npm run verify
+
+      - name: Build the addon ZIP
+        run: npm run package
+
+      - name: Checksum and release notes
+        run: |
+          set -euo pipefail
+          VERSION="$(sed -n 's/^## Version: //p' addon/GoblinPawnStars/GoblinPawnStars.toc | tr -d '\r')"
+          ZIP="dist/GoblinPawnStars-${VERSION}.zip"
+          test -f "$ZIP"
+          ( cd dist && sha256sum "GoblinPawnStars-${VERSION}.zip" > "GoblinPawnStars-${VERSION}.zip.sha256" )
+          awk -v version="$VERSION" '
+            $0 ~ "^## \\[" version "\\]" { print; capture = 1; next }
+            capture && /^## \[/ { exit }
+            capture { print }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          test -s RELEASE_NOTES.md
+          {
+            echo
+            echo "---"
+            echo
+            echo "**Download:** \`GoblinPawnStars-${VERSION}.zip\` (3,0 MB, attached below)."
+            echo
+            echo "**SHA-256:** \`$(cut -d' ' -f1 "dist/GoblinPawnStars-${VERSION}.zip.sha256")\`"
+            echo
+            echo "Extract so the TOC sits at \`Interface/AddOns/GoblinPawnStars/GoblinPawnStars.toc\`, then \`/reload\` and \`/gps\`."
+            echo "Run \`/gps verify\` after a few minutes of play to confirm the save path is working."
+          } >> RELEASE_NOTES.md
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          ASSETS="dist/GoblinPawnStars-${VERSION}.zip dist/GoblinPawnStars-${VERSION}.zip.sha256"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" $ASSETS --clobber
+            gh release edit "$TAG" --notes-file RELEASE_NOTES.md
+          else
+            gh release create "$TAG" $ASSETS \
+              --title "Goblin Pawn Stars ${VERSION}" \
+              --notes-file RELEASE_NOTES.md \
+              --verify-tag
+          fi
+
+      # Optional. Set CURSEFORGE_API_KEY and CURSEFORGE_PROJECT_ID in the
+      # repository secrets to also upload the ZIP there. Never fails the release.
+      - name: Upload to CurseForge
+        if: env.CURSEFORGE_API_KEY != ''
+        continue-on-error: true
+        env:
+          CF_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+          CF_PROJECT: ${{ secrets.CURSEFORGE_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' > cf.json
+          import json, os, pathlib
+          notes = pathlib.Path("RELEASE_NOTES.md").read_text(encoding="utf-8")
+          print(json.dumps({
+              "changelog": notes,
+              "changelogType": "markdown",
+              "displayName": os.environ["VERSION"],
+              "releaseType": "release",
+          }))
+          PY
+          curl -sS --fail -X POST "https://wow.curseforge.com/api/projects/${CF_PROJECT}/upload" \
+            -H "X-Api-Token: ${CF_KEY}" \
+            -F "metadata=@cf.json;type=application/json" \
+            -F "file=@dist/GoblinPawnStars-${VERSION}.zip"

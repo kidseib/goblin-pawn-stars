@@ -2,12 +2,11 @@ name: Apply the 1.7.0 source patch
 
 # One-shot transport for the 1.7.0 release. The sandbox that produced the
 # commit had no git credentials, so the source travels as a compressed patch;
-# this workflow lands it on main and then deletes itself.
+# this workflow lands it on main.
 
 on:
   push:
     branches: [main]
-    paths: [".release/chunk-00.b64"]
 
 permissions:
   contents: write
@@ -31,9 +30,9 @@ jobs:
           base64 -d /tmp/release/patch.b64 > /tmp/release/patch.gz
           gunzip -c /tmp/release/patch.gz > /tmp/release/release.patch
           echo "patch bytes: $(wc -c < /tmp/release/release.patch)"
-          git apply --check /tmp/release/release.patch
-          git apply /tmp/release/release.patch
-          rm -rf .release .github/workflows/apply-release-patch.yml
+          git apply --check --exclude=.github/workflows/release.yml /tmp/release/release.patch
+          git apply --exclude=.github/workflows/release.yml /tmp/release/release.patch
+          rm -rf .release
           git rm -r --ignore-unmatch --quiet dist
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
