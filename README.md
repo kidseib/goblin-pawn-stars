@@ -25,6 +25,7 @@
 <p align="center">
   <a href="#install">Install</a> ·
   <a href="#the-loop">The loop</a> ·
+  <a href="#screenshots">Screenshots</a> ·
   <a href="#interface">Interface</a> ·
   <a href="#the-deed-140">The Deed</a> ·
   <a href="#persistence-important-beta-note">Persistence</a> ·
@@ -53,6 +54,42 @@ advertising and four bigger shop tiers, ending with an Azeroth Trading Empire.
 
 Everything is simulated inside the addon: Goblin Credits are fictional, the
 customers are procedural, and no real item, bag slot or copper is ever touched.
+
+---
+
+## Screenshots
+
+<p align="center">
+  <em>UI renders built from the addon's theme, labels and sample state — not live-client captures.</em>
+</p>
+
+<p align="center">
+  <a href="docs/screenshots/01-dashboard.png"><img src="docs/screenshots/01-dashboard.png" alt="Dashboard tab with credits, reputation, stock, customer queue and goals" width="49%"></a>
+  <a href="docs/screenshots/02-deed.png"><img src="docs/screenshots/02-deed.png" alt="The Deed tab with cartel payments, campaign progress, museum set and Marta" width="49%"></a>
+</p>
+<p align="center"><sub><b>Dashboard</b> — credits, reputation, stock and the next customer &nbsp;|&nbsp; <b>The Deed</b> — payments, museum set and Marta</sub></p>
+
+<p align="center">
+  <a href="docs/screenshots/03-negotiation.png"><img src="docs/screenshots/03-negotiation.png" alt="Negotiation window with a collector's offer, counteroffer and patience" width="49%"></a>
+  <a href="docs/screenshots/04-inventory.png"><img src="docs/screenshots/04-inventory.png" alt="Inventory tab with virtual stock, quality and value columns" width="49%"></a>
+</p>
+<p align="center"><sub><b>Negotiation</b> — offer, counter and patience &nbsp;|&nbsp; <b>Inventory</b> — virtual stock, quality and value</sub></p>
+
+<p align="center">
+  <a href="docs/screenshots/05-market.png"><img src="docs/screenshots/05-market.png" alt="Market tab with category demand, active events and today's request" width="49%"></a>
+  <a href="docs/screenshots/06-upgrades.png"><img src="docs/screenshots/06-upgrades.png" alt="Upgrades tab with permanent shop improvements and tier progress" width="49%"></a>
+</p>
+<p align="center"><sub><b>Market</b> — demand, events and today's request &nbsp;|&nbsp; <b>Upgrades</b> — permanent improvements</sub></p>
+
+<p align="center">
+  <a href="docs/screenshots/07-wholesaler.png"><img src="docs/screenshots/07-wholesaler.png" alt="Wholesaler window with three bulk lots priced in Goblin Credits" width="49%"></a>
+  <a href="docs/screenshots/08-settings.png"><img src="docs/screenshots/08-settings.png" alt="Settings tab with interface switches, backup tools and diagnostics" width="49%"></a>
+</p>
+<p align="center"><sub><b>Wholesaler</b> — bulk lots bought with credits &nbsp;|&nbsp; <b>Settings</b> — interface, backup and diagnostics</sub></p>
+
+> **These are UI renders, not live-client screenshots.** They are 1440×900 mockups
+> using the addon's theme, labels and sample state, and each image says so. The
+> in-game visual pass is still pending; see [TESTING.md](TESTING.md).
 
 ---
 

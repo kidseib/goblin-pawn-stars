@@ -180,7 +180,7 @@ Rules:
 `tools/build_zip.sh` reads the version from the TOC and produces
 `dist/GoblinPawnStars-<version>.zip` containing a single `GoblinPawnStars/` folder
 with the addon plus `README.md`, `CHANGELOG.md`, `LICENSE`, `AI-DISCLOSURE.md`,
-`TESTING.md`, and the README banner. Bump the TOC version, `ns.VERSION`,
+`TESTING.md`, the README banner, and the `docs/screenshots/` render gallery. Bump the TOC version, `ns.VERSION`,
 `package.json` and the changelog together, then rebuild and delete the superseded ZIP.
 
 Optional modern integrations must stay optional: the Settings category and Addon

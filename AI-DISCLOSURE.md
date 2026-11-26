@@ -19,6 +19,8 @@ how AI was used, what it was not used for, and how the output is checked.
   disclosure.
 - Repository tooling: syntax checks, packaging, and the GitHub Actions workflow.
 - The README banner SVG.
+- The README UI render gallery: HTML/CSS mockups of the intended screens, clearly
+  labeled as renders rather than live-client captures.
 
 ## What AI is not used for
 
