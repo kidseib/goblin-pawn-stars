@@ -16,8 +16,38 @@ local dialogueText, itemIcon, itemName, itemValue, itemCount
 local offerLabel, offerValue, marketLabel, marketValue
 local counterBox, feedbackText
 local acceptButton, rejectButton, counterButton, appraiseButton, closeButton
+local oddsText, oddsBar, payoutBanner
 local presets = {}
 local locked = false
+local payoutRevision = 0
+
+local PRESETS = {
+    { label = "Low", kind = "low" },
+    { label = "Fair", kind = "fair" },
+    { label = "Greedy", kind = "greedy" },
+}
+
+-- The number beside the counter is the number N.Counter will roll, not a hint.
+local function refreshOdds()
+    if not oddsText then return end
+    local amount = counterBox and tonumber(counterBox:GetText())
+    local odds = N.Odds(amount)
+
+    if not odds then
+        oddsText:SetText("")
+        oddsBar:SetValue(0, 1)
+    elseif odds.kind == "none" then
+        oddsText:SetText(T.Hex(T.colors.dim) .. "pick a price|r")
+        oddsBar:SetValue(0, 1)
+        oddsBar:SetColor(T.colors.dim)
+    else
+        local color = T.colors[odds.tone] or T.colors.muted
+        oddsText:SetText(T.Hex(color) .. string.format("%d%%", odds.percent) .. "|r "
+            .. T.Hex(T.colors.muted) .. odds.label .. "|r")
+        oddsBar:SetValue(math.max(odds.chance, 0.02), 1)
+        oddsBar:SetColor(color)
+    end
+end
 
 local function refresh()
     local summary = N.Summary()
@@ -76,17 +106,44 @@ local function refresh()
     for _, preset in ipairs(presets) do
         preset:SetState(true)
     end
+    refreshOdds()
+end
+
+-- Coins and a big number for a completed sale. completeSale has already paid the
+-- credits and its return value is the exact wallet delta, so the banner shows that
+-- number and nothing else.
+local function payout(price)
+    if not frame then return end
+    price = tonumber(price) or 0
+    if price <= 0 then return end
+
+    payoutRevision = payoutRevision + 1
+    local shown = payoutRevision
+    if payoutBanner then
+        payoutBanner.text:SetText("+" .. U.comma(price) .. " gc")
+        payoutBanner:Show()
+        ns.Anim.Pulse(payoutBanner, 1.16, 0.5)
+        ns.Anim.Pulse(payoutBanner.text, 1.12, 0.4)
+    end
+    if ns.Sound then ns.Sound.Play("coin") end
+    ns.Compat.After(2.4, function()
+        if shown == payoutRevision and payoutBanner then payoutBanner:Hide() end
+    end)
 end
 
 local function finish_and_close(result)
     if not result then return end
     local dialogue = result.dialogue or ""
-    if result.result == "sold" then
-        feedbackText:SetText("|cff5fd64fSold for " .. U.comma(result.price or 0) .. " gc.|r " .. dialogue)
-        if ns.Sound then ns.Sound.Play("coin") end
-    elseif result.result == "accepted" then
-        feedbackText:SetText("|cff5fd64fDeal at " .. U.comma(result.price or 0) .. " gc.|r " .. dialogue)
-        if ns.Sound then ns.Sound.Play("coin") end
+    local price = tonumber(result.price) or 0
+    if result.result == "sold" or result.result == "accepted" then
+        if price <= 0 then
+            -- completeSale now reports the exact credit delta. A zero here is a
+            -- real defect, not something to hide behind the previous sale.
+            feedbackText:SetText("|cffff6b5eThat sale reported no price. Nothing was guessed.|r")
+            return
+        end
+        feedbackText:SetText("|cff5fd64fSold for " .. U.comma(price) .. " gc.|r " .. dialogue)
+        payout(price)
     elseif result.result == "rejected" or result.result == "left" or result.result == "insulted" then
         feedbackText:SetText("|cffff6b5eThey left.|r " .. dialogue)
     else
@@ -208,9 +265,14 @@ local function build()
     offerValue = W.Number(offerPanel, "0 gc", 22, T.colors.gold)
     offerValue:SetPoint("TOPLEFT", 14, -22)
 
-    local hint = W.Text(offerPanel, "Counter below, or take the deal.", 10, T.colors.muted)
-    hint:SetPoint("RIGHT", -14, -6)
-    hint:SetJustifyH("RIGHT")
+    local oddsCaption = W.Text(offerPanel, "YOUR COUNTER ODDS", 9, T.colors.muted)
+    oddsCaption:SetPoint("TOPRIGHT", -14, -8)
+    oddsCaption:SetJustifyH("RIGHT")
+    oddsText = W.Number(offerPanel, "", 16, T.colors.gold)
+    oddsText:SetPoint("TOPRIGHT", -14, -20)
+    oddsText:SetJustifyH("RIGHT")
+    oddsBar = W.Bar(offerPanel, 168, 7, T.colors.gold)
+    oddsBar:SetPoint("TOPRIGHT", -14, -44)
 
     -- Counter ------------------------------------------------------------
     local counterLabel = W.Text(frame, "YOUR COUNTEROFFER", 9, T.colors.muted)
@@ -219,25 +281,23 @@ local function build()
     counterBox = W.EditBox(frame, 150, 26, "amount")
     counterBox:SetPoint("TOPLEFT", 16, -382)
     counterBox:SetNumeric(true)
+    counterBox:SetScript("OnTextChanged", function() refreshOdds() end)
     counterBox:SetScript("OnEnterPressed", function(self)
         self:ClearFocus()
         if not locked then
-            local result = N.Counter(tonumber(self:GetText()))
-            if result then finish_and_close(result) end
+            -- Counter returns (ok, payload). Keeping only the first value passed
+            -- a boolean to finish_and_close and errored on every landed counter.
+            local ok, result = N.Counter(tonumber(self:GetText()))
+            if ok then finish_and_close(result) end
             refresh()
         end
     end)
 
-    local presetData = {
-        { label = "Low", amount = function() return N.Suggested("low") end },
-        { label = "Fair", amount = function() return N.Suggested("fair") end },
-        { label = "Greedy", amount = function() return N.Suggested("greedy") end },
-    }
     local offset = 178
-    for index, preset in ipairs(presetData) do
+    for index, preset in ipairs(PRESETS) do
         local button = W.Button(frame, preset.label, 62, 26, function()
             if locked then return end
-            counterBox:SetText(tostring(preset.amount()))
+            counterBox:SetText(tostring(N.Suggested(preset.kind)))
             counterBox:SetFocus()
             counterBox:HighlightText()
         end, "neutral")
@@ -249,10 +309,10 @@ local function build()
     counterButton = W.Button(frame, "Make Counteroffer", 200, 30, function()
         if locked then return end
         locked = true
-        local result = N.Counter(tonumber(counterBox:GetText()))
+        local ok, result = N.Counter(tonumber(counterBox:GetText()))
         locked = false
-        if not result then
-            feedbackText:SetText("|cffff6b5eType a number first.|r")
+        if not ok then
+            feedbackText:SetText("|cffff6b5e" .. tostring(result) .. "|r")
             return
         end
         finish_and_close(result)
@@ -314,6 +374,18 @@ local function build()
     feedbackText:SetWordWrap(true)
     feedbackText:SetSpacing(3)
 
+    -- Payout banner ------------------------------------------------------
+    payoutBanner = W.Create(frame, "Frame")
+    payoutBanner:SetPoint("CENTER", frame, "CENTER", 0, 60)
+    payoutBanner:SetSize(320, 64)
+    local glow = payoutBanner:CreateTexture(nil, "BACKGROUND")
+    glow:SetAllPoints()
+    T.Fill(glow, 0.95, 0.78, 0.30, 0.16)
+    payoutBanner.text = W.Number(payoutBanner, "", 34, T.colors.gold)
+    payoutBanner.text:SetPoint("CENTER", 0, 0)
+    payoutBanner.text:SetJustifyH("CENTER")
+    payoutBanner:Hide()
+
     frame:Hide()
     if UISpecialFrames then
         local exists = false
@@ -345,6 +417,18 @@ ns.UI.Negotiation = {
     end,
     Frame = function()
         return frame
+    end,
+    CounterBox = function()
+        return counterBox
+    end,
+    CounterButton = function()
+        return counterButton
+    end,
+    AcceptButton = function()
+        return acceptButton
+    end,
+    PayoutText = function()
+        return payoutBanner and payoutBanner.text:GetText() or nil
     end,
 }
 

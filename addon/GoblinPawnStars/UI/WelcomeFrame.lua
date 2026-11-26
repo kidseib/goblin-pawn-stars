@@ -38,6 +38,11 @@ local STEPS = {
 }
 
 local WHATS_NEW = {
+    ["1.7.1"] = {
+        "The haggling window shows the real odds of your counter before you commit.",
+        "Customers open below their limit, and the first buyer is eager to deal.",
+        "A landed sale shows the amount it paid and your new wallet total.",
+    },
     ["1.7.0"] = {
         "New /gps verify reads your save back and proves progress is stored.",
         "The header shows the save state, and logging in prints a short shop summary.",

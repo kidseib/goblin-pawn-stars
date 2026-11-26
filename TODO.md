@@ -1,8 +1,26 @@
 # TODO
 
-## Must do in-game before calling 1.4.0 final
+## Must do in-game before calling 1.7.1 final
 
-- [ ] Run the full checklist in `PROGRESS.md` on a live Forever client.
+The 1.7.1 mock suite has 47 tests (46 at the original checkpoint, plus the
+customer-relative preset test). None of it has run in World of Warcraft; this block is
+the release gate. The older 1.4.0 list below is still open.
+
+- [ ] Fresh save, first NPC: the scripted gullible buyer opens around 65% of market,
+      below Low/Fair/Greedy; the presets read about 94/88/64%.
+- [ ] Land a Low/Fair counter: the window completes, the payout banner and feedback
+      equal the header credit delta, and two sales in a row show their own amounts.
+- [ ] Accept the opening: it pays the opening, never 0; a failed counter changes no
+      credits.
+- [ ] Salesperson or questing auto-sale: the header updates immediately and matches the
+      toast.
+- [ ] Relog with a customer at the counter: a valid customer has a positive offer and
+      working odds; an invalid saved customer is dropped, never shown as `0 gc`.
+- [ ] High-opening customer: Low/Fair/Greedy never fall below the current offer and stay
+      increasing.
+- [ ] Run the full in-game checklist in `PROGRESS.md`.
+
+## Older in-game checklist (1.4.0) — still open
 - [ ] Cold-restart after a campaign payment and confirm the macro journal restores
       credits, campaign, museum, Marta and prestige. Confirm `/reload` does not replay
       payments or duplicate stock.

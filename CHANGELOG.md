@@ -2,6 +2,43 @@
 
 All notable changes to Goblin Pawn Stars. Format loosely follows Keep a Changelog.
 
+## [1.7.1] — 2026-11-26
+
+### Fixed
+
+- The haggling window shows the exact counteroffer odds again, and that percentage is
+  the number the roll uses. The bar is refreshed from the same `Negotiation.Odds`
+  function as `Counter`, so a shown chance and a rolled chance cannot disagree.
+- The scripted first buyer opens at 45% of their ceiling and is eager: the suggested
+  fair counter shows and rolls at about 88%, and the greedy one at about 64%. Other
+  archetypes keep their own opening ranges, and the readout shows the real chance so a
+  high opening is visible instead of hidden.
+- The Low/Fair/Greedy presets are anchored to the customer's visible offer: they
+  never suggest a counter below it and keep their increasing order when a
+  high-opening customer asks for more than the market-based prices.
+- The Make Counteroffer button read only the first return value of
+  `Negotiation.Counter` and handed `true` to the result window, so every landed counter
+  errored before the payout. It now takes the `(ok, payload)` pair, so a counter win
+  completes, pays and displays like an accepted offer.
+- A completed sale always displays the amount it paid. `Negotiation.completeSale`
+  now returns the exact wallet delta, the negotiation window displays that number,
+  and the old "previous sale" fallback is gone. The banner stays up for 2.4 seconds.
+- The salesperson's automatic sale refreshes the shop window immediately, so the
+  header can no longer keep showing the pre-sale wallet (0 on a new shop) after the
+  credits have already been added.
+- A saved customer whose opening offer or hidden ceiling is missing is dropped when
+  the save loads, instead of rendering `0 gc` and making every counter impossible.
+
+### Tests
+
+- 47 tests pass. They assert the displayed odds equal the rolled value, the scripted
+  first buyer is eager and opens below half their ceiling, every sale's reported price
+  equals the credits actually added, saved customers without an offer are dropped, and
+  every preset stays at or above a high-opening customer's offer. The UI smoke checks
+  the accept and counter banners and the auto-sale header against the wallet delta.
+
+---
+
 ## [1.7.0] — 2026-11-26
 
 ### Added

@@ -515,6 +515,84 @@ function D.Run()
     end)
 
     -----------------------------------------------------------------------
+    test("every sale reports the exact credits it actually added", function()
+        local cases = {
+            { name = "accept", method = "accept" },
+            { name = "counter", method = "counter" },
+            { name = "salesperson", method = "autosale" },
+            { name = "questing", method = "questsale" },
+        }
+        for _, case in ipairs(cases) do
+            withScratch(nil, function(scratch)
+                local record = ns.Inventory.Add({
+                    id = 2589, name = "Delta Cloth", category = "cloth", value = 200,
+                })
+                expect(record, case.name .. ": no stock")
+                local customer = ns.Customers.TrySpawn({ personality = "gullible" })
+                expect(customer, case.name .. ": no customer")
+                local before = scratch.credits
+                local ok, price
+                if case.method == "accept" then
+                    expect(ns.Customers.StartNegotiation(1), "accept: no negotiation")
+                    local accepted, result = ns.Negotiation.Accept()
+                    ok, price = accepted, result and result.price
+                elseif case.method == "counter" then
+                    expect(ns.Customers.StartNegotiation(1), "counter: no negotiation")
+                    local original = ns.Util.chance
+                    ns.Util.chance = function() return true end
+                    local countered, result = ns.Negotiation.Counter(1)
+                    ns.Util.chance = original
+                    ok, price = countered, result and result.price
+                else
+                    local sold, soldPrice = ns.Negotiation.AutoSell(
+                        customer, 0.76, case.method == "questsale")
+                    ok, price = sold, soldPrice
+                end
+                expect(ok, case.name .. ": sale failed")
+                expectEqual(price, scratch.credits - before,
+                    case.name .. ": reported price differs from credits added")
+            end)
+        end
+    end)
+
+    test("saved customers without an offer or ceiling are dropped, not shown as 0 gc", function()
+        withScratch(nil, function(scratch)
+            local record = ns.Inventory.Add({
+                id = 2589, name = "Stale Cloth", category = "cloth", value = 100,
+            })
+            expect(record, "no stock for the stale customer")
+
+            scratch.shop.current = {
+                itemUid = record.uid, name = "Stale buyer",
+                maxPay = 100, patience = 3, patienceMax = 6,
+            }
+            local clean = ns.DB.Normalize(scratch)
+            expectEqual(clean.shop.current, nil, "customer without an offer survived")
+
+            scratch.shop.current = {
+                itemUid = record.uid, name = "Bad ceiling",
+                offer = 100, maxPay = 50, patience = 3, patienceMax = 6,
+            }
+            clean = ns.DB.Normalize(scratch)
+            expectEqual(clean.shop.current, nil, "customer with a ceiling below their offer survived")
+
+            scratch.shop.current = {
+                itemUid = record.uid, name = "Good buyer",
+                offer = 50, maxPay = 100, patience = 3, patienceMax = 6,
+            }
+            scratch.shop.waiting = {
+                { itemUid = record.uid, name = "Ghost buyer" },
+                { itemUid = record.uid, name = "Queued buyer", offer = 10, maxPay = 20,
+                  patience = 1, patienceMax = 2 },
+            }
+            clean = ns.DB.Normalize(scratch)
+            expect(clean.shop.current and clean.shop.current.offer == 50, "valid customer was dropped")
+            expectEqual(#clean.shop.waiting, 1, "invalid waiting customers survived")
+            expectEqual(clean.shop.waiting[1].name, "Queued buyer", "wrong waiting customer survived")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
     test("throughput reports only recorded sales", function()
         withScratch(nil, function(scratch)
             ns.Throughput.Reset()
@@ -1258,8 +1336,22 @@ function D.Run()
             expect(first and record, "the first customer did not arrive")
             expectEqual(first.personality, "gullible", "first customer should be the scripted buyer")
             expect(first.maxPay >= ns.Market.Value(record), "the first buyer cannot cover a counter")
+            expect(first.eager == true, "the first buyer should be eager")
+            expect(first.offer <= first.maxPay * 0.46 + 1,
+                "the first buyer opened at their ceiling, leaving nothing to haggle for")
 
             expect(ns.Customers.StartNegotiation(1), "first negotiation did not start")
+            -- The window prints these odds, and the first counter is meant to be
+            -- the round that teaches the loop. Both the fair and the greedy
+            -- counter must be real favourites, not coin flips.
+            local fairOdds = ns.Negotiation.Odds(ns.Negotiation.Suggested("fair"))
+            expect(fairOdds and fairOdds.chance >= 0.80,
+                "the first fair counter is not a strong favourite: "
+                .. tostring(fairOdds and fairOdds.percent))
+            local greedyOdds = ns.Negotiation.Odds(ns.Negotiation.Suggested("greedy"))
+            expect(greedyOdds and greedyOdds.chance >= 0.55,
+                "a greedy first counter is too unlikely: "
+                .. tostring(greedyOdds and greedyOdds.percent))
             -- A suggested low counter leaves at least a quarter of their ceiling on
             -- the table, which is the margin the acceptance roll rewards.
             local low = ns.Negotiation.Suggested("low")
@@ -1273,6 +1365,70 @@ function D.Run()
             local third = ns.Customers.TrySpawn()
             expectEqual(third.personality, "impatient", "third customer should be the scripted buyer")
             ns.Customers.Dismiss(1)
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("presets never suggest less than a high-opening customer's offer", function()
+        withScratch(nil, function(scratch)
+            ns.Inventory.Add({
+                id = 2592, name = "High Opening Cloth", quality = 1, ilvl = 15,
+                classID = 7, subclassID = 5, category = "cloth", value = 200,
+            })
+            local customer = ns.Customers.TrySpawn()
+            expect(customer, "high-opening customer did not queue")
+            expect(ns.Customers.StartNegotiation(1), "high-opening negotiation did not start")
+
+            -- Their offer is above all three market-based presets.
+            customer.offer = 280
+            customer.maxPay = 300
+
+            local low = ns.Negotiation.Suggested("low")
+            local fair = ns.Negotiation.Suggested("fair")
+            local greedy = ns.Negotiation.Suggested("greedy")
+            expect(low >= customer.offer, "low preset is below the customer's offer")
+            expect(fair >= customer.offer, "fair preset is below the customer's offer")
+            expect(greedy >= customer.offer, "greedy preset is below the customer's offer")
+            expect(low < fair and fair < greedy, "presets lost their increasing order")
+            ns.Negotiation.Reject()
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("displayed counteroffer odds are the odds that roll", function()
+        withScratch(nil, function(scratch)
+            ns.Inventory.Add({
+                id = 7100, name = "Odds Test Piece", quality = 3, ilvl = 60,
+                classID = 2, subclassID = 7, category = "weapon", value = 1000,
+            })
+            ns.Customers.TrySpawn({ personality = "trader" })
+            expect(ns.Customers.StartNegotiation(1), "negotiation did not start")
+
+            -- Their current offer is always inside the ceiling, so the roll is live.
+            local customer = ns.Negotiation.Active()
+            local amount = math.max(1, math.floor(customer.offer or 0))
+            local odds = ns.Negotiation.Odds(amount)
+            expect(odds and odds.kind == "reach", "an in-range counter should be rollable")
+            expectEqual(odds.percent, math.floor(odds.chance * 100 + 0.5), "percent does not match the chance")
+            expect(odds.chance >= 0.05 and odds.chance <= 0.94, "chance left its clamp")
+
+            local absurd = ns.Negotiation.Odds(amount * 8)
+            expect(absurd.chance == 0 and absurd.kind == "insult",
+                "an absurd demand should be flagged as an insult with no roll")
+            local over = ns.Negotiation.Odds((customer.maxPay or 0) + 1)
+            expect(over.chance == 0 and over.kind == "over",
+                "an above-ceiling counter should show no chance")
+
+            -- Capture the value the roll actually receives; the window prints
+            -- this same number, so they must not diverge.
+            local rolled
+            local original = U.chance
+            U.chance = function(probability) rolled = probability return false end
+            local ok, payload = ns.Negotiation.Counter(amount)
+            U.chance = original
+            expect(ok and payload, "counter failed: " .. tostring(payload))
+            expect(rolled, "an in-range counteroffer never rolled")
+            expectEqual(rolled, odds.chance, "shown odds differ from the rolled odds")
         end)
     end)
 

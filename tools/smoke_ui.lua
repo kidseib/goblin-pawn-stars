@@ -321,15 +321,93 @@ function __smoke()
         __NS.UI.Negotiation.Hide()
     end)
 
-    attempt("accept offer", function()
+    attempt("accept offer displays the exact credits added", function()
+        local db = __NS.DB.Get()
         if not __NS.Negotiation.Active() then
             __NS.Customers.TrySpawn({ personality = "gullible" })
-            __NS.Customers.StartNegotiation(1)
+            if not __NS.Customers.StartNegotiation(1) then error("negotiation did not start") end
         end
         __NS.UI.Negotiation.Show()
-        local ok, result = __NS.Negotiation.Accept()
-        if not ok then error("accept failed: " .. tostring(result)) end
+        local button = __NS.UI.Negotiation.AcceptButton()
+        if not button then error("accept control is not exposed") end
+        local before = db.credits or 0
+        button:GetScript("OnClick")(button, "LeftButton")
+        local delta = (db.credits or 0) - before
+        if delta <= 0 then error("accept paid nothing") end
+        local shown = __NS.UI.Negotiation.PayoutText()
+        local expected = "+" .. __NS.Util.comma(delta) .. " gc"
+        if shown ~= expected then
+            error("accept banner " .. tostring(shown) .. " != credits added " .. expected)
+        end
+    end)
+
+    attempt("counter button completes and pays for a sale", function()
+        local db = __NS.DB.Get()
+        __NS.Inventory.Add({
+            id = 2770, name = "Copper Ore", quality = 1, ilvl = 5,
+            classID = 7, subclassID = 7, category = "ore", value = 40,
+        })
+        __NS.Customers.TrySpawn({ personality = "gullible" })
+        if not __NS.Customers.StartNegotiation(1) then error("negotiation did not start") end
+        __NS.UI.Negotiation.Show()
+
+        local box = __NS.UI.Negotiation.CounterBox()
+        local button = __NS.UI.Negotiation.CounterButton()
+        if not box or not button then error("counter controls are not exposed") end
+        box:SetText("1")
+
+        local original = __NS.Util.chance
+        __NS.Util.chance = function() return true end
+        local before = db.credits or 0
+        button:GetScript("OnClick")(button, "LeftButton")
+        __NS.Util.chance = original
+
+        -- Reading only the first return of Negotiation.Counter used to pass a
+        -- boolean here and error before the payout, leaving the window stuck.
+        if __NS.Negotiation.Active() then error("counter did not complete the sale") end
+        local delta = (db.credits or 0) - before
+        if delta <= 0 then error("counter win paid nothing") end
+        local shown = __NS.UI.Negotiation.PayoutText()
+        local expected = "+" .. __NS.Util.comma(delta) .. " gc"
+        if shown ~= expected then
+            error("counter banner " .. tostring(shown) .. " != credits added " .. expected)
+        end
+    end)
+
+    attempt("auto-sale header equals the exact credits added", function()
+        local db = __NS.DB.Get()
+        db.shop.current = nil
+        db.shop.waiting = {}
+        db.shop.nextArrival = 999
+        db.employees.salesperson = 1
+        db.settings.autoSell = true
+        db.settings.questAutoSell = false
+        db.settings.paused = false
+        local record = __NS.Inventory.Add({
+            id = 2771, name = "Auto Sale Ore", quality = 1, ilvl = 5,
+            classID = 7, subclassID = 7, category = "ore", value = 100,
+        })
+        if not record then error("could not add auto-sale stock") end
+        db.shop.waiting = { {
+            name = "Auto buyer", itemUid = record.uid,
+            offer = 100, maxPay = 200, patience = 30, patienceMax = 30,
+            personality = "gullible",
+        } }
+        db.credits = 0
+        __NS.UI.Open()
         __NS.UI.Refresh()
+        local header = __NS.UI.Header
+        if not header then error("header is not exposed") end
+        if header.creditsValue:GetText() ~= "0" then error("header did not start at 0") end
+
+        __NS.Customers.Tick(20)
+        local delta = (db.credits or 0) - 0
+        if delta <= 0 then error("auto-sale did not pay") end
+        local expected = __NS.Util.comma(db.credits)
+        if header.creditsValue:GetText() ~= expected then
+            error("header shows " .. tostring(header.creditsValue:GetText())
+                .. " but wallet is " .. expected)
+        end
     end)
 
     attempt("every market event", function()

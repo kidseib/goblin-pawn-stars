@@ -51,9 +51,86 @@ end
 function N.Suggested(kind)
     local value = N.MarketPrice()
     if value <= 0 then return 0 end
-    if kind == "fair" then return U.floor(value * 1.02) end
-    if kind == "greedy" then return U.floor(value * 1.32) end
-    return U.floor(value * 0.92)
+
+    local low = U.floor(value * 0.92)
+    local fair = U.floor(value * 1.02)
+    local greedy = U.floor(value * 1.32)
+
+    -- The offer is visible and the ceiling is not: every preset must be a real
+    -- upward counter, never a price below what the customer already offered.
+    local offer = tonumber(N.Offer()) or 0
+    if offer > 0 then
+        low = math.max(low, offer + 1)
+        fair = math.max(fair, low + 1)
+        greedy = math.max(greedy, fair + 1)
+    end
+
+    if kind == "fair" then return fair end
+    if kind == "greedy" then return greedy end
+    return low
+end
+
+--[[ Counteroffer odds -------------------------------------------------------
+    N.Counter rolls exactly once. N.Odds is the same formula, exposed so the
+    window can print the real number beside the price instead of a mood. The
+    window and the roll must never disagree: that is the worst bug this
+    minigame can have.
+--------------------------------------------------------------------------- ]]
+function N.Odds(amount)
+    local customer = N.Active()
+    local record = N.Item()
+    if not customer or not record then return nil end
+
+    local maxPay = tonumber(customer.maxPay) or 0
+    local value = ns.Market.Value(record)
+    amount = tonumber(amount)
+
+    if not amount or amount <= 0 then
+        return { chance = 0, percent = 0, label = "PICK A PRICE", tone = "dim",
+            kind = "none", ceiling = maxPay }
+    end
+    amount = math.floor(amount)
+
+    local personality = N.Personality() or ns.Data.Personalities[1]
+    local bonuses = ns.Shop.Bonuses()
+
+    -- An absurd demand ends the visit outright; there is nothing to roll.
+    if amount > maxPay * 1.6 and amount > value * 1.75 then
+        return { chance = 0, percent = 0, label = "INSULT", tone = "red",
+            kind = "insult", ceiling = maxPay }
+    end
+
+    -- Above the hidden ceiling they only push back, so the roll never happens.
+    if amount > maxPay then
+        return { chance = 0, percent = 0, label = "ABOVE THEIR LIMIT", tone = "red",
+            kind = "over", ceiling = maxPay }
+    end
+
+    local margin = (maxPay - amount) / math.max(1, maxPay)
+    local chance = 0.26
+        + margin * 1.15
+        - (personality.stubborn or 0) * 0.30
+        + (bonuses.haggle or 0)
+        + (customer.appraisalBonus or 0)
+        + (ns.Shop.Reputation() / 1000) * 0.12
+        + (customer.eager and 0.30 or 0)
+    chance = U.clamp(chance, 0.05, 0.94)
+
+    local label, tone
+    if chance >= 0.78 then label, tone = "SURE THING", "green"
+    elseif chance >= 0.55 then label, tone = "GOOD ODDS", "green"
+    elseif chance >= 0.32 then label, tone = "COIN FLIP", "gold"
+    elseif chance >= 0.15 then label, tone = "LONG SHOT", "gold"
+    else label, tone = "DESPERATE", "red" end
+
+    return {
+        chance = chance,
+        percent = math.floor(chance * 100 + 0.5),
+        label = label,
+        tone = tone,
+        kind = "reach",
+        ceiling = maxPay,
+    }
 end
 
 local function endVisit(customer, result, text)
@@ -94,7 +171,12 @@ local function completeSale(price, method)
 
     ns.Inventory.Remove(customer.itemUid, 1)
 
-    db.credits = (db.credits or 0) + price
+    -- The wallet delta is the only figure the UI is allowed to display. The
+    -- request bonus and rounding are already inside `price`, so this equals the
+    -- price in every normal sale and cannot drift from what the player received.
+    local beforeCredits = db.credits or 0
+    db.credits = beforeCredits + price
+    price = db.credits - beforeCredits
     db.stats.earned = (db.stats.earned or 0) + price
     db.stats.revenue = (db.stats.revenue or 0) + price
     db.stats.sales = (db.stats.sales or 0) + 1
@@ -236,9 +318,8 @@ function N.Counter(amount)
     amount = math.floor(amount)
 
     local personality = N.Personality() or ns.Data.Personalities[1]
-    local value = ns.Market.Value(record)
-    local bonuses = ns.Shop.Bonuses()
-    local maxPay = customer.maxPay or value
+    local odds = N.Odds(amount)
+    local maxPay = (odds and odds.ceiling) or customer.maxPay or 0
 
     customer.rounds = (customer.rounds or 0) + 1
     db.stats.offersSeen = (db.stats.offersSeen or 0) + 1
@@ -253,7 +334,7 @@ function N.Counter(amount)
     end
 
     -- Absurd demands insult the customer and end the conversation.
-    if amount > maxPay * 1.6 and amount > value * 1.75 then
+    if odds and odds.kind == "insult" then
         local line = ns.Customers.LeaveDialogue(customer, "leave")
         db.stats.counterFail = (db.stats.counterFail or 0) + 1
         endVisit(customer, "insulted", line)
@@ -261,17 +342,8 @@ function N.Counter(amount)
         return true, response("insulted", line, { price = 0 })
     end
 
-    if amount <= maxPay then
-        local margin = (maxPay - amount) / math.max(1, maxPay)
-        local chance = 0.26
-            + margin * 1.15
-            - (personality.stubborn or 0) * 0.30
-            + (bonuses.haggle or 0)
-            + (customer.appraisalBonus or 0)
-            + (ns.Shop.Reputation() / 1000) * 0.12
-        chance = U.clamp(chance, 0.05, 0.94)
-
-        if U.chance(chance) then
+    if odds and odds.kind == "reach" then
+        if U.chance(odds.chance) then
             local price = completeSale(amount, "counter")
             if not price then return false, "That item is no longer in stock." end
             local line = ns.Data.PersonalityLine(personality, "accept", { price = U.comma(price) })

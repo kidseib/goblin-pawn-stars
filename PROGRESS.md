@@ -1,6 +1,6 @@
 # PROGRESS
 
-## Current state — v1.7.0
+## Current state — v1.7.1
 
 Phases 1–4 are implemented. Phase 5 (optional multiplayer) is deliberately not
 started. The addon is feature-complete for a single-player shop simulation and is
@@ -32,7 +32,18 @@ one-line shop summary. Saving no longer freezes on a full stockroom: trimming us
 re-encode the whole shop for every four stacks it dropped, and an unchanged autosave now
 skips that step entirely. Effects no longer leak animation groups either: each region
 keeps one group per effect and replays it, so a long session stays at the same speed.
-Releases are now built by a tag-driven workflow. 43 tests pass.
+Releases are now built by a tag-driven workflow. 43 tests passed at that release.
+
+**v1.7.1** makes the counteroffer odds honest and the payout exact: the window and
+`Negotiation.Counter` share one `Odds` function, the scripted first buyer opens at 45%
+of their ceiling and is eager, the Make Counteroffer button consumes the full
+`(ok, payload)` result instead of erroring before the payout, and `completeSale` returns
+the wallet delta the window displays. It also refreshes the header after automatic
+sales, drops saved customers whose offer or ceiling is missing instead of rendering
+`0 gc`, and anchors the Low/Fair/Greedy presets to the customer's visible offer so they
+never suggest a pay cut. The mock suite is **47 tests** (46 at the original 1.7.1
+checkpoint, plus the customer-relative preset test); no part of the addon has been run
+in the live client.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
@@ -61,7 +72,7 @@ The new pacing and toggle still need a live-client pass.
 
 ## What exists
 
-* 58 Lua files, 15,237 lines, loaded by a single TOC at Interface 16001.
+* 58 Lua files, 15,696 lines, loaded by a single TOC at Interface 16001.
 * Ten-tab main window, movable negotiation window, wholesaler window, encounter popup,
   minimap coin, toasts, tooltips, optional sound.
 * The Deed: three payments, an ending choice, endless mode, franchise prestige, one
@@ -79,8 +90,8 @@ The new pacing and toggle still need a live-client pass.
 Commands, run from the repository root:
 
 ```
-npm run check              -> Lua 5.1 syntax OK: 58 files, 15,237 lines; TOC OK
-npm test                   -> 43 passed, 0 failed; UI smoke: all tabs and overlays
+npm run check              -> Lua 5.1 syntax OK: 58 files, 15,696 lines; TOC OK
+npm run verify             -> 47 passed, 0 failed; UI smoke: all tabs and overlays
 node tools/sim_30min.js    -> scripted 30-minute progression + 10-minute idle probe
 ```
 
@@ -134,15 +145,35 @@ The UI smoke pass builds and refreshes all ten tabs, including the Deed tab, and
 continues to check the splash modes, tour steps, goal card, options panel, negotiation,
 events, wholesaler window, slash commands and a simulated hour.
 
+The 1.7.1 additions are covered by tests for the odds identity (the window and the roll
+use the same value), the first buyer's 45% opening and eager odds, the exact credit
+delta for accept/counter/salesperson/quest sales, stale-customer normalization, and the
+preset floor for a high-opening customer. The UI smoke clicks the real accept and
+counter buttons and compares the banner and auto-sale header with the wallet delta.
+These are mock tests only.
+
 The separate `tools/sim_30min.js` probe still describes the **1.3 economy baseline**:
 tier 2 around minute 15, salesperson hired at tier 2, 2.3–3.0 customers/min, and roughly
 3,400–4,100 credits left at minute 30. Its policy does not pay the debt, so those
 numbers are not a campaign pacing test. The debt amounts (1,500 / 6,000 / 25,000) are
 unchanged from the outlined design and need a real play pass.
 
-## Not verified — needs an in-game pass
+## Not verified — needs an in-game pass (1.7.1)
 
-No part of this addon has been run inside World of Warcraft. Specifically unverified:
+No part of this addon has been run inside World of Warcraft. The 1.7.1 checklist below
+is the remaining release gate; the older list after it is still open.
+
+- **1.7.1 counter flow:** the odds bar and preset prices in the live window; the
+  scripted first buyer opens around 65% of market; Low/Fair/Greedy read about 94/88/64%
+  on a fresh save; a landed counter completes and pays; the banner and feedback equal
+  the header credit delta; two sales in a row show their own amounts.
+- **1.7.1 automatic sales and saves:** a salesperson or questing sale refreshes the
+  header immediately; relog with a valid customer at the counter shows a positive offer
+  and working odds; an invalid saved customer is dropped instead of rendering `0 gc`.
+- **1.7.1 presets:** a high-opening customer never gets a Low/Fair/Greedy suggestion
+  below their current offer.
+
+The older unverified areas:
 
 - **Macro journal:** whether `CreateMacro`/`EditMacro` are usable at login on Forever,
   whether macro bodies survive a full client restart as expected, the real account

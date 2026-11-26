@@ -246,20 +246,37 @@ local function normalize(db)
         end
     end
 
-    -- Drop stale customer references pointing at sold items.
-    if db.shop.current and not db.inventory[db.shop.current.itemUid] then
-        db.shop.current = nil
+    -- Drop stale customer references pointing at sold items, and customers whose
+    -- opening offer or hidden ceiling did not survive the save. Without both the
+    -- negotiation window renders "0 gc" and no counter can ever land.
+    local function cleanCustomer(customer)
+        if type(customer) ~= "table" or not customer.itemUid
+            or not db.inventory[customer.itemUid] then
+            return nil
+        end
+        local offer = tonumber(customer.offer)
+        local maxPay = tonumber(customer.maxPay)
+        if not offer or offer < 1 or not maxPay or maxPay < offer then return nil end
+        customer.offer = math.floor(offer)
+        customer.maxPay = math.floor(maxPay)
+        customer.patience = math.max(0, math.floor(tonumber(customer.patience) or 0))
+        customer.patienceMax = math.max(1, math.floor(tonumber(customer.patienceMax) or customer.patience))
+        return customer
     end
+
+    db.shop.current = cleanCustomer(db.shop.current)
     local waiting = {}
     for _, customer in ipairs(db.shop.waiting) do
-        if customer.itemUid and db.inventory[customer.itemUid] then
-            waiting[#waiting + 1] = customer
-        end
+        local clean = cleanCustomer(customer)
+        if clean then waiting[#waiting + 1] = clean end
     end
     db.shop.waiting = waiting
 
     return db
 end
+
+-- Test/repair entry point: the same repair pass the loader runs.
+DB.Normalize = normalize
 
 -- The client can hand SavedVariables to the addon after the files have already
 -- built a fresh database. Without this the session keeps running on defaults and

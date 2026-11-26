@@ -265,6 +265,10 @@ hiddenCeiling = min(marketValue × personality will × reputation ×
 openingOffer  = hiddenCeiling × personality opening range
 ```
 
+The negotiation window prints the exact chance of the price you type, and that
+percentage is the number the acceptance roll uses. Customers open below their hidden
+ceiling, so a counter above their offer still has margin to earn.
+
 A counter below the ceiling is accepted probabilistically, driven by how much margin
 you left, the customer's stubbornness, your haggling upgrades, appraisal bonus and
 reputation. A counter above the ceiling makes them push back once, then leave. Absurd

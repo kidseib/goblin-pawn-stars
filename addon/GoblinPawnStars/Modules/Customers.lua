@@ -105,6 +105,8 @@ local function buildCustomer(options)
     end
 
     local opening = U.randomBetween(personality.opening[1], personality.opening[2])
+    -- The scripted first buyer opens low enough to leave a visible upward counter.
+    if options.firstDeal then opening = math.min(opening, 0.45) end
     local offer = U.round(maxPay * opening, 5)
     offer = U.clamp(offer, 1, maxPay)
 
@@ -133,6 +135,7 @@ local function buildCustomer(options)
         itemUid = record.uid,
         rare = rare and true or false,
         celebrity = options.celebrity and true or false,
+        eager = options.firstDeal and true or false,
         appraised = false,
         revealed = false,
         appraisalBonus = 0,
@@ -265,6 +268,9 @@ local function autoSellTick(dt)
     local ok, price, itemName = ns.Negotiation.AutoSell(customer, margin, questing)
     if ok then
         autoTimer = interval
+        -- completeSale already moved the credits; refresh now so the header does
+        -- not keep showing the pre-sale wallet until the next one-second UI tick.
+        if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end
         if ns.UI and ns.UI.IsOpen and ns.UI.IsOpen() and ns.UI.Toast then
             local seller = questing and "Questing auto-sell" or "Your salesperson"
             ns.UI.Toast(string.format("%s sold %s for %s gc.", seller,
