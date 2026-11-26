@@ -10,17 +10,18 @@ the current UI renders are live-client screenshots.
 | File | Use |
 | --- | --- |
 | `description.html` | **Primary version** — paste into the CurseForge WYSIWYG source view; eight screenshots already placed |
-| `description.md` | Markdown fallback, if you prefer that editor |
+| `description.md` | **For Markdown-mode projects** — same sections, eight screenshots and captions, no HTML |
 | `description-long.md` | Longer, more technical Markdown version |
-| `build_preview.py` | Generates the local preview, copy page and index from `description.html` |
+| `build_preview.py` | Generates the preview and both copy pages from `description.html` and `description.md` |
 
-Run `python3 build_preview.py` to produce three local helpers:
+Run `python3 build_preview.py` to produce four local helpers:
 
 - `description-preview.html` — the layout at CurseForge's 836 px description width;
 - `description-copy.html` — a one-click copy page for the raw HTML;
-- `index.html` — the preview with a "Copy description HTML" button.
+- `markdown-copy.html` — the same thing for `description.md`, for Markdown projects;
+- `index.html` — the preview with both copy buttons.
 
-Those three are generated output and are not committed. The optional 1280×340
+Those four are generated output and are not committed. The optional 1280×340
 gallery banners are editable SVGs in `banners/*.svg`, which are committed so the
 art cannot be lost; render them at 1280×340 into `banner-*.png` when you need the
 flattened images, and keep those PNGs out of the repository.
@@ -62,9 +63,36 @@ roleplay.
 7. Set the project avatar separately. The goblin coin from the hero banner is the
    obvious starting point if you want a 400×400 export.
 
-If CurseForge's WYSIWYG source view is unavailable, use the **Markdown** editor and
-paste `description.md` instead. The HTML version is the better-looking one and is the
-one that includes the renders inline.
+## If the page shows literal `<h1 style="…">` tags
+
+CurseForge gives each project one editor — **WYSIWYG** or **Markdown** — chosen when
+the project is created. Paste the wrong format into it and the editor stores your
+markup as text, so the project page displays the tags themselves instead of rendering
+them. CurseForge's Markdown renderer escapes HTML by design, so an HTML file pasted
+into a Markdown project always comes out looking like code.
+
+Fix it by pasting the format that matches the project:
+
+| Project editor | File to paste | Generated copy page |
+| --- | --- | --- |
+| Markdown | `description.md` | `markdown-copy.html` |
+| WYSIWYG | `description.html` through the HTML/source view (`</>`) | `description-copy.html` |
+
+To clear the broken text first, select all in the description field and delete it, then
+paste the matching file. Pasting into the WYSIWYG editor's normal view with
+<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> (plain text) produces the same escaped
+tags, so use the source view or the Markdown tab.
+
+The WYSIWYG path is prettier because it centres and tints the headings. It only works
+with CurseForge's supported subset: `p`, `h1`–`h6`, `img` (`src`, `alt`, `width`,
+`height`), `ul`/`ol`/`li`, `blockquote`, `hr`, `code`, `table`, `a` (`href`, `target`),
+and a fixed CSS list (colour, `text-align`, `font-size` capped at 40px, `width`,
+`border-radius`, `background-color`, and a few more). Unsupported tags and properties
+are dropped. The Markdown file renders every section, both lists, the blockquote and
+all eight renders, but headings cannot be centred or coloured.
+
+If the project cannot be switched between editors, use whichever one it already has:
+Markdown projects should never need the HTML file.
 
 ## Gallery
 

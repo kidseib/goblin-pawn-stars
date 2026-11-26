@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate the CurseForge preview and copy pages from description.html."""
+"""Regenerate the CurseForge preview and copy pages from description.html and description.md."""
 
 from html import escape
 from pathlib import Path
@@ -110,6 +110,72 @@ function copyDescription() {{
 </html>
 """
 
+MARKDOWN = (ROOT / "description.md").read_text().strip()
+
+MD_COPY_PAGE = f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Copy the Goblin Pawn Stars CurseForge description (Markdown)</title>
+<style>
+  :root {{ color-scheme: dark; }}
+  * {{ box-sizing: border-box; }}
+  body {{ margin: 0; background: #120b07; color: #e6d3a8; font-family: "Segoe UI", Helvetica, Arial, sans-serif; line-height: 1.55; }}
+  main {{ max-width: 1100px; margin: 0 auto; padding: 34px 24px 60px; }}
+  h1 {{ color: #e8c25a; margin: 0 0 6px; font-size: 28px; }}
+  p {{ color: #c9b68e; }}
+  .steps {{ background: #1b120a; border: 1px solid #4a361d; border-radius: 8px; padding: 16px 20px; margin: 20px 0; }}
+  .steps ol {{ margin: 8px 0 0; padding-left: 20px; }}
+  .steps li {{ margin: 5px 0; }}
+  kbd {{ background: #2a1c0e; border: 1px solid #5f4825; border-radius: 4px; padding: 1px 5px; font-size: 12px; }}
+  .bar {{ display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 18px 0 10px; }}
+  button {{ appearance: none; border: 1px solid #c9a24a; border-radius: 6px; background: #c9a24a; color: #17100a; font-weight: 700; padding: 10px 18px; cursor: pointer; font-size: 15px; }}
+  button:hover {{ background: #e8c25a; }}
+  #status {{ color: #7fd36b; font-size: 14px; }}
+  textarea {{ width: 100%; height: 55vh; resize: vertical; background: #0b0704; color: #e6d3a8; border: 1px solid #4a361d; border-radius: 8px; padding: 14px; font: 12px/1.5 Consolas, "Courier New", monospace; }}
+</style>
+</head>
+<body>
+<main>
+  <h1>Copy the CurseForge description (Markdown)</h1>
+  <p>Use this one when the project's description editor is set to <strong>Markdown</strong>. The HTML file is escaped as text in that editor, which is what a page full of raw &lt;h1&gt; tags means.</p>
+  <div class="steps">
+    <strong>How to paste it</strong>
+    <ol>
+      <li>Click <strong>Copy description Markdown</strong> below.</li>
+      <li>In the CurseForge editor, open the <strong>Markdown</strong> tab (not the WYSIWYG one).</li>
+      <li>Paste the whole block and switch to the preview. Headings, lists, the blockquote and the eight images render; no HTML needed.</li>
+    </ol>
+  </div>
+  <div class="bar">
+    <button type="button" onclick="copyDescription()">Copy description Markdown</button>
+    <span id="status" role="status"></span>
+  </div>
+  <textarea id="source" readonly spellcheck="false">{escape(MARKDOWN)}</textarea>
+</main>
+<script>
+function copyDescription() {{
+  const area = document.getElementById('source');
+  const status = document.getElementById('status');
+  area.focus(); area.select();
+  let ok = false;
+  try {{ ok = document.execCommand('copy'); }} catch (e) {{ ok = false; }}
+  if (navigator.clipboard) {{
+    navigator.clipboard.writeText(area.value).then(() => {{
+      status.textContent = 'Copied. Paste it into the Markdown editor.';
+    }}).catch(() => {{
+      status.textContent = ok ? 'Copied. Paste it into the Markdown editor.' : 'Select the text and press Ctrl+C / Cmd+C.';
+    }});
+  }} else {{
+    status.textContent = ok ? 'Copied. Paste it into the Markdown editor.' : 'Select the text and press Ctrl+C / Cmd+C.';
+  }}
+}}
+</script>
+</body>
+</html>
+"""
+
 NOTE = '<div class="cf-note">Local preview · 836 px CurseForge description width</div>'
 BUTTON = (
     '<div class="cf-note" style="display:flex;justify-content:space-between;gap:16px;'
@@ -117,11 +183,15 @@ BUTTON = (
     '<span>Local preview · 836 px CurseForge description width</span>'
     '<a href="description-copy.html" style="display:inline-block;background:#c9a24a;'
     'color:#17100a;padding:7px 12px;border-radius:5px;font-weight:700;'
-    'text-decoration:none;">Copy description HTML →</a>'
+    'text-decoration:none;">Copy description HTML →</a> '
+    '<a href="markdown-copy.html" style="display:inline-block;background:#2a1c0e;'
+    'color:#e6d3a8;border:1px solid #5f4825;padding:7px 12px;border-radius:5px;'
+    'font-weight:700;text-decoration:none;">Copy Markdown →</a>'
     '</div>'
 )
 
 (ROOT / "description-preview.html").write_text(PREVIEW)
 (ROOT / "description-copy.html").write_text(COPY_PAGE)
+(ROOT / "markdown-copy.html").write_text(MD_COPY_PAGE)
 (ROOT / "index.html").write_text(PREVIEW.replace(NOTE, BUTTON))
-print("wrote description-preview.html, description-copy.html and index.html")
+print("wrote description-preview.html, description-copy.html, markdown-copy.html and index.html")
