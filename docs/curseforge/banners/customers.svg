@@ -86,7 +86,7 @@
       <text x="50" y="174" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="12" fill="#7faed6">ET</text>
       <text x="78" y="168" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#e6d3a8">Experienced Trader</text>
       <text x="78" y="185" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="9" fill="#9c8560">Knows the market</text>
-      <rect x="236" y="138" width="204" height="86" rx="5" fill="#0d0905" stroke="#3f3f1a"/>
+      <rect x="236" y="138" width="204" height="86" rx="5" fill="#0d0905" stroke="#3f2f1a"/>
       <circle cx="266" cy="170" r="20" fill="#1b120a" stroke="#b68ad9" stroke-width="1.4"/>
       <text x="266" y="174" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="12" fill="#b68ad9">RH</text>
       <text x="294" y="168" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="11.5" font-weight="600" fill="#e6d3a8">Rare Hunter</text>
