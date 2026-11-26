@@ -44,7 +44,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git rm -q tools/release_1_6_1.py .github/workflows/release-1.6.1.yml
+          git rm -q tools/release_1_6_1.py
           git commit -m "Fix the minimap coin and release 1.6.1"
           git push origin HEAD:main
 
