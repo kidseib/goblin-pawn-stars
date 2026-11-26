@@ -192,6 +192,14 @@ function W.Portrait(parent, size, class, rareColor)
 
     function frame:SetPortrait(classKey)
         self.icon:SetTexture("Interface\\Icons\\ClassIcon_" .. tostring(classKey or "WARRIOR"))
+        self.icon:SetTexCoord(0.05, 0.95, 0.05, 0.95)
+        self.icon:SetVertexColor(1, 1, 1)
+    end
+
+    function frame:SetCustomer(customer)
+        if not ns.UI.CustomerArrival.Paint(self.icon, customer) then
+            self:SetPortrait(customer.class)
+        end
     end
 
     return frame

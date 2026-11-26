@@ -398,6 +398,7 @@ function E.Resolve(optionId)
         if optionId == "meet" then
             local customer = ns.Customers.TrySpawn({ celebrity = true, rare = true })
             if customer then
+                ns.Customers.NotifyArrival(customer)
                 ns.Shop.AddReputation(4)
                 return finish("The chronicler takes notes while the celebrity browses. They are waiting at your counter.", "good")
             end
@@ -437,6 +438,7 @@ function E.Resolve(optionId)
         if optionId == "meet" then
             local customer = ns.Customers.TrySpawn({ rare = true, personality = "rare_hunter", force = true })
             if customer then
+                ns.Customers.NotifyArrival(customer)
                 ns.Shop.AddReputation(3)
                 return finish("You bring out the good stuff. They are waiting, and they are interested.", "good")
             end

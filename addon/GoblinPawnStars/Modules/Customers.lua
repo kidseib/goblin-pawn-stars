@@ -194,6 +194,15 @@ function C.TrySpawn(options)
     return customer, record
 end
 
+function C.NotifyArrival(customer)
+    local arrival = ns.UI and ns.UI.CustomerArrival
+    if arrival then
+        local ok, err = pcall(arrival.Show, customer)
+        if not ok then ns.Debug("customer notification: " .. tostring(err)) end
+    end
+    if ns.Sound then ns.Sound.Play("customer") end
+end
+
 local function autoSellTick(dt)
     local db = DB.Get()
     if db.settings.autoSell == false then return end
@@ -247,10 +256,7 @@ function C.Tick(dt)
     if customer then
         local interval = ns.Shop.ArrivalInterval() * U.randomBetween(0.82, 1.3)
         db.shop.nextArrival = math.max(15, interval)
-        if ns.UI and ns.UI.Toast then
-            ns.UI.Toast(customer.name .. " walked into the shop.")
-        end
-        if ns.Sound then ns.Sound.Play("customer") end
+        C.NotifyArrival(customer)
     else
         db.shop.nextArrival = 20
     end

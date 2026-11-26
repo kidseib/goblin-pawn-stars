@@ -19,7 +19,7 @@ ns.UI.Tabs.settings = {
 
         local options = W.Panel(parent, "panel")
         options:SetPoint("TOPLEFT", 0, 0)
-        options:SetSize(380, 330)
+        options:SetSize(380, 348)
 
         local optionsTitle = W.Text(options, "OPTIONS", 10, T.colors.goldDim)
         optionsTitle:SetPoint("TOPLEFT", 12, -10)
@@ -76,6 +76,22 @@ ns.UI.Tabs.settings = {
             ns.DB.Get().settings.paused = value
         end, -174)
 
+        local nextArrivalMode = { Animated = "Compact", Compact = "Off", Off = "Animated" }
+        local function arrivalMode()
+            local value = ns.DB.Get().settings.customerArrival
+            return nextArrivalMode[value] and value or "Animated"
+        end
+
+        local arrivalLabel = W.Text(options, "Customer arrivals", 11, T.colors.parchment)
+        arrivalLabel:SetPoint("TOPLEFT", 12, -236)
+        local arrivalButton = W.Button(options, arrivalMode(), 90, 22, function(self)
+            local value = nextArrivalMode[arrivalMode()]
+            ns.DB.Get().settings.customerArrival = value
+            ns.UI.CustomerArrival.Hide()
+            self:SetLabel(value)
+        end, "neutral")
+        arrivalButton:SetPoint("TOPRIGHT", -12, -232)
+
         local scaleLabel = W.Text(options, "Window scale", 11, T.colors.parchment)
         scaleLabel:SetPoint("TOPLEFT", 12, -208)
 
@@ -108,25 +124,25 @@ ns.UI.Tabs.settings = {
             end
             ns.UI.Refresh()
         end, "gold")
-        scan:SetPoint("TOPLEFT", 12, -244)
+        scan:SetPoint("TOPLEFT", 12, -262)
 
         local diag = W.Button(options, "Diagnostics", 110, 24, function()
             ns.Diagnostics.Report()
             ns.UI.Toast("Diagnostics printed to chat.")
         end, "neutral")
-        diag:SetPoint("TOPLEFT", 126, -244)
+        diag:SetPoint("TOPLEFT", 126, -262)
 
         local welcome = W.Button(options, "Welcome", 110, 24, function()
             if ns.UI.Welcome then ns.UI.Welcome.Show() end
         end, "neutral")
-        welcome:SetPoint("TOPLEFT", 240, -244)
+        welcome:SetPoint("TOPLEFT", 240, -262)
 
         local about = W.Text(options,
             "|cff9c8a5aWorld of Warcraft: Forever · Interface 16001 · Created by ErrorSeib & Buffy (Codebuff).\n" ..
             "All currency, items and customers are fictional. Nothing here touches your real bags, gold or the game world.|r",
             9, T.colors.dim)
-        about:SetPoint("TOPLEFT", 12, -278)
-        about:SetPoint("TOPRIGHT", -12, -278)
+        about:SetPoint("TOPLEFT", 12, -294)
+        about:SetPoint("TOPRIGHT", -12, -294)
         about:SetHeight(46)
         about:SetWordWrap(true)
 
@@ -214,6 +230,7 @@ ns.UI.Tabs.settings = {
         version:SetJustifyH("RIGHT")
 
         function ui.Refresh()
+            arrivalButton:SetLabel(arrivalMode())
             scaleValue:SetText(math.floor((ns.DB.Get().settings.scale or 1) * 100 + 0.5) .. "%")
         end
 

@@ -177,7 +177,7 @@ ns.UI.Tabs.customers = {
                 local item = ns.Negotiation.Item()
                 local personality = ns.Customers.Personality(currentCustomer)
                 ui.currentPortrait:Show()
-                ui.currentPortrait:SetPortrait(currentCustomer.class)
+                ui.currentPortrait:SetCustomer(currentCustomer)
                 ui.currentName:SetText(currentCustomer.name)
                 ui.currentMeta:SetText(string.format("%s%s · wants %s · offering %s",
                     currentCustomer.regular and "|cffffd700Named regular|r · " or "",
@@ -206,7 +206,7 @@ ns.UI.Tabs.customers = {
                     local item = db.inventory[customer.itemUid]
                     local personality = ns.Customers.Personality(customer)
                     row.customerIndex = index
-                    row.portrait:SetPortrait(customer.class)
+                    row.portrait:SetCustomer(customer)
                     row.name:SetText(customer.name)
                     row.meta:SetText(string.format("%s%s · %s",
                         customer.regular and "|cffffd700Named regular|r · " or "",

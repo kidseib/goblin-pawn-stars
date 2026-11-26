@@ -22,6 +22,13 @@ endless mode, franchise prestige and the macro save journal.
 | 4 | Interface polish, economy balancing, sound effects, bug fixing | **Done** (sound + polish complete; balance validated by simulation, not live play) |
 | 5 | Optional multiplayer via addon comms | **Not started** — see `TODO.md` |
 
+## Customer arrival preview
+
+The Lua 5.1 check, diagnostics and mocked UI smoke test cover the arrival card's
+closed/open layout selection, queue count, click-through, Compact/Off modes and
+overlapping dismissal timers. The Forever client still needs a visual pass for
+the sprite textures, stride animation and card placement.
+
 ## What exists
 
 * 55 Lua files, 12,976 lines, loaded by a single TOC at Interface 16001.

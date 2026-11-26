@@ -122,9 +122,7 @@ function R.Call()
     if not options then return false, "Marta cannot visit right now." end
     local customer, err = ns.Customers.TrySpawn(options)
     if not customer then return false, err or "Marta could not enter the shop." end
-    if ns.UI and ns.UI.Toast then
-        ns.UI.Toast("Marta Copperpin is waiting at the counter.")
-    end
+    ns.Customers.NotifyArrival(customer)
     return true, customer
 end
 

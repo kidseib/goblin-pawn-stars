@@ -7,6 +7,7 @@
 
 local ADDON, ns = ...
 local A = {}
+local customerSteps = setmetatable({}, { __mode = "k" })
 ns.Anim = A
 
 local function groupFor(region)
@@ -115,4 +116,40 @@ function A.Spin(texture, seconds)
         pcall(group.SetLooping, group, "REPEAT")
     end
     return play(group)
+end
+
+-- Move between two anchors. Each step has its own pose, and a missing
+-- Translation API still lands the customer at the resting anchor.
+function A.CustomerWalk(region, setPose)
+    if customerSteps[region] == nil then
+        customerSteps[region] = {}
+        for i = 1, 2 do
+            local group = groupFor(region)
+            local step = animationFor(group, "Translation")
+            if not (set(step, "SetDuration", 0.19) and set(step, "SetOffset", 14, 0)) then
+                customerSteps[region] = false
+                break
+            end
+            customerSteps[region][i] = group
+        end
+    end
+    local steps = customerSteps[region]
+    if not steps then
+        setPose(0)
+        return
+    end
+
+    for _, group in ipairs(steps) do set(group, "Stop") end
+    local function finish() setPose(0) end
+    local function secondStep()
+        setPose(2)
+        if not play(steps[2]) then finish() end
+    end
+    if not set(steps[1], "SetScript", "OnFinished", secondStep)
+        or not set(steps[2], "SetScript", "OnFinished", finish) then
+        finish()
+        return
+    end
+    setPose(1)
+    if not play(steps[1]) then finish() end
 end

@@ -30,7 +30,7 @@ local function refresh()
     local personality = summary.personality or ns.Data.Personalities[1]
     local item = summary.item
 
-    portrait:SetPortrait(customer.class)
+    portrait:SetCustomer(customer)
     nameText:SetText(customer.name or "Customer")
     personalityText:SetText(string.format("%s%s · %s · %s",
         customer.regular and "Named regular · " or "",

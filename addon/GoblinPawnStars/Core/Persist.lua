@@ -126,6 +126,7 @@ local function defaults()
             minimap = true,
             minimapAngle = 195,
             scale = 1.0,
+            customerArrival = "Animated",
             autoCollect = true,
             modestDialog = false,
             showWelcome = true,

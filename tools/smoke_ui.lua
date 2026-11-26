@@ -27,6 +27,40 @@ function __smoke()
     clone.credits = 60000
     clone.tier = 4
 
+    attempt("customer arrival card", function()
+        local UI = __NS.UI
+        local arrivalDb = __NS.DB.Scratch()
+        arrivalDb.shop.waiting = { { name = "Test merchant", class = "MAGE", race = "Goblin" } }
+        __NS.db = arrivalDb
+        local checked, problem = pcall(function()
+            UI.Close()
+            local panel = UI.CustomerArrival.Show(arrivalDb.shop.waiting[1])
+            assert(panel and panel:IsShown() and panel.door:IsShown(), "missing closed-shop entrance")
+            assert(panel.name:GetText() == "Test merchant", "customer name missing")
+            assert(panel.detail:GetText():find("1 waiting", 1, true), "queue count missing")
+            local expired = TIMERS[#TIMERS].callback
+            UI.Open()
+            UI.CustomerArrival.Position()
+            assert(panel:GetWidth() == 260, "open-shop card was not resized")
+            arrivalDb.settings.customerArrival = "Compact"
+            arrivalDb.shop.waiting[2] = { name = "Second merchant", rare = true }
+            UI.CustomerArrival.Show(arrivalDb.shop.waiting[2])
+            expired()
+            assert(panel:IsShown() and not panel.door:IsShown(), "old timer hid the compact card")
+            assert(panel.detail:GetText():find("2 waiting", 1, true), "queue count did not update")
+            panel:GetScript("OnMouseUp")(panel, "LeftButton")
+            assert(not panel:IsShown() and UI.IsOpen() and UI.Tabs.customers.frame:IsShown(),
+                "arrival click did not open Customers")
+            UI.Close()
+            arrivalDb.settings.customerArrival = "Off"
+            UI.CustomerArrival.Show(arrivalDb.shop.waiting[1])
+            assert(not panel:IsShown(), "Off mode showed an arrival")
+        end)
+        UI.CustomerArrival.Hide()
+        __NS.db = clone
+        assert(checked, problem)
+    end)
+
     attempt("main window open", function() __NS.UI.Open() end)
     attempt("main window toggle", function() __NS.UI.Toggle(); __NS.UI.Toggle() end)
 

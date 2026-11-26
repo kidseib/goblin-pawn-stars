@@ -59,6 +59,7 @@ Modules\Diagnostics.lua
 UI\Theme.lua
 UI\Widgets.lua
 UI\Anim.lua
+UI\CustomerArrival.lua
 UI\Tabs\Dashboard.lua
 UI\Tabs\Deed.lua
 UI\Tabs\Customers.lua
