@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="340" viewBox="0 0 1280 340" role="img" aria-labelledby="bannerTitle bannerDesc">
+  <title id="bannerTitle">Goblin Pawn Stars</title>
+  <desc id="bannerDesc">A gold-on-dark-wood banner for the World of Warcraft: Forever addon Goblin Pawn Stars, release 1.4.0, The Deed.</desc>
+
+  <defs>
+    <linearGradient id="wood" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0f0a06"/>
+      <stop offset="0.42" stop-color="#24170e"/>
+      <stop offset="0.72" stop-color="#1b110a"/>
+      <stop offset="1" stop-color="#0b0704"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#8a5a1f"/>
+      <stop offset="0.2" stop-color="#f3d488"/>
+      <stop offset="0.42" stop-color="#c9973f"/>
+      <stop offset="0.64" stop-color="#ffe9a8"/>
+      <stop offset="0.84" stop-color="#b07c2c"/>
+      <stop offset="1" stop-color="#7a4d18"/>
+    </linearGradient>
+    <linearGradient id="goldText" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe9a8"/>
+      <stop offset="0.45" stop-color="#e2b45a"/>
+      <stop offset="1" stop-color="#b07c2c"/>
+    </linearGradient>
+    <linearGradient id="fadeGold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#c9973f" stop-opacity="0.85"/>
+      <stop offset="0.7" stop-color="#c9973f" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#c9973f" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="coin" cx="34%" cy="26%" r="78%">
+      <stop offset="0" stop-color="#fff2b8"/>
+      <stop offset="0.45" stop-color="#e2b45a"/>
+      <stop offset="0.8" stop-color="#c08a32"/>
+      <stop offset="1" stop-color="#8a5a1f"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffb347" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#ffb347" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="vignette" cx="50%" cy="44%" r="76%">
+      <stop offset="0.48" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.55"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1280" height="340" fill="url(#wood)"/>
+
+  <g stroke="#f3c37a" stroke-width="1" opacity="0.045">
+    <path d="M0 52 H1280"/>
+    <path d="M0 104 H1280"/>
+    <path d="M0 156 H1280"/>
+    <path d="M0 208 H1280"/>
+    <path d="M0 260 H1280"/>
+    <path d="M0 312 H1280"/>
+  </g>
+  <g fill="none" stroke="#f3c37a" stroke-width="1" opacity="0.05">
+    <ellipse cx="384" cy="78" rx="44" ry="3.4"/>
+    <ellipse cx="948" cy="182" rx="58" ry="4"/>
+    <ellipse cx="640" cy="286" rx="72" ry="4.4"/>
+  </g>
+
+  <ellipse cx="168" cy="170" rx="320" ry="220" fill="url(#glow)"/>
+  <rect width="1280" height="340" fill="url(#vignette)"/>
+
+  <rect x="14.5" y="14.5" width="1251" height="311" rx="9" fill="none" stroke="url(#gold)" stroke-width="2" opacity="0.72"/>
+  <rect x="23.5" y="23.5" width="1233" height="293" rx="6" fill="none" stroke="#c9973f" stroke-width="1" opacity="0.22"/>
+  <g fill="none" stroke="url(#gold)" stroke-width="3" opacity="0.6" stroke-linecap="square">
+    <path d="M38 60 V38 H60"/>
+    <path d="M1242 60 V38 H1220"/>
+    <path d="M38 280 V302 H60"/>
+    <path d="M1242 280 V302 H1220"/>
+  </g>
+
+  <g transform="translate(158 170)">
+    <circle r="84" fill="#0d0805" opacity="0.55"/>
+    <circle r="78" fill="url(#coin)" stroke="#5c3a12" stroke-width="3"/>
+    <circle r="68" fill="none" stroke="#7a4c17" stroke-width="1.5" opacity="0.5"/>
+    <circle r="63" fill="none" stroke="#fff2b8" stroke-width="1" opacity="0.28" stroke-dasharray="2 5"/>
+    <path d="M -18 -40 C -4 -46 12 -40 20 -30 C 26 -22 26 -16 24 -12 L 50 2 C 55 6 54 13 48 15 L 34 17 C 30 18 28 20 26 23 C 23 28 18 34 14 43 L 14 50 L -22 50 C -22 40 -20 30 -20 22 C -30 14 -34 2 -34 -8 C -34 -22 -28 -34 -18 -40 Z" fill="#2b1909"/>
+    <path d="M -24 -26 L -66 -48 L -40 -2 Z" fill="#2b1909"/>
+    <path d="M 1 -18 Q 8 -24 16 -19 Q 8 -14 1 -18 Z" fill="#ffe9a8"/>
+    <path d="M 18 23 Q 28 25 36 17" fill="none" stroke="#ffe0a0" stroke-width="2" opacity="0.85" stroke-linecap="round"/>
+    <path d="M 27 21 L 31 21 L 29 27 Z" fill="#ffe9a8"/>
+    <path d="M -32 -16 L -56 -38" fill="none" stroke="#7a4c17" stroke-width="2" opacity="0.5" stroke-linecap="round"/>
+    <circle cx="3" cy="-16" r="3.4" fill="#ffe9a8"/>
+    <path d="M-56 -34 A 72 72 0 0 1 26 -62" fill="none" stroke="#fff6d0" stroke-width="2.4" opacity="0.4" stroke-linecap="round"/>
+  </g>
+
+  <g font-family="'Segoe UI', Helvetica, Arial, sans-serif">
+    <text x="272" y="94" fill="#b99a63" font-size="13px" font-weight="600" letter-spacing="5.5px">A WORLD OF WARCRAFT: FOREVER ADDON</text>
+  </g>
+  <text x="270" y="148" font-family="Georgia, 'Times New Roman', serif" font-size="40px" letter-spacing="14px" fill="#d9bd83">GOBLIN</text>
+  <text x="266" y="226" font-family="Georgia, 'Times New Roman', serif" font-size="78px" font-weight="bold" letter-spacing="1px" fill="url(#goldText)">PAWN STARS</text>
+
+  <path d="M272 246 H760" stroke="url(#fadeGold)" stroke-width="1.5"/>
+  <path d="M272 242 L278 246 L272 250 L266 246 Z" fill="#c9973f"/>
+
+  <text x="272" y="280" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="22px" fill="#d8c39a">“I know what I’ve got.”</text>
+  <text x="272" y="306" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="13px" letter-spacing="1.7px" fill="#9c8560">STOCK IT · HAGGLE IT · PAY OFF THE CARTEL</text>
+
+  <g transform="translate(1088 170)">
+    <circle r="96" fill="#0d0805" opacity="0.5"/>
+    <circle r="90" fill="#1a1109" stroke="url(#gold)" stroke-width="2.5"/>
+    <circle r="80" fill="none" stroke="#c9973f" stroke-width="1" opacity="0.45"/>
+    <circle r="60" fill="none" stroke="#c9973f" stroke-width="1" opacity="0.22" stroke-dasharray="2 5"/>
+    <text y="-40" text-anchor="middle" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="11px" letter-spacing="4px" fill="#b99a63">RELEASE</text>
+    <text y="18" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="50px" font-weight="bold" fill="url(#goldText)">1.4.0</text>
+    <path d="M-44 34 H44" stroke="#c9973f" stroke-width="1" opacity="0.45"/>
+    <text y="56" text-anchor="middle" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="11px" letter-spacing="3px" fill="#d8c39a">THE DEED</text>
+  </g>
+</svg>
