@@ -81,6 +81,7 @@ function C.EventFrame(handlers)
         if not handler then return end
         local ok, err = pcall(handler, ...)
         if not ok then
+            ns.RecordError("event:" .. tostring(event), err)
             ns.Print("|cffff5555Error|r in " .. tostring(event) .. ": " .. tostring(err))
         end
     end)

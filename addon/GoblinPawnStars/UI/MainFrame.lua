@@ -306,7 +306,10 @@ function ns.UI.ShowTab(id)
         end
         if def.api and def.api.Refresh then
             local ok, err = pcall(def.api.Refresh)
-            if not ok then ns.Debug("refresh error on " .. id .. ": " .. tostring(err)) end
+            if not ok then
+                ns.RecordError("tab:" .. tostring(id), err)
+                ns.Debug("refresh error on " .. id .. ": " .. tostring(err))
+            end
         end
     end
 end
@@ -382,7 +385,10 @@ function ns.UI.Refresh()
     local def = ns.UI.Tabs[activeTab]
     if def and def.api and def.api.Refresh and frame and frame:IsShown() then
         local ok, err = pcall(def.api.Refresh)
-        if not ok then ns.Debug("refresh error: " .. tostring(err)) end
+        if not ok then
+            ns.RecordError("refresh", err)
+            ns.Debug("refresh error: " .. tostring(err))
+        end
     end
     if ns.UI.RefreshOverlays then ns.UI.RefreshOverlays() end
     if ns.UI.Wholesaler and ns.UI.Wholesaler.Refresh then

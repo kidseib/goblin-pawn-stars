@@ -38,6 +38,11 @@ local STEPS = {
 }
 
 local WHATS_NEW = {
+    ["1.6.3"] = {
+        "New /gps report prints a pasteable client, save and economy report.",
+        "The addon now remembers recent Lua errors so reports can include them.",
+        "The tier-3 shop costs 5,000 gc instead of 6,500.",
+    },
     ["1.6.2"] = {
         "Progress survives a logout again: the save journal fits a full shop.",
         "The welcome screen shows once per version instead of every login.",

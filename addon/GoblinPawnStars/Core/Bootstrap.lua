@@ -8,7 +8,7 @@
 local ADDON, ns = ...
 
 ns.ADDON = ADDON
-ns.VERSION = "1.6.2"
+ns.VERSION = "1.6.3"
 ns.CREDIT = "ErrorSeib & Buffy (Codebuff)"
 ns.INTERFACE = 16001
 ns.PREFIX = "|cff7bd66bGoblin Pawn Stars|r: "
@@ -35,6 +35,19 @@ end
 
 function ns.Warn(message)
     ns.Print("|cffffcc55" .. tostring(message) .. "|r")
+end
+
+-- Small session-only ring of failures, newest first. /gps report prints it so a
+-- teammate can see what actually broke instead of reproducing it blind.
+ns.errors = {}
+local MAX_ERRORS = 8
+
+function ns.RecordError(source, message)
+    local text = tostring(message or "")
+    text = text:gsub("\n.*$", "")
+    if #text > 160 then text = text:sub(1, 157) .. "..." end
+    table.insert(ns.errors, 1, { at = U.now(), source = tostring(source or "lua"), text = text })
+    while #ns.errors > MAX_ERRORS do table.remove(ns.errors) end
 end
 
 ---------------------------------------------------------------------------

@@ -2,6 +2,29 @@
 
 All notable changes to Goblin Pawn Stars. Format loosely follows Keep a Changelog.
 
+## [1.6.3] — 2026-11-26
+
+### Added
+
+- `/gps report` prints a compact, pasteable bundle for bug reports: a client
+  capability probe (macro API and where each function lives, `SOUNDKIT` keys,
+  `C_Container`/`C_Item`, texture paths), journal status, the last recorded Lua errors
+  and an economy snapshot (tier, reputation, sales, revenue, stock, staff, campaign,
+  museum, Marta, rates, settings).
+- The addon remembers the last eight Lua errors from the UI tick, tab refresh, bag
+  scans, event handlers and the global error handler. The global handler is chained, so
+  the normal error dialog still appears. Errors stay in memory for the session and are
+  never written to the save or sent anywhere.
+
+### Changed
+
+- The tier-3 shop costs 5,000 gc instead of 6,500 gc. It previously cost more than the
+  second deed note, which pushed it after the note in every measured campaign run.
+  With `tools/sim_campaign.js` (three six-hour seeds) the final note lands at 216
+  minutes instead of 266 and tier 3 at 116 instead of 171.
+
+No save-schema changes; existing journals still load.
+
 ## [1.6.2] — 2026-11-26
 
 ### Fixed

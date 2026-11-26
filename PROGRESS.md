@@ -1,6 +1,6 @@
 # PROGRESS
 
-## Current state — v1.6.2
+## Current state — v1.6.3
 
 Phases 1–4 are implemented. Phase 5 (optional multiplayer) is deliberately not
 started. The addon is feature-complete for a single-player shop simulation and is
@@ -14,7 +14,9 @@ queue-based salesperson auto-sales, faster early traffic and a tuned first 30-mi
 arc. **v1.4.0** adds The Deed campaign, the Curious Collection museum, Marta Copperpin,
 endless mode, franchise prestige and the macro save journal. **v1.5.0** adds native customer models and movable arrival cards. **v1.6.0**
 adds questing auto-sell and doubles the arrival waits. **v1.6.1** fixes the minimap
-coin's ring, background and waiting-customer pip.
+coin's ring, background and waiting-customer pip. **v1.6.3** adds `/gps report`
+(client probe, journal status, recent Lua errors, economy snapshot), remembers the
+last eight Lua errors for it, and lowers the tier-3 shop to 5,000 gc.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
@@ -62,7 +64,7 @@ Commands, run from the repository root:
 
 ```
 npm run check              -> Lua 5.1 syntax OK: 55 files, 12,976 lines; TOC OK
-npm test                   -> 27 passed, 0 failed; UI smoke: all tabs and overlays
+npm test                   -> 32 passed, 0 failed; UI smoke: all tabs and overlays
 node tools/sim_30min.js    -> scripted 30-minute progression + 10-minute idle probe
 ```
 
@@ -169,6 +171,27 @@ No part of this addon has been run inside World of Warcraft. Specifically unveri
 11. Trigger an event naturally; resolve both options over a couple of occurrences.
 12. Export a full backup, reset, import; confirm full progress including history returns.
 13. Watch for taint or "blocked" messages (there should be none; no secure APIs are used).
+
+## Campaign simulation (dev-only)
+
+`npm run sim:campaign` (or `node tools/sim_campaign.js --hours 6 --seeds 3`)
+plays the real addon under the mock with a fixed policy: sells at the counter,
+haggles, pays the three deed notes, buys a tier when it pays back inside an
+hour of the current rate, keeps stock and buys upgrades. It prints
+time-to-milestone, credits/hour per tier and flags anything that looks like a
+grind wall. `--accept-only` and `--tier-first` bracket other play styles, and
+`--verbose` prints the 15-minute timeline. It is a tuning aid; nothing in
+`tools/` ships in the ZIP.
+
+Three six-hour seeds before the balance probe: first note 66 min, second
+120 min, final 266 min, tier 2 at 43 min, tier 3 at 171 min. The opening is
+income-bound at tier 1 (~1,700 gc/h operating), not gated by a price. The final
+note is a deliberate 2.2 h save at tier-3 income, but the tier-3 shop cost
+6,500 - more than the second note itself - so every run postponed it until
+after the note. Lowering it to 5,000 moved the final note to 221 min (median)
+and tier 3 to 116 min, at the cost of the second note sliding to 145 min
+because the policy invests in the tier first. Tier 4 (32,000) stays above the
+final note and remains post-campaign content; tier 5 is endless mode only.
 
 ## Notes for the next agent
 

@@ -41,7 +41,10 @@ function C.OnTick(dt)
 
     if ns.UI and ns.UI.Tick then
         local ok, err = pcall(ns.UI.Tick, dt)
-        if not ok then ns.Debug("UI tick error: " .. tostring(err)) end
+        if not ok then
+            ns.RecordError("ui-tick", err)
+            ns.Debug("UI tick error: " .. tostring(err))
+        end
     end
 end
 
@@ -53,7 +56,10 @@ if frame then
         local step = accumulator
         accumulator = 0
         local ok, err = pcall(C.OnTick, step)
-        if not ok then ns.Debug("tick error: " .. tostring(err)) end
+        if not ok then
+            ns.RecordError("tick", err)
+            ns.Debug("tick error: " .. tostring(err))
+        end
     end)
 end
 

@@ -25,6 +25,7 @@ local function printHelp()
     ns.Print("  |cff7bd66b/gps options|r — open the game's AddOn options panel")
     ns.Print("  |cff7bd66b/gps version|r — print the version and interface number")
     ns.Print("  |cff7bd66b/gps journal|r — check whether progress is saving to the macro journal")
+    ns.Print("  |cff7bd66b/gps report|r — print a pasteable client, save and economy report")
 end
 
 local function handleReset()
@@ -177,6 +178,15 @@ local function handler(message)
         elseif ns.UI.ShowTab then
             ns.UI.ShowTab("settings")
             ns.UI.Open()
+        end
+        return
+    end
+
+    if first == "report" or first == "bug" then
+        if ns.Report then
+            ns.Report.Print()
+        else
+            ns.Warn("The report module did not load.")
         end
         return
     end

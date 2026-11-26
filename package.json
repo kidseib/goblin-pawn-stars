@@ -1,6 +1,6 @@
 {
   "name": "goblin-pawn-stars",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "private": true,
   "description": "Goblin Pawn Stars — a pawnshop management minigame for World of Warcraft: Forever",
   "license": "MIT",
@@ -8,6 +8,7 @@
     "check": "node tools/check_syntax.js && node tools/check_toc.js",
     "test": "node tools/run_tests.js",
     "verify": "npm run check && npm test",
+    "sim:campaign": "node tools/sim_campaign.js",
     "package": "bash tools/build_zip.sh"
   },
   "devDependencies": {

@@ -901,6 +901,30 @@ function D.Run()
             "weapons should be eligible")
     end)
 
+    -----------------------------------------------------------------------
+    test("report bundle is compact, pasteable and probes the client", function()
+        ns.RecordError("test", "synthetic report failure")
+        local text = ns.Report.Build()
+        expect(type(text) == "string" and #text > 100, "report should build text")
+        expect(text:sub(1, 4) == "GPS|", "report should start with the GPS| prefix")
+        expect(text:find(ns.VERSION, 1, true) ~= nil, "report should carry the version")
+        for _, needle in ipairs({ "api:", "journal:", "errors:", "econ:", "deed:", "pace:" }) do
+            expect(text:find(needle, 1, true) ~= nil, "report is missing " .. needle)
+        end
+        expect(text:find("synthetic report failure", 1, true) ~= nil,
+            "recorded errors should appear in the report")
+        local lines = 1
+        for _ in text:gmatch("\n") do lines = lines + 1 end
+        expect(lines <= 12, "report must stay compact, got " .. lines .. " lines")
+
+        for index, entry in ipairs(ns.errors or {}) do
+            if entry.text == "synthetic report failure" then
+                table.remove(ns.errors, index)
+                break
+            end
+        end
+    end)
+
     return results
 end
 

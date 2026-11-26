@@ -281,7 +281,10 @@ function L.ScheduleScan(delay)
         C_Timer.After(delay or 1.0, function()
             scanScheduled = false
             local ok, err = pcall(L.Scan)
-            if not ok then ns.Debug("bag scan error: " .. tostring(err)) end
+            if not ok then
+                ns.RecordError("bags", err)
+                ns.Debug("bag scan error: " .. tostring(err))
+            end
         end)
     end)
     if not ok then
@@ -322,7 +325,10 @@ L.events = L.Events()
 if C_Timer and type(C_Timer.NewTicker) == "function" then
     local ok, ticker = pcall(C_Timer.NewTicker, 30, function()
         local scanned, err = pcall(L.Scan)
-        if not scanned then ns.Debug("periodic bag scan error: " .. tostring(err)) end
+        if not scanned then
+            ns.RecordError("bags-periodic", err)
+            ns.Debug("periodic bag scan error: " .. tostring(err))
+        end
     end)
     if ok then L.ticker = ticker end
 end

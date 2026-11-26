@@ -4,7 +4,7 @@
 ## Author: ErrorSeib & Buffy (Codebuff)
 ## Credit: Created by ErrorSeib & Buffy (Codebuff)
 ## X-Credits: ErrorSeib & Buffy (Codebuff)
-## Version: 1.6.2
+## Version: 1.6.3
 ## SavedVariables: GoblinPawnStarsDB
 ## IconTexture: Interface\Icons\INV_Misc_Coin_01
 ## AddonCompartmentFunc: GoblinPawnStars_CompartmentClick
@@ -54,6 +54,7 @@ Modules\Museum.lua
 Modules\Regular.lua
 Modules\Campaign.lua
 Modules\Sound.lua
+Modules\Report.lua
 Modules\Diagnostics.lua
 
 UI\Theme.lua
