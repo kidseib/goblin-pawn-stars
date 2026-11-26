@@ -2,6 +2,20 @@
 
 All notable changes to Goblin Pawn Stars. Format loosely follows Keep a Changelog.
 
+## [1.5.0] — 2026-11-25
+
+### Added
+
+- Native WoW NPC models for customer portraits and walk-ins, with an icon fallback.
+- Movable arrival notifications with separate positions for the closed and open shop.
+- Adjustable customer arrival pace and the `/gps arrival` and `/gps arrivals` commands.
+
+### Fixed
+
+- Due arrivals wait for stock, a free queue slot, or combat to end. The header shows what is blocking them.
+- Settings and other affected buttons update their labels on click.
+- Negotiation dialogue uses light text on an opaque background.
+
 ## [1.4.0] — 2026-11-25
 
 The "Deed" vertical slice: a reason to play beyond the next tier, plus a save path

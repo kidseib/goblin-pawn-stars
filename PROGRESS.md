@@ -1,6 +1,6 @@
 # PROGRESS
 
-## Current state — v1.4.0
+## Current state — v1.5.0
 
 Phases 1–4 are implemented. Phase 5 (optional multiplayer) is deliberately not
 started. The addon is feature-complete for a single-player shop simulation and is
@@ -22,9 +22,9 @@ endless mode, franchise prestige and the macro save journal.
 | 4 | Interface polish, economy balancing, sound effects, bug fixing | **Done** (sound + polish complete; balance validated by simulation, not live play) |
 | 5 | Optional multiplayer via addon comms | **Not started** — see `TODO.md` |
 
-## Customer arrival preview
+## Customer arrivals in v1.5.0
 
-The preview uses the client's native NPC models for arrivals and portraits. The
+The addon uses the client's native NPC models for arrivals and portraits. The
 mock tests cover model loading, icon fallback, walk and idle requests, centered
 layouts, independent drag positions, arrival pace, and Settings clicks. A live
 Forever visual pass is still needed to verify the selected models, their

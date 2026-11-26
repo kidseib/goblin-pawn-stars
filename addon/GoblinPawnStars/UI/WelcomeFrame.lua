@@ -37,6 +37,11 @@ local STEPS = {
 }
 
 local WHATS_NEW = {
+    ["1.5.0"] = {
+        "Customers walk in with native WoW models. Drag the arrival card to move it.",
+        "Adjust arrival pace and notification style in Settings.",
+        "Negotiation dialogue is easier to read, and the header shows what is holding up arrivals.",
+    },
     ["1.4.0"] = {
         "The Deed: three cartel payments with a real ending, plus endless mode and franchise prestige.",
         "The Curious Collection: a five-slot museum set that permanently improves offers.",
