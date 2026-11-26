@@ -197,7 +197,10 @@ function W.Portrait(parent, size, class, rareColor)
     end
 
     function frame:SetCustomer(customer)
-        if not ns.UI.CustomerArrival.Paint(self.icon, customer) then
+        local arrival = ns.UI.CustomerArrival
+        local ok, painted
+        if arrival then ok, painted = pcall(arrival.Paint, self.icon, customer) end
+        if not ok or not painted then
             self:SetPortrait(customer.class)
         end
     end

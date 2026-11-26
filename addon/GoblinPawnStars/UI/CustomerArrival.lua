@@ -20,7 +20,8 @@ local coats = {
 function arrival.Paint(texture, customer, pose)
     local row = customer.regular and 7 or (rows[customer.race] or 3)
     pose = pose or 0
-    if texture:SetTexture(media .. "Customers.tga") == false then return false end
+    local ok, loaded = pcall(texture.SetTexture, texture, media .. "Customers")
+    if not ok or loaded == false then return false end
     texture:SetTexCoord((pose * 32 + 0.5) / 128, (pose * 32 + 31.5) / 128,
         (row * 32 + 0.5) / 256, (row * 32 + 31.5) / 256)
     local tint = coats[customer.class]
@@ -38,15 +39,17 @@ local card
 local revision = 0
 local current
 local animated
+local previewing
 
 function arrival.Hide()
     revision = revision + 1
     current = nil
+    previewing = false
     if card then card:Hide() end
 end
 
 function arrival.Refresh()
-    if not current then return end
+    if not current or previewing then return end
     local count = #ns.Customers.Waiting()
     if count == 0 then
         arrival.Hide()
@@ -59,7 +62,7 @@ end
 function arrival.Position()
     if not card then return end
     card:ClearAllPoints()
-    if ns.UI.IsOpen() then
+    if ns.UI.IsOpen and ns.UI.IsOpen() and ns.UI.Header and ns.UI.Header.frame then
         card:SetSize(260, animated and 58 or 38)
         card:SetPoint("TOPRIGHT", ns.UI.Header.frame, "TOPRIGHT", -8, -2)
     else
@@ -82,12 +85,12 @@ local function build()
         ns.UI.ShowTab("customers")
     end)
     panel.door = panel:CreateTexture(nil, "ARTWORK")
-    panel.door:SetTexture(media .. "ShopDoor.tga")
+    pcall(panel.door.SetTexture, panel.door, media .. "ShopDoor")
     panel.door:SetSize(48, 48)
     panel.door:SetPoint("BOTTOMLEFT", 5, 5)
     panel.actor = panel:CreateTexture(nil, "ARTWORK", nil, 1)
     panel.name = W.Text(panel, "", 13, T.colors.gold)
-    panel.name:SetWordWrap(false)
+    if panel.name.SetWordWrap then panel.name:SetWordWrap(false) end
     panel.detail = W.Text(panel, "", 10, T.colors.parchment)
     panel.detail:SetPoint("TOPLEFT", panel.name, "BOTTOMLEFT", 0, -3)
     panel.glint = W.Text(panel, "✦", 19, T.colors.gold)
@@ -96,18 +99,23 @@ local function build()
     return panel
 end
 
-function arrival.Show(customer)
-    local mode = ns.DB.Get().settings.customerArrival
-    if mode == "Off" or #ns.Customers.Waiting() == 0 then return end
+function arrival.Show(customer, preview)
+    local mode = preview and "Animated" or ns.DB.Get().settings.customerArrival
+    if not preview and (mode == "Off" or #ns.Customers.Waiting() == 0) then return end
     card = card or build()
     if not card then return end
 
     animated = mode ~= "Compact"
     current = customer
+    previewing = preview
     revision = revision + 1
     local shownRevision = revision
     arrival.Position()
-    arrival.Refresh()
+    if preview then
+        card.detail:SetText("Arrival preview")
+    else
+        arrival.Refresh()
+    end
     card.name:ClearAllPoints()
     card.name:SetPoint("LEFT", animated and 76 or 44, 7)
     card.name:SetPoint("RIGHT", -12, 7)
@@ -128,12 +136,11 @@ function arrival.Show(customer)
         end
     end
 
+    setPose(0)
     card:Show()
-    if animated then
+    if animated and ns.Anim and ns.Anim.CustomerWalk then
         ns.Anim.CustomerWalk(card.actor, setPose)
         if card.glint:IsShown() then ns.Anim.Pulse(card.glint, 1.25, 0.45) end
-    else
-        setPose(0)
     end
     ns.Compat.After(4, function()
         if revision == shownRevision then arrival.Hide() end

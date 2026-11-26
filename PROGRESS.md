@@ -26,7 +26,9 @@ endless mode, franchise prestige and the macro save journal.
 
 The Lua 5.1 check, diagnostics and mocked UI smoke test cover the arrival card's
 closed/open layout selection, queue count, click-through, Compact/Off modes and
-overlapping dismissal timers. The Forever client still needs a visual pass for
+overlapping dismissal timers. The smoke test also covers the original toast
+fallback and the `/gps arrival` preview on an empty queue. The Forever client
+still needs a visual pass for
 the sprite textures, stride animation and card placement.
 
 ## What exists

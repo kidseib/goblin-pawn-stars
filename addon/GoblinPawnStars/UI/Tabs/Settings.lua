@@ -87,7 +87,7 @@ ns.UI.Tabs.settings = {
         local arrivalButton = W.Button(options, arrivalMode(), 90, 22, function(self)
             local value = nextArrivalMode[arrivalMode()]
             ns.DB.Get().settings.customerArrival = value
-            ns.UI.CustomerArrival.Hide()
+            if ns.UI.CustomerArrival then ns.UI.CustomerArrival.Hide() end
             self:SetLabel(value)
         end, "neutral")
         arrivalButton:SetPoint("TOPRIGHT", -12, -232)

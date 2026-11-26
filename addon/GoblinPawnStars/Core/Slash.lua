@@ -11,6 +11,7 @@ local pendingReset = 0
 local function printHelp()
     ns.Print("Commands:")
     ns.Print("  |cff7bd66b/gps|r — open or close the shop")
+    ns.Print("  |cff7bd66b/gps arrival|r — preview the customer entrance")
     ns.Print("  |cff7bd66b/gps test|r — run the built-in diagnostics")
     ns.Print("  |cff7bd66b/gps debug|r — toggle debug messages")
     ns.Print("  |cff7bd66b/gps reset|r — wipe all shop progress (asks twice)")
@@ -50,6 +51,24 @@ local function handler(message)
 
     if first == "test" or first == "diag" or first == "diagnostics" then
         ns.Diagnostics.Report()
+        return
+    end
+
+    if first == "arrival" then
+        local arrival = ns.UI and ns.UI.CustomerArrival
+        if not arrival then
+            ns.Warn("Customer arrival preview did not load.")
+            return
+        end
+        local ok, result = pcall(arrival.Show, {
+            name = "Goblin merchant", race = "Goblin", class = "ROGUE",
+        }, true)
+        if not ok then
+            pcall(arrival.Hide)
+            ns.Warn("Customer arrival preview failed: " .. tostring(result))
+        elseif not result then
+            ns.Warn("Could not create the customer arrival card.")
+        end
         return
     end
 

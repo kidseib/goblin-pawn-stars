@@ -242,8 +242,6 @@ local function buildWindow()
     tabHost:SetPoint("BOTTOMRIGHT", 0, 0)
 
     buildSidebar(frame)
-    frame:HookScript("OnShow", ns.UI.CustomerArrival.Position)
-    frame:HookScript("OnHide", ns.UI.CustomerArrival.Position)
 
     frame:Hide()
     if UISpecialFrames then
@@ -378,7 +376,8 @@ function ns.UI.IsOpen()
 end
 
 function ns.UI.Refresh()
-    ns.UI.CustomerArrival.Refresh()
+    local arrival = ns.UI.CustomerArrival
+    if arrival then pcall(arrival.Refresh) end
     refreshHeader()
     local def = ns.UI.Tabs[activeTab]
     if def and def.api and def.api.Refresh and frame and frame:IsShown() then
@@ -481,5 +480,13 @@ end
 local loaded = buildWindow()
 if loaded then
     ns.UI.MainFrame = frame
+    local arrival = ns.UI.CustomerArrival
+    if arrival and frame.HookScript then
+        local function positionArrival()
+            pcall(arrival.Position)
+        end
+        pcall(frame.HookScript, frame, "OnShow", positionArrival)
+        pcall(frame.HookScript, frame, "OnHide", positionArrival)
+    end
     ns.UI.ShowTab("dashboard")
 end

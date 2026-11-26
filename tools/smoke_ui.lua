@@ -55,10 +55,29 @@ function __smoke()
             arrivalDb.settings.customerArrival = "Off"
             UI.CustomerArrival.Show(arrivalDb.shop.waiting[1])
             assert(not panel:IsShown(), "Off mode showed an arrival")
+            arrivalDb.shop.waiting = {}
+            SlashCmdList.GOBLINPAWNSTARS("arrival")
+            assert(panel:IsShown() and panel.door:IsShown(), "preview requires live arrivals")
+            assert(panel.detail:GetText() == "Arrival preview", "preview label is missing")
+            assert(#arrivalDb.shop.waiting == 0 and arrivalDb.settings.customerArrival == "Off",
+                "preview changed the queue or arrival setting")
+
         end)
         UI.CustomerArrival.Hide()
         __NS.db = clone
         assert(checked, problem)
+    end)
+
+    attempt("arrival error falls back to the original toast", function()
+        local UI = __NS.UI
+        local show, toast = UI.CustomerArrival.Show, UI.Toast
+        local message
+        UI.CustomerArrival.Show = function() error("simulated client UI error") end
+        UI.Toast = function(text) message = text end
+        local ok, err = pcall(__NS.Customers.NotifyArrival, { name = "Test merchant" })
+        UI.CustomerArrival.Show, UI.Toast = show, toast
+        assert(ok, err)
+        assert(message == "Test merchant walked into the shop.", "fallback toast missing")
     end)
 
     attempt("main window open", function() __NS.UI.Open() end)

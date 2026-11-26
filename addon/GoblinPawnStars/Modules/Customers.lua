@@ -196,9 +196,19 @@ end
 
 function C.NotifyArrival(customer)
     local arrival = ns.UI and ns.UI.CustomerArrival
-    if arrival then
-        local ok, err = pcall(arrival.Show, customer)
-        if not ok then ns.Debug("customer notification: " .. tostring(err)) end
+    if DB.Get().settings.customerArrival ~= "Off" then
+        local shown
+        if arrival then
+            local ok, result = pcall(arrival.Show, customer)
+            shown = ok and result
+            if not ok then
+                pcall(arrival.Hide)
+                ns.Debug("customer notification: " .. tostring(result))
+            end
+        end
+        if not shown and ns.UI and ns.UI.Toast then
+            pcall(ns.UI.Toast, customer.name .. " walked into the shop.")
+        end
     end
     if ns.Sound then ns.Sound.Play("customer") end
 end
