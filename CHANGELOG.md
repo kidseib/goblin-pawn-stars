@@ -2,6 +2,19 @@
 
 All notable changes to Goblin Pawn Stars. Format loosely follows Keep a Changelog.
 
+## [1.6.1] — 2026-11-26
+
+### Fixed
+
+- The minimap button draws as a round coin again. The tracking border was anchored
+  by its centre even though its art sits in the top-left of the texture, which
+  pushed the ring off the coin and let the icon spill out of the frame. The button
+  also had no background behind the icon, so the ring looked hollow.
+- The waiting-customer alert is a small gold coin pip instead of an 8x8 green
+  square that read as a missing texture.
+
+No gameplay, save or economy changes.
+
 ## [1.6.0] — 2026-11-25
 
 ### Added

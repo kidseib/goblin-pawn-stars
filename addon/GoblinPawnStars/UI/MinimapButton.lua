@@ -45,22 +45,34 @@ local function build()
     button:RegisterForDrag("LeftButton")
     button:SetMovable(true)
 
-    local ring = button:CreateTexture(nil, "BACKGROUND")
-    ring:SetSize(52, 52)
-    ring:SetPoint("CENTER")
-    ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    -- Round body behind the coin. Without it the border reads as a hollow
+    -- circle with the minimap showing through it.
+    local body = button:CreateTexture(nil, "BACKGROUND")
+    body:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+    body:SetAllPoints(button)
 
     local icon = button:CreateTexture(nil, "ARTWORK")
     icon:SetSize(20, 20)
-    icon:SetPoint("CENTER", 0, 1)
+    icon:SetPoint("CENTER")
     icon:SetTexture(T.media.coin)
     icon:SetTexCoord(0.06, 0.94, 0.06, 0.94)
     button.icon = icon
 
+    -- The tracking-border art sits in the top-left of its texture, so it has
+    -- to be anchored TOPLEFT at 54x54. Centring it shifted the ring off the
+    -- coin and let the icon spill out of the frame.
+    local ring = button:CreateTexture(nil, "OVERLAY")
+    ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    ring:SetSize(54, 54)
+    ring:SetPoint("TOPLEFT")
+
+    -- A waiting customer shows as a small gold coin pip. The old flat 8x8
+    -- colour square read as a missing texture next to the coin art.
     local alert = button:CreateTexture(nil, "OVERLAY")
-    alert:SetSize(8, 8)
-    alert:SetPoint("TOPRIGHT", -4, -4)
-    T.Fill(alert, 0.4, 0.9, 0.35, 1)
+    alert:SetSize(10, 10)
+    alert:SetPoint("TOPRIGHT", 4, 4)
+    alert:SetTexture(T.media.coin)
+    alert:SetTexCoord(0.1, 0.9, 0.1, 0.9)
     alert:Hide()
     button.alert = alert
 

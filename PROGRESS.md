@@ -1,6 +1,6 @@
 # PROGRESS
 
-## Current state — v1.6.0
+## Current state — v1.6.1
 
 Phases 1–4 are implemented. Phase 5 (optional multiplayer) is deliberately not
 started. The addon is feature-complete for a single-player shop simulation and is
@@ -12,7 +12,9 @@ guided tour, splash/update screens, Next Up and animations. v1.2.1 fixed bag sca
 nil handling and baseline behaviour. v1.3.0 added visible throughput, the wholesaler,
 queue-based salesperson auto-sales, faster early traffic and a tuned first 30-minute
 arc. **v1.4.0** adds The Deed campaign, the Curious Collection museum, Marta Copperpin,
-endless mode, franchise prestige and the macro save journal.
+endless mode, franchise prestige and the macro save journal. **v1.5.0** adds native customer models and movable arrival cards. **v1.6.0**
+adds questing auto-sell and doubles the arrival waits. **v1.6.1** fixes the minimap
+coin's ring, background and waiting-customer pip.
 
 | Phase | Scope | Status |
 | --- | --- | --- |

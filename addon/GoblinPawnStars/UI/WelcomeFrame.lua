@@ -37,6 +37,10 @@ local STEPS = {
 }
 
 local WHATS_NEW = {
+    ["1.6.1"] = {
+        "The minimap coin is fixed: the ring sits around the coin again instead of drifting off it.",
+        "The waiting-customer alert is a small gold pip instead of a green square.",
+    },
     ["1.6.0"] = {
         "Customer waits are twice as long in Fast, Normal and Relaxed.",
         "Turn on Questing auto-sell in Settings to serve the queue while you are away from the shop.",
