@@ -9,8 +9,8 @@ the current UI renders are live-client screenshots.
 
 | File | Use |
 | --- | --- |
-| `description.html` | **Primary version** — paste into the CurseForge WYSIWYG source view; eight screenshots already placed |
-| `description.md` | **For Markdown-mode projects** — same sections, eight screenshots and captions, no HTML |
+| `description.md` | **Use this one** — plain Markdown, short sections, four screenshots; paste into the Markdown editor |
+| `description.html` | Optional styled version, only for a WYSIWYG project that accepts HTML through its source view |
 | `description-long.md` | Longer, more technical Markdown version |
 | `build_preview.py` | Generates the preview and both copy pages from `description.html` and `description.md` |
 
@@ -47,19 +47,19 @@ roleplay.
 
 ## Pasting the description
 
-1. Run `python3 build_preview.py`, open `description-copy.html` in a browser and
-   click **Copy description HTML**.
-2. In the CurseForge description editor, choose **WYSIWYG** and open its
-   **HTML/source view** (`</>`).
-3. Paste the whole block and switch back to the normal preview. The eight screenshot
-   renders are already placed between the sections.
+1. Run `python3 build_preview.py`, open `markdown-copy.html` in a browser and click
+   **Copy description Markdown**.
+2. In the CurseForge description editor, open the **Markdown** tab, clear the field and
+   paste.
+3. The four screenshots load from the public GitHub repository. Add the rest through
+   the project's gallery if you want them on the page.
 4. The images use public GitHub URLs on `github.com`, which CurseForge allows. If one
    is blocked or stripped, upload the matching PNG from `../screenshots/` through the
    editor's image button and replace that one URL.
-5. `description-preview.html` shows the layout at 836 px before you paste it.
+5. `description-preview.html` shows the HTML layout at 836 px, if you ever need the
+   styled version.
 6. The banner images are optional. Use them in the CurseForge image gallery/carousel
-   rather than inside the HTML; the description already has the screenshots and does
-   not need a second set of banners.
+   rather than inside the text.
 7. Set the project avatar separately. The goblin coin from the hero banner is the
    obvious starting point if you want a 400×400 export.
 
@@ -71,28 +71,20 @@ markup as text, so the project page displays the tags themselves instead of rend
 them. CurseForge's Markdown renderer escapes HTML by design, so an HTML file pasted
 into a Markdown project always comes out looking like code.
 
-Fix it by pasting the format that matches the project:
-
 | Project editor | File to paste | Generated copy page |
 | --- | --- | --- |
 | Markdown | `description.md` | `markdown-copy.html` |
 | WYSIWYG | `description.html` through the HTML/source view (`</>`) | `description-copy.html` |
 
-To clear the broken text first, select all in the description field and delete it, then
-paste the matching file. Pasting into the WYSIWYG editor's normal view with
-<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> (plain text) produces the same escaped
-tags, so use the source view or the Markdown tab.
+Clear the broken text first, then paste the matching file. Pasting into the WYSIWYG
+editor with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> (plain text) produces the same
+escaped tags, so use the source view or the Markdown tab.
 
-The WYSIWYG path is prettier because it centres and tints the headings. It only works
-with CurseForge's supported subset: `p`, `h1`–`h6`, `img` (`src`, `alt`, `width`,
-`height`), `ul`/`ol`/`li`, `blockquote`, `hr`, `code`, `table`, `a` (`href`, `target`),
-and a fixed CSS list (colour, `text-align`, `font-size` capped at 40px, `width`,
-`border-radius`, `background-color`, and a few more). Unsupported tags and properties
-are dropped. The Markdown file renders every section, both lists, the blockquote and
-all eight renders, but headings cannot be centred or coloured.
-
-If the project cannot be switched between editors, use whichever one it already has:
-Markdown projects should never need the HTML file.
+The styled HTML only works with CurseForge's supported subset: `p`, `h1`–`h6`, `img`
+(`src`, `alt`, `width`, `height`), `ul`/`ol`/`li`, `blockquote`, `hr`, `code`, `table`,
+`a` (`href`, `target`), and a fixed CSS list (colour, `text-align`, `font-size` capped
+at 40px, `width`, `border-radius`, `background-color`). Unsupported tags and properties
+are dropped. It is optional: the Markdown file is the one to use.
 
 ## Gallery
 
