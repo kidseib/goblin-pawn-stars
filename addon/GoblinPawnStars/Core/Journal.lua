@@ -16,7 +16,7 @@ local J = {}
 ns.Journal = J
 
 local CHUNK_SIZE = 220
-local MAX_CHUNKS = 18
+local MAX_CHUNKS = 24
 local PREFIX = "--GPSJ1:"
 local MACRO_ICON = 134400
 local SAVE_THROTTLE = 45
@@ -33,6 +33,18 @@ J.status = {
     trimmed = false,
     error = nil,
 }
+
+-- A broken save path is invisible until the next login, so the first failure of
+-- each kind gets one chat line per session instead of a silent return.
+local reportedFailures = {}
+
+local function reportSaveFailure(detail)
+    J.status.error = detail
+    if reportedFailures[detail] then return end
+    reportedFailures[detail] = true
+    ns.Warn("Could not save progress to the macro journal: " .. tostring(detail) ..
+        ". This session may not survive a logout. Type |cffffffff/gps journal|r for details.")
+end
 
 ---------------------------------------------------------------------------
 -- Encoding helpers
@@ -118,7 +130,7 @@ end
 ---------------------------------------------------------------------------
 
 local function encodedSnapshot(snapshot)
-    return base64Encode(DB.Encode(snapshot))
+    return base64Encode(DB.Encode(snapshot, true))
 end
 
 local function trimSnapshot(snapshot, encoded)
@@ -146,7 +158,80 @@ local function trimSnapshot(snapshot, encoded)
         end
         encoded = encodedSnapshot(snapshot)
     end
+    -- Stock is the cheapest thing to lose; economy, campaign, museum and stats
+    -- matter more than the shelves. Never refuse to save over a full stockroom.
+    if #encoded > limit then
+        for uid in pairs(snapshot.inventory or {}) do
+            snapshot.inventory[uid] = nil
+            removed = removed + 1
+        end
+        encoded = encodedSnapshot(snapshot)
+    end
     return encoded, removed > 0
+end
+
+---------------------------------------------------------------------------
+-- Stock packing
+---------------------------------------------------------------------------
+
+-- A record's field names cost more than its values in the serializer, and the
+-- journal only has a few thousand characters. Stock therefore travels as a
+-- fixed tuple: uid, id, name, quality, ilvl, category, value, count, fake.
+-- Icons are rebuilt from the item ID at login; the UI falls back to a question
+-- mark when the client has no cached icon.
+local PACK_FORMAT = 2
+
+local function packInventory(snapshot)
+    local packed = {}
+    for uid, record in pairs(snapshot.inventory or {}) do
+        if type(record) == "table" and record.name then
+            packed[#packed + 1] = {
+                tonumber(record.uid) or tonumber(uid) or 0,
+                math.floor(tonumber(record.id) or 0),
+                tostring(record.name),
+                math.floor(tonumber(record.quality) or 1),
+                math.floor(tonumber(record.ilvl) or 1),
+                tostring(record.category or "misc"),
+                math.floor(tonumber(record.value) or 1),
+                math.floor(tonumber(record.count) or 1),
+                record.counterfeit and 1 or 0,
+            }
+        end
+    end
+    table.sort(packed, function(a, b) return a[1] < b[1] end)
+    snapshot.inventory = packed
+    snapshot.inventoryFormat = PACK_FORMAT
+end
+
+local function unpackInventory(data)
+    if type(data) ~= "table" or data.inventoryFormat ~= PACK_FORMAT then return false end
+    local records = {}
+    for _, entry in ipairs(type(data.inventory) == "table" and data.inventory or {}) do
+        if type(entry) == "table" and entry[3] and entry[3] ~= "" then
+            local uid = math.floor(tonumber(entry[1]) or 0)
+            if uid < 1 then uid = #records + 1 end
+            local id = math.floor(tonumber(entry[2]) or 0)
+            local record = {
+                uid = uid,
+                id = id > 0 and id or nil,
+                name = entry[3],
+                quality = math.floor(tonumber(entry[4]) or 1),
+                ilvl = math.floor(tonumber(entry[5]) or 1),
+                category = entry[6] or "misc",
+                value = math.max(1, math.floor(tonumber(entry[7]) or 1)),
+                count = math.max(1, math.floor(tonumber(entry[8]) or 1)),
+                counterfeit = (entry[9] == 1 or entry[9] == true) or nil,
+            }
+            if record.id then
+                local info = ns.Compat.ItemInstant(record.id)
+                record.icon = info and info.icon or nil
+            end
+            records[uid] = record
+        end
+    end
+    data.inventory = records
+    data.inventoryFormat = nil
+    return true
 end
 
 local function hasProgress(db)
@@ -292,6 +377,13 @@ function J.TryLoad(force)
         return true
     end
 
+    local repacked = unpackInventory(payload.data)
+    if repacked then
+        -- Import decodes the text itself, so the unpacked table has to go back
+        -- through the same codec for the restore path to stay unchanged.
+        text = ns.Serialize.Encode(payload)
+    end
+
     local login = current.lastSession and current.lastSession.login
     local ok, importError = DB.Import(text, true)
     if not ok then
@@ -382,7 +474,7 @@ function J.SaveNow()
         return false
     end
     if ns.Compat.MacroCount() == nil then
-        J.status.error = "macro API unavailable"
+        reportSaveFailure("macro API unavailable")
         return false
     end
 
@@ -391,9 +483,11 @@ function J.SaveNow()
     local encoded = encodedSnapshot(snapshot)
     local trimmed
     encoded, trimmed = trimSnapshot(snapshot, encoded)
+    packInventory(snapshot)
+    encoded = encodedSnapshot(snapshot)
     if #encoded > MAX_CHUNKS * CHUNK_SIZE then
         saving = false
-        J.status.error = "journal is too large, even without inventory"
+        reportSaveFailure("journal is too large, even without stock")
         return false
     end
 
@@ -401,7 +495,7 @@ function J.SaveNow()
     local ok, detail = writeChunks(encoded, stamp)
     saving = false
     if not ok then
-        J.status.error = detail
+        reportSaveFailure(detail)
         return false
     end
 
@@ -453,6 +547,39 @@ end
 
 function J.Active()
     return DB.Get().settings.macroJournal ~= false
+end
+
+-- True once TryLoad has settled (restored, empty, or rejected). The splash
+-- screen waits for this so a slow macro list cannot make it think the player
+-- has never seen it.
+function J.Loaded()
+    return loaded
+end
+
+function J.Report()
+    local db = DB.Get()
+    local active = db.settings.macroJournal ~= false
+    local slots = ns.Compat.MacroCount()
+    ns.Print("Macro journal: " .. (active and "|cff7bd66bon|r" or "|cffff5555off|r") ..
+        " · " .. (loaded and "loaded this session" or "not loaded yet"))
+    ns.Print(string.format("  Chunks: %d/%d · macro list: %s", J.status.chunks or 0, MAX_CHUNKS,
+        slots and (tostring(slots) .. " slot(s) visible") or "|cffff5555unavailable|r"))
+    if (J.status.savedAt or 0) > 0 then
+        ns.Print("  Last save: " .. U.clock(math.max(0, U.now() - J.status.savedAt)) .. " ago" ..
+            (J.status.trimmed and " · stock trimmed to fit" or ""))
+    else
+        ns.Print("  Last save: none recorded")
+    end
+    ns.Print(string.format("  This run: %s credits · tier %d · %d stock stack(s)",
+        ns.Util.comma(db.credits), db.tier or 1,
+        ns.Inventory and ns.Inventory.Count and ns.Inventory.Count() or 0))
+    if not active then
+        ns.Warn("  The journal is off in Settings; only a backup string survives a logout.")
+    elseif J.status.error then
+        ns.Warn("  Last error: " .. tostring(J.status.error))
+    else
+        ns.Print("  No save errors reported this session.")
+    end
 end
 
 function J.StatusText()

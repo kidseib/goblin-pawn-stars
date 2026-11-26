@@ -552,7 +552,7 @@ function D.Run()
 
         local ok, status = ns.Journal.SaveNow()
         expect(ok, "journal save failed: " .. tostring(status))
-        expect(status.chunks > 0 and status.chunks <= 18, "journal used an invalid chunk count")
+        expect(status.chunks > 0 and status.chunks <= 24, "journal used an invalid chunk count")
         for index = 1, status.chunks do
             expect(MACRO_STORE[index] and #MACRO_STORE[index].body <= 255,
                 "journal macro body exceeded the game limit")
@@ -583,6 +583,62 @@ function D.Run()
     end)
 
     -----------------------------------------------------------------------
+    test("journal keeps a normal shop and the seen-splash flag", function()
+        if type(__clearMacros) ~= "function" or type(MACRO_STORE) ~= "table" then return end
+        __clearMacros()
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+        local db = ns.DB.Scratch()
+        db.settings.macroJournal = true
+        db.settings.welcomeVersion = "1.6.2"
+        db.settings.tourDone = true
+        db.credits = 777
+        db.tier = 2
+        db.stats.sales = 12
+        for index = 1, 20 do
+            db.inventory[index] = {
+                uid = index, id = 1000 + index, name = "Journal Shop " .. index,
+                icon = "Interface\\Icons\\INV_Misc_Coin_01", quality = 2, ilvl = 20,
+                classID = 15, subclassID = 0, category = "misc",
+                value = 20 + index, count = 1, acquired = 1, source = "loot",
+            }
+        end
+        ns.db = db
+
+        local ok, status = ns.Journal.SaveNow()
+        expect(ok, "normal shop journal save failed: " .. tostring(status))
+        expect(not status.trimmed, "a normal shop should not need trimming")
+
+        local fresh = ns.DB.Scratch()
+        fresh.settings.macroJournal = true
+        ns.db = fresh
+        expect(ns.Journal.TryLoad(true), "normal shop journal did not load")
+        expectEqual(ns.DB.Get().credits, 777, "normal shop lost credits")
+        expectEqual(ns.DB.Get().settings.welcomeVersion, "1.6.2",
+            "the splash flag did not survive a login")
+        expectEqual(ns.Inventory.Count(), 20, "normal shop lost stock")
+
+        -- Values that differ from the defaults must survive compaction even when
+        -- they are falsy or zero.
+        local edge = ns.DB.Scratch()
+        edge.settings.macroJournal = true
+        edge.settings.showWelcome = false
+        edge.credits = 0
+        ns.db = edge
+        expect(ns.Journal.SaveNow(), "edge-case journal save failed")
+        local empty = ns.DB.Scratch()
+        empty.settings.macroJournal = true
+        ns.db = empty
+        expect(ns.Journal.TryLoad(true), "edge-case journal did not load")
+        expectEqual(ns.DB.Get().credits, 0, "compaction resurrected default credits")
+        expect(ns.DB.Get().settings.showWelcome == false, "compaction lost a false setting")
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __clearMacros()
+    end)
+
+    -----------------------------------------------------------------------
     test("journal trims low-value stock before campaign state", function()
         if type(__clearMacros) ~= "function" or type(MACRO_STORE) ~= "table" then return end
         __clearMacros()
@@ -606,7 +662,7 @@ function D.Run()
 
         local ok, status = ns.Journal.SaveNow()
         expect(ok, "large journal save failed: " .. tostring(status))
-        expect(status.chunks <= 18, "large journal exceeded the chunk budget")
+        expect(status.chunks <= 24, "large journal exceeded the chunk budget")
         expect(status.trimmed, "large journal did not trim inventory")
 
         local fresh = ns.DB.Scratch()

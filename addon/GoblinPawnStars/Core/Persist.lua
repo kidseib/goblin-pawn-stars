@@ -153,6 +153,35 @@ local function defaults()
 end
 
 ---------------------------------------------------------------------------
+-- Compact payloads
+---------------------------------------------------------------------------
+
+-- Drops every value that already matches the schema default, so a save only
+-- carries what actually changed. The macro journal is limited to a few thousand
+-- characters; an untrimmed snapshot spends most of that budget on zeroed stats
+-- and default settings, which is what made the journal refuse to write at all.
+-- normalize() rebuilds every omitted key on load.
+function DB.Compact(data)
+    if type(data) ~= "table" then return data end
+    local template = defaults()
+    local function walk(value, fallback)
+        if type(value) ~= "table" then return value end
+        local out = {}
+        for key, entry in pairs(value) do
+            local base = type(fallback) == "table" and fallback[key] or nil
+            if type(entry) == "table" then
+                local sub = walk(entry, base)
+                if next(sub) ~= nil or type(base) ~= "table" then out[key] = sub end
+            elseif entry ~= base then
+                out[key] = entry
+            end
+        end
+        return out
+    end
+    return walk(data, template)
+end
+
+---------------------------------------------------------------------------
 -- Lifecycle
 ---------------------------------------------------------------------------
 
@@ -435,7 +464,13 @@ function DB.Import(text, skipSave)
         return false, "that backup belongs to another addon"
     end
     local data = payload.data or payload
-    if type(data) ~= "table" or type(data.credits) ~= "number" then
+    if type(data) ~= "table" then
+        return false, "backup is missing shop data"
+    end
+    -- Compact payloads (the macro journal) omit keys equal to their default, so
+    -- credits can legitimately be absent. Only untagged pasted strings must
+    -- carry the old marker.
+    if not payload.addon and type(data.credits) ~= "number" then
         return false, "backup is missing shop data"
     end
     -- Import replaces the active database in memory, even when the caller is
@@ -461,8 +496,28 @@ function DB.Snapshot()
     snap.history = {}
     snap.baseline = nil
 
+    -- Stock records keep only what the shop needs to draw and sell them. The
+    -- numeric class IDs, acquisition time and source are add-time metadata and
+    -- cost several dozen characters per item in a save that is already short on
+    -- room.
     snap.inventory = {}
-    for uid, record in pairs(db.inventory or {}) do snap.inventory[uid] = record end
+    for uid, record in pairs(db.inventory or {}) do
+        if type(record) == "table" then
+            snap.inventory[uid] = {
+                uid = record.uid or uid,
+                id = record.id,
+                name = record.name,
+                icon = record.icon,
+                quality = record.quality,
+                ilvl = record.ilvl,
+                category = record.category,
+                value = record.value,
+                count = record.count,
+                description = record.description,
+                counterfeit = record.counterfeit or nil,
+            }
+        end
+    end
 
     local shop = {}
     for key, value in pairs(db.shop or {}) do shop[key] = value end
@@ -479,7 +534,8 @@ function DB.Snapshot()
     return snap
 end
 
-function DB.Encode(data)
+function DB.Encode(data, minimize)
+    if minimize then data = DB.Compact(data) end
     local payload = {
         version = SCHEMA_VERSION,
         addon = ns.ADDON,

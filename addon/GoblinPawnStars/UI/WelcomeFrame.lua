@@ -12,6 +12,7 @@ local DB = ns.DB
 
 local frame
 local title, subtitle, intro, note
+local waitAttempts = 0
 local firstPanel, updatePanel, updateTitle
 local tourButton, loginButton, watermark
 local currentMode = "first"
@@ -37,6 +38,11 @@ local STEPS = {
 }
 
 local WHATS_NEW = {
+    ["1.6.2"] = {
+        "Progress survives a logout again: the save journal fits a full shop.",
+        "The welcome screen shows once per version instead of every login.",
+        "New /gps journal shows whether saving works.",
+    },
     ["1.6.1"] = {
         "The minimap coin is fixed: the ring sits around the coin again instead of drifting off it.",
         "The waiting-customer alert is a small gold pip instead of a green square.",
@@ -292,18 +298,36 @@ ns.UI.Welcome = {
 
         frame:Show()
         if ns.Anim then ns.Anim.Reveal(frame, 0.3, 0) end
+        -- Record it as soon as it is on screen and flush right away. On the beta
+        -- client the macro journal is the only save path, and the 45 second
+        -- autosave throttle was enough to lose this flag on a short session.
+        db.settings.welcomeVersion = ns.VERSION
+        DB.Save(true)
+        if ns.Journal and ns.Journal.Loaded and ns.Journal.Loaded() then ns.Journal.SaveNow() end
     end,
     Hide = function()
         if not frame then return end
         frame:Hide()
         local db = DB.Get()
         db.settings.welcomeVersion = ns.VERSION
+        DB.Save(true)
+        if ns.Journal and ns.Journal.Loaded and ns.Journal.Loaded() then ns.Journal.SaveNow() end
     end,
     -- Shows once per addon version unless the player switched it off.
     MaybeShow = function()
         local db = DB.Get()
         if db.settings.showWelcome == false then return end
         if db.settings.welcomeVersion == ns.VERSION then return end
+        -- The macro journal can settle a few seconds after login. Deciding before
+        -- it does is what re-showed the splash on every login.
+        if ns.Journal and ns.Journal.Loaded and not ns.Journal.Loaded() and waitAttempts < 8 then
+            waitAttempts = waitAttempts + 1
+            ns.Compat.After(1, function()
+                if ns.UI.Welcome then ns.UI.Welcome.MaybeShow() end
+            end)
+            return
+        end
+        waitAttempts = 0
         ns.UI.Welcome.Show(db.settings.welcomeVersion and "update" or "first")
     end,
     IsShown = function()

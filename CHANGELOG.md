@@ -2,6 +2,30 @@
 
 All notable changes to Goblin Pawn Stars. Format loosely follows Keep a Changelog.
 
+## [1.6.2] — 2026-11-26
+
+### Fixed
+
+- Progress now survives a logout. The macro journal had stopped saving anything once a
+  run grew past a fresh save: a new save already used 13 of its 18 chunks and a normal
+  shop needed 27, so every save was rejected as too large. Snapshots now drop every
+  value that still matches its default and pack stock as compact tuples, and the
+  journal has 24 chunks, so a normal twenty-item shop saves without trimming.
+- If a save still does not fit, the lowest-value stock is dropped instead of the whole
+  save being refused. Credits, tier, staff, upgrades, campaign, museum and achievements
+  are always written first.
+- The welcome screen no longer appears on every login. Its "already seen" flag is
+  flushed as soon as the screen opens instead of waiting for the autosave, and the
+  screen waits for the journal to load before deciding whether to show.
+
+### Added
+
+- One chat warning per failing save reason per session, naming what went wrong.
+- `/gps journal` prints the save path's state: on or off, chunks, visible macro slots,
+  time since the last save, the current run's totals and the last error.
+
+No gameplay, save-schema or economy changes; existing journals still load.
+
 ## [1.6.1] — 2026-11-26
 
 ### Fixed

@@ -1,6 +1,6 @@
 # PROGRESS
 
-## Current state — v1.6.1
+## Current state — v1.6.2
 
 Phases 1–4 are implemented. Phase 5 (optional multiplayer) is deliberately not
 started. The addon is feature-complete for a single-player shop simulation and is
@@ -90,9 +90,12 @@ covers:
     recorded revenue, clears the queue, and cannot sell without stock.
 18. Throughput is zero with no sales, then reports the expected rates.
 19. The starter crate gives two stock stacks, no credits, and only grants once.
-20. **Macro journal** saves a run into ≤18 chunks (each body ≤255 characters), restores
+20. **Macro journal** saves a run into ≤24 chunks (each body ≤255 characters), restores
     credits/campaign/museum/sales, omits history, and rejects a corrupted checksum.
-21. **Journal trimming** fits 80 bulk stock records into 18 chunks, trims low-value
+    Compact snapshots drop default values and pack stock as tuples, so a normal
+    twenty-item shop saves without trimming and a zero balance or a false setting is
+    not replaced by its default.
+21. **Journal trimming** fits 80 bulk stock records into 24 chunks, trims low-value
     inventory first, and still restores campaign state and credits.
 22. **The Deed** charges 1,500 / 6,000 / 25,000 exactly, completes at 32,500, unlocks
     Marta on the first payment, and offers endless mode.
@@ -175,5 +178,5 @@ No part of this addon has been run inside World of Warcraft. Specifically unveri
   in the tab sweep, but its click flows still need the live checklist.
 - Journal persistence is deliberately **state restoration only**. Do not add offline
   catch-up earnings without a separate exploit review and stock-consumption proof.
-- Keep the macro journal's campaign fields ahead of inventory if the 18-chunk budget is
+- Keep the macro journal's campaign fields ahead of inventory if the 24-chunk budget is
   ever tightened; trimming lowest-value inventory first is intentional.

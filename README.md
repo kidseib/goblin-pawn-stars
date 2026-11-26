@@ -4,10 +4,10 @@
 
 <p align="center">
   <a href="https://github.com/kidseib/goblin-pawn-stars/actions/workflows/ci.yml"><img src="https://github.com/kidseib/goblin-pawn-stars/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
-  <img src="https://img.shields.io/badge/version-1.6.1-c9a24a?style=flat-square" alt="Version 1.6.1">
+  <img src="https://img.shields.io/badge/version-1.6.2-c9a24a?style=flat-square" alt="Version 1.6.2">
   <img src="https://img.shields.io/badge/interface-16001-3f7d4e?style=flat-square" alt="Interface 16001">
   <img src="https://img.shields.io/badge/Lua-5.1-2c2d72?style=flat-square&logo=lua&logoColor=white" alt="Lua 5.1">
-  <img src="https://img.shields.io/badge/tests-27%2F27-3f7d4e?style=flat-square" alt="27 of 27 tests passing">
+  <img src="https://img.shields.io/badge/tests-31%2F31-3f7d4e?style=flat-square" alt="31 of 31 tests passing">
   <img src="https://img.shields.io/badge/dependencies-none-6b4f2a?style=flat-square" alt="No runtime dependencies">
   <img src="https://img.shields.io/badge/license-MIT-3f7d4e?style=flat-square" alt="MIT License">
 </p>
@@ -32,13 +32,13 @@
   <a href="#persistence-important-beta-note">Persistence</a> ·
   <a href="#compatibility-and-safety">Safety</a> ·
   <a href="#development">Development</a> ·
-  <a href="TESTING.md">Testing 1.6.1</a> ·
+  <a href="TESTING.md">Testing 1.6.2</a> ·
   <a href="#ai-disclosure">AI disclosure</a> ·
   <a href="#license">License</a>
 </p>
 
-> **Status — 1.6.1.** The addon is feature-complete and passes the
-> 30-test headless suite plus the UI smoke pass. Live-client validation is still in
+> **Status — 1.6.2.** The addon is feature-complete and passes the
+> 31-test headless suite plus the UI smoke pass. Live-client validation is still in
 > progress: see [TESTING.md](TESTING.md) for the in-game checklist and
 > [Testing status](#testing-status) for what is and is not verified.
 
@@ -96,7 +96,7 @@ customers are procedural, and no real item, bag slot or copper is ever touched.
 
 ## Install
 
-1. Download [`dist/GoblinPawnStars-1.6.1.zip`](dist/GoblinPawnStars-1.6.1.zip), or
+1. Download [`dist/GoblinPawnStars-1.6.2.zip`](dist/GoblinPawnStars-1.6.2.zip), or
    build it with `npm run package`.
 2. Extract it so the folder layout is:
 
@@ -117,16 +117,16 @@ Check it before extracting:
 
 ```powershell
 # Windows PowerShell
-Get-FileHash .\GoblinPawnStars-1.6.1.zip -Algorithm SHA256
+Get-FileHash .\GoblinPawnStars-1.6.2.zip -Algorithm SHA256
 ```
 
 ```bash
 # macOS / Linux
-shasum -a 256 GoblinPawnStars-1.6.1.zip
-# or: sha256sum GoblinPawnStars-1.6.1.zip
+shasum -a 256 GoblinPawnStars-1.6.2.zip
+# or: sha256sum GoblinPawnStars-1.6.2.zip
 ```
 
-Compare the result with the SHA-256 in the [v1.6.1 release notes](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.6.1).
+Compare the result with [`dist/GoblinPawnStars-1.6.2.zip.sha256`](dist/GoblinPawnStars-1.6.2.zip.sha256).
 
 ---
 
@@ -228,6 +228,7 @@ alert, toasts, optional sound cues, and item tooltips throughout.
 /gps wholesale           open the wholesaler's bulk stock
 /gps options             open the Blizzard AddOn options category
 /gps reset               wipe all progress (asks twice)
+/gps journal             whether progress is saving, chunk count and last error
 /gps version             version, interface number and authors
 /gps help                command list
 ```
@@ -335,12 +336,14 @@ autosaves every 30 seconds of play.
 on exit but does not load them back at login (documented by forever-addon-kit, and
 independent of any addon). Blizzard may fix this. Until then, the addon has two paths:
 
-* **Automatic macro journal** — progress is checkpointed into up to 18 account macro
-  bodies named `GPSJ01`…`GPSJ18`. Each chunk is a short comment header plus base64
-  data and a checksum; chunks are validated and reassembled at login. The snapshot
-  keeps the shop, campaign, museum, Marta, prestige and achievements, and deliberately
-  omits the 250-entry ledger and the live customer queue. If the compact snapshot is
-  too large, the lowest-value stock is trimmed first; campaign state is never trimmed.
+* **Automatic macro journal** — progress is checkpointed into up to 24 account macro
+  bodies named `GPSJ01`…`GPSJ24` (small shops need three or four). Each chunk is a
+  short comment header plus base64 data and a checksum; chunks are validated and
+  reassembled at login. The snapshot keeps the shop, campaign, museum, Marta, prestige,
+  settings and achievements, drops every value that still matches its default, packs
+  stock as compact tuples, and deliberately omits the 250-entry ledger and the live
+  customer queue. If the compact snapshot is still too large, the lowest-value stock
+  is trimmed first; campaign state is never trimmed.
   Macro bodies survive a cold client restart because they are server-side. The Deed
   tab shows journal status and a **Checkpoint Now** button. If macro slots are full,
   the UI reports it.

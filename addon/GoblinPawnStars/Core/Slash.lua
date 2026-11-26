@@ -24,6 +24,7 @@ local function printHelp()
     ns.Print("  |cff7bd66b/gps wholesale|r — open the wholesaler's bulk stock")
     ns.Print("  |cff7bd66b/gps options|r — open the game's AddOn options panel")
     ns.Print("  |cff7bd66b/gps version|r — print the version and interface number")
+    ns.Print("  |cff7bd66b/gps journal|r — check whether progress is saving to the macro journal")
 end
 
 local function handleReset()
@@ -176,6 +177,15 @@ local function handler(message)
         elseif ns.UI.ShowTab then
             ns.UI.ShowTab("settings")
             ns.UI.Open()
+        end
+        return
+    end
+
+    if first == "journal" or first == "save" then
+        if ns.Journal then
+            ns.Journal.Report()
+        else
+            ns.Warn("The macro journal did not load.")
         end
         return
     end
