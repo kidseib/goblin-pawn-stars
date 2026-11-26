@@ -2,6 +2,17 @@
 
 All notable changes to Goblin Pawn Stars. Format loosely follows Keep a Changelog.
 
+## [1.6.0] — 2026-11-25
+
+### Added
+
+- **Questing auto-sell** in Settings serves queued customers with the shop window closed and requires no hired salesperson. It pays one-third of the best possible manual deal in Goblin Credits, rounded down to a minimum of one credit.
+- Questing auto-sell defaults to off, waits until combat ends, and leaves active negotiations alone. While enabled, it takes over auto-selling from the salesperson.
+
+### Changed
+
+- Fast, Normal, and Relaxed customer arrival presets each wait twice as long as before. Existing saved countdowns are doubled once on upgrade.
+
 ## [1.5.0] — 2026-11-25
 
 ### Added

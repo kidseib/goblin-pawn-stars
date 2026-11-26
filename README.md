@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/kidseib/goblin-pawn-stars/actions/workflows/ci.yml"><img src="https://github.com/kidseib/goblin-pawn-stars/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
-  <img src="https://img.shields.io/badge/version-1.5.0-c9a24a?style=flat-square" alt="Version 1.5.0">
+  <img src="https://img.shields.io/badge/version-1.6.0-c9a24a?style=flat-square" alt="Version 1.6.0">
   <img src="https://img.shields.io/badge/interface-16001-3f7d4e?style=flat-square" alt="Interface 16001">
   <img src="https://img.shields.io/badge/Lua-5.1-2c2d72?style=flat-square&logo=lua&logoColor=white" alt="Lua 5.1">
   <img src="https://img.shields.io/badge/tests-27%2F27-3f7d4e?style=flat-square" alt="27 of 27 tests passing">
@@ -32,13 +32,13 @@
   <a href="#persistence-important-beta-note">Persistence</a> ·
   <a href="#compatibility-and-safety">Safety</a> ·
   <a href="#development">Development</a> ·
-  <a href="TESTING.md">Testing 1.5.0</a> ·
+  <a href="TESTING.md">Testing 1.6.0</a> ·
   <a href="#ai-disclosure">AI disclosure</a> ·
   <a href="#license">License</a>
 </p>
 
-> **Status — 1.5.0.** The addon is feature-complete and passes the
-> 28-test headless suite plus the UI smoke pass. Live-client validation is still in
+> **Status — 1.6.0.** The addon is feature-complete and passes the
+> 30-test headless suite plus the UI smoke pass. Live-client validation is still in
 > progress: see [TESTING.md](TESTING.md) for the in-game checklist and
 > [Testing status](#testing-status) for what is and is not verified.
 
@@ -96,7 +96,7 @@ customers are procedural, and no real item, bag slot or copper is ever touched.
 
 ## Install
 
-1. Download [`dist/GoblinPawnStars-1.5.0.zip`](dist/GoblinPawnStars-1.5.0.zip), or
+1. Download [`dist/GoblinPawnStars-1.6.0.zip`](dist/GoblinPawnStars-1.6.0.zip), or
    build it with `npm run package`.
 2. Extract it so the folder layout is:
 
@@ -117,16 +117,16 @@ Check it before extracting:
 
 ```powershell
 # Windows PowerShell
-Get-FileHash .\GoblinPawnStars-1.5.0.zip -Algorithm SHA256
+Get-FileHash .\GoblinPawnStars-1.6.0.zip -Algorithm SHA256
 ```
 
 ```bash
 # macOS / Linux
-shasum -a 256 GoblinPawnStars-1.5.0.zip
-# or: sha256sum GoblinPawnStars-1.5.0.zip
+shasum -a 256 GoblinPawnStars-1.6.0.zip
+# or: sha256sum GoblinPawnStars-1.6.0.zip
 ```
 
-Compare the result with the SHA-256 in the [v1.5.0 release notes](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.5.0).
+Compare the result with the SHA-256 in the [v1.6.0 release notes](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.6.0).
 
 ---
 
@@ -204,7 +204,7 @@ Ten tabs plus a movable negotiation window, a standalone wholesaler window and e
 | **Employees** | Six staff, hiring, promotion, wages and the salesperson's queue automation |
 | **Achievements** | 26 custom milestones with progress bars and fictional shop titles |
 | **Ledger** | Filterable transaction history and lifetime totals |
-| **Settings** | Sound, minimap button, auto-collect, auto-sell, pause, window scale, backup/restore, diagnostics, reset |
+| **Settings** | Sound, minimap button, auto-collect, questing auto-sell, arrival pace, pause, window scale, backup/restore, diagnostics, reset |
 
 A standalone **Wholesaler** window (Dashboard → Wholesaler, or `/gps wholesale`) sells
 three rotating bulk lots for Goblin Credits. Each lot is one virtual stack; the price is

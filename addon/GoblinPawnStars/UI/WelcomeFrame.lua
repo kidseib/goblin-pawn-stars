@@ -37,6 +37,11 @@ local STEPS = {
 }
 
 local WHATS_NEW = {
+    ["1.6.0"] = {
+        "Customer waits are twice as long in Fast, Normal and Relaxed.",
+        "Turn on Questing auto-sell in Settings to serve the queue while you are away from the shop.",
+        "Questing auto-sell pays one-third of the best possible manual deal.",
+    },
     ["1.5.0"] = {
         "Customers walk in with native WoW models. Drag the arrival card to move it.",
         "Adjust arrival pace and notification style in Settings.",

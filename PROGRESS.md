@@ -1,6 +1,6 @@
 # PROGRESS
 
-## Current state — v1.5.0
+## Current state — v1.6.0
 
 Phases 1–4 are implemented. Phase 5 (optional multiplayer) is deliberately not
 started. The addon is feature-complete for a single-player shop simulation and is
