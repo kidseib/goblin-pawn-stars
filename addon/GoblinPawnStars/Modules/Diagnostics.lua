@@ -583,6 +583,169 @@ function D.Run()
     end)
 
     -----------------------------------------------------------------------
+    test("journal keeps the last good save when a write fails halfway", function()
+        if type(__clearMacros) ~= "function" or type(MACRO_STORE) ~= "table" then return end
+        __clearMacros()
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+
+        local function macroCount()
+            local count = 0
+            for _ in pairs(MACRO_STORE) do count = count + 1 end
+            return count
+        end
+
+        local db = ns.DB.Scratch()
+        db.settings.macroJournal = true
+        db.credits = 1111
+        db.tier = 2
+        db.stats.sales = 3
+        ns.db = db
+        expect(ns.Journal.SaveNow(), "seed save failed: " .. tostring(ns.Journal.status.error))
+
+        local first = ns.Journal.status.generation
+        expect(first == "A" or first == "B", "a save did not report its generation")
+        expect(ns.Journal.status.chunks > 1, "the test needs a multi-chunk save")
+
+        -- Progress that must never replace the good save if writing fails.
+        db.credits = 9999
+        db.stats.sales = 99
+
+        local originalCreate, originalEdit = ns.Compat.CreateMacro, ns.Compat.EditMacro
+        local writes = 0
+        local function refuse()
+            writes = writes + 1
+            return writes >= 2
+        end
+        ns.Compat.CreateMacro = function(name, icon, body)
+            if refuse() then return nil end
+            return originalCreate(name, icon, body)
+        end
+        ns.Compat.EditMacro = function(index, name, icon, body)
+            if refuse() then return false end
+            return originalEdit(index, name, icon, body)
+        end
+
+        local ok = ns.Journal.SaveNow()
+        ns.Compat.CreateMacro, ns.Compat.EditMacro = originalCreate, originalEdit
+
+        expect(not ok, "a save whose writes fail must not report success")
+        expect(ns.Journal.status.error ~= nil, "the failed save did not record an error")
+        expectEqual(ns.Journal.status.generation, first, "a failed save changed the current generation")
+
+        -- A half-written generation has to lose to the previous committed one.
+        local fresh = ns.DB.Scratch()
+        fresh.settings.macroJournal = true
+        ns.db = fresh
+        expect(ns.Journal.TryLoad(true), "the last good save did not load after a failed write: " ..
+            tostring(ns.Journal.status.error))
+        expectEqual(ns.DB.Get().credits, 1111, "a half-written save replaced the last good one")
+        expectEqual(ns.DB.Get().stats.sales, 3, "a half-written save lost stats")
+
+        -- The next save must still work, switch generation and clean up.
+        local recovered = ns.DB.Get()
+        recovered.credits = 2222
+        recovered.stats.sales = 7
+        ns.db = recovered
+        expect(ns.Journal.SaveNow(), "recovery save failed: " .. tostring(ns.Journal.status.error))
+        expect(ns.Journal.status.generation ~= first, "the recovery save reused the failed generation")
+        expect(macroCount() <= 12, "more than one generation was left in the macro list: " .. macroCount())
+
+        local again = ns.DB.Scratch()
+        again.settings.macroJournal = true
+        ns.db = again
+        expect(ns.Journal.TryLoad(true), "the recovered save did not load")
+        expectEqual(ns.DB.Get().credits, 2222, "the recovered save did not restore")
+        expectEqual(ns.DB.Get().stats.sales, 7, "the recovered save lost stats")
+
+        -- Failing the last write (the commit header) is just as harmless: the
+        -- payload is on disk but uncommitted, so it must still lose.
+        local committed = ns.Journal.status.generation
+        local writesInSave = ns.Journal.status.chunks
+        ns.DB.Get().credits = 3333
+        local calls = 0
+        ns.Compat.CreateMacro = function(name, icon, body)
+            calls = calls + 1
+            if calls > writesInSave then return nil end
+            return originalCreate(name, icon, body)
+        end
+        ns.Compat.EditMacro = function(index, name, icon, body)
+            calls = calls + 1
+            if calls > writesInSave then return false end
+            return originalEdit(index, name, icon, body)
+        end
+        expect(not ns.Journal.SaveNow(), "a save that cannot commit must not report success")
+        ns.Compat.CreateMacro, ns.Compat.EditMacro = originalCreate, originalEdit
+        expectEqual(ns.Journal.status.generation, committed, "a failed commit changed the generation")
+
+        local check = ns.DB.Scratch()
+        check.settings.macroJournal = true
+        ns.db = check
+        expect(ns.Journal.TryLoad(true), "the previous save did not load after a failed commit")
+        expectEqual(ns.DB.Get().credits, 2222, "a failed commit destroyed the previous save")
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __clearMacros()
+    end)
+
+    -----------------------------------------------------------------------
+    test("journal still reads a save written before 1.6.4", function()
+        if type(__clearMacros) ~= "function" or type(MACRO_STORE) ~= "table" then return end
+        __clearMacros()
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+
+        local db = ns.DB.Scratch()
+        db.settings.macroJournal = true
+        db.credits = 6789
+        db.stats.sales = 5
+        ns.db = db
+        expect(ns.Journal.SaveNow(), "could not seed a save")
+
+        -- Rewrite the committed generation as the 1.6.3 single-generation format.
+        local bodies = {}
+        for _, macro in pairs(MACRO_STORE) do
+            local generation, counter, index, total, stamp, state, data =
+                macro.body:match("^%-%-GPSJ2:([AB]):(%d+):(%d+):(%d+):(%d+):([cp]):(.*)$")
+            if generation then
+                bodies[tonumber(index)] = { total = tonumber(total), stamp = tonumber(stamp), data = data }
+            end
+        end
+        expect(next(bodies) ~= nil, "nothing was written to migrate")
+        __clearMacros()
+        for index, chunk in pairs(bodies) do
+            MACRO_STORE[index] = {
+                name = string.format("GPSJ%02d", index),
+                icon = 134400,
+                body = string.format("--GPSJ1:%.0f:%.0f:%.0f:%s", index, chunk.total, chunk.stamp, chunk.data),
+            }
+        end
+
+        local fresh = ns.DB.Scratch()
+        fresh.settings.macroJournal = true
+        ns.db = fresh
+        expect(ns.Journal.TryLoad(true), "a pre-1.6.4 journal did not load: " ..
+            tostring(ns.Journal.status.error))
+        expectEqual(ns.DB.Get().credits, 6789, "the old journal lost credits")
+        expectEqual(ns.DB.Get().stats.sales, 5, "the old journal lost stats")
+
+        -- The next save moves to a generation and retires the old chunks.
+        expect(ns.Journal.SaveNow(), "the save after an upgrade failed: " .. tostring(ns.Journal.status.error))
+        local legacyLeft = 0
+        for _, macro in pairs(MACRO_STORE) do
+            if type(macro.name) == "string" and macro.name:sub(1, 4) == "GPSJ" then
+                legacyLeft = legacyLeft + 1
+            end
+        end
+        expectEqual(legacyLeft, 0, "pre-1.6.4 chunks were left behind after the upgrade save")
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __clearMacros()
+    end)
+
+    -----------------------------------------------------------------------
     test("journal keeps a normal shop and the seen-splash flag", function()
         if type(__clearMacros) ~= "function" or type(MACRO_STORE) ~= "table" then return end
         __clearMacros()

@@ -157,10 +157,11 @@ local function journalLine()
     local status = journal.status or {}
     local loaded = attempt(false, journal.Loaded)
     local active = attempt(true, journal.Active)
-    local text = string.format("journal: %s · %s · %d chunks · saved %s",
+    local text = string.format("journal: %s · %s · %d chunks · gen %s · saved %s",
         active and "on" or "off",
         loaded and "loaded" or "not loaded",
         tonumber(status.chunks) or 0,
+        tostring(status.generation or "none"),
         ageText(status.savedAt))
     if status.trimmed then text = text .. " · trimmed" end
     if status.error then text = text .. " · error: " .. truncate(status.error, ERROR_TEXT_LIMIT) end

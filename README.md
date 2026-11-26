@@ -4,10 +4,10 @@
 
 <p align="center">
   <a href="https://github.com/kidseib/goblin-pawn-stars/actions/workflows/ci.yml"><img src="https://github.com/kidseib/goblin-pawn-stars/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
-  <img src="https://img.shields.io/badge/version-1.6.3-c9a24a?style=flat-square" alt="Version 1.6.3">
+  <img src="https://img.shields.io/badge/version-1.6.4-c9a24a?style=flat-square" alt="Version 1.6.4">
   <img src="https://img.shields.io/badge/interface-16001-3f7d4e?style=flat-square" alt="Interface 16001">
   <img src="https://img.shields.io/badge/Lua-5.1-2c2d72?style=flat-square&logo=lua&logoColor=white" alt="Lua 5.1">
-  <img src="https://img.shields.io/badge/tests-32%2F32-3f7d4e?style=flat-square" alt="32 of 32 tests passing">
+  <img src="https://img.shields.io/badge/tests-34%2F34-3f7d4e?style=flat-square" alt="34 of 34 tests passing">
   <img src="https://img.shields.io/badge/dependencies-none-6b4f2a?style=flat-square" alt="No runtime dependencies">
   <img src="https://img.shields.io/badge/license-MIT-3f7d4e?style=flat-square" alt="MIT License">
 </p>
@@ -32,13 +32,13 @@
   <a href="#persistence-important-beta-note">Persistence</a> ·
   <a href="#compatibility-and-safety">Safety</a> ·
   <a href="#development">Development</a> ·
-  <a href="TESTING.md">Testing 1.6.3</a> ·
+  <a href="TESTING.md">Testing 1.6.4</a> ·
   <a href="#ai-disclosure">AI disclosure</a> ·
   <a href="#license">License</a>
 </p>
 
-> **Status — 1.6.3.** The addon is feature-complete and passes the
-> 32-test headless suite plus the UI smoke pass. Live-client validation is still in
+> **Status — 1.6.4.** The addon is feature-complete and passes the
+> 34-test headless suite plus the UI smoke pass. Live-client validation is still in
 > progress: see [TESTING.md](TESTING.md) for the in-game checklist and
 > [Testing status](#testing-status) for what is and is not verified.
 
@@ -96,7 +96,7 @@ customers are procedural, and no real item, bag slot or copper is ever touched.
 
 ## Install
 
-1. Download [`dist/GoblinPawnStars-1.6.3.zip`](dist/GoblinPawnStars-1.6.3.zip), or
+1. Download [`dist/GoblinPawnStars-1.6.4.zip`](dist/GoblinPawnStars-1.6.4.zip), or
    build it with `npm run package`.
 2. Extract it so the folder layout is:
 
@@ -117,16 +117,16 @@ Check it before extracting:
 
 ```powershell
 # Windows PowerShell
-Get-FileHash .\GoblinPawnStars-1.6.3.zip -Algorithm SHA256
+Get-FileHash .\GoblinPawnStars-1.6.4.zip -Algorithm SHA256
 ```
 
 ```bash
 # macOS / Linux
-shasum -a 256 GoblinPawnStars-1.6.3.zip
-# or: sha256sum GoblinPawnStars-1.6.3.zip
+shasum -a 256 GoblinPawnStars-1.6.4.zip
+# or: sha256sum GoblinPawnStars-1.6.4.zip
 ```
 
-Compare the result with [`dist/GoblinPawnStars-1.6.3.zip.sha256`](dist/GoblinPawnStars-1.6.3.zip.sha256).
+Compare the result with [`dist/GoblinPawnStars-1.6.4.zip.sha256`](dist/GoblinPawnStars-1.6.4.zip.sha256).
 
 ---
 
@@ -337,10 +337,13 @@ autosaves every 30 seconds of play.
 on exit but does not load them back at login (documented by forever-addon-kit, and
 independent of any addon). Blizzard may fix this. Until then, the addon has two paths:
 
-* **Automatic macro journal** — progress is checkpointed into up to 24 account macro
-  bodies named `GPSJ01`…`GPSJ24` (small shops need three or four). Each chunk is a
-  short comment header plus base64 data and a checksum; chunks are validated and
-  reassembled at login. The snapshot keeps the shop, campaign, museum, Marta, prestige,
+* **Automatic macro journal** — progress is checkpointed into alternating macro
+  generations (`GPSA01`–`GPSA12` and `GPSB01`–`GPSB12`, the same 24-macro footprint;
+  small shops need two or three per save). Each chunk is a short comment header plus
+  base64 data and a checksum. Every chunk is read back and compared as it is written,
+  and a generation only becomes current when its header is rewritten as committed at
+  the end, so an interrupted or rejected save always leaves the previous run intact.
+  Chunks are validated and reassembled at login. The snapshot keeps the shop, campaign, museum, Marta, prestige,
   settings and achievements, drops every value that still matches its default, packs
   stock as compact tuples, and deliberately omits the 250-entry ledger and the live
   customer queue. If the compact snapshot is still too large, the lowest-value stock

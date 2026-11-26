@@ -1,4 +1,4 @@
-# Testing Goblin Pawn Stars 1.6.3 in-game
+# Testing Goblin Pawn Stars 1.6.4 in-game
 
 This is the live-client pass for **The Deed**. The headless suite already covers the
 economy and state math; this checklist covers what mocks cannot: real macros,
@@ -10,18 +10,21 @@ scale, and any Lua error.
 
 ## Before you start
 
-- Install the ZIP from [`dist/GoblinPawnStars-1.6.3.zip`](dist/GoblinPawnStars-1.6.3.zip).
+- Install the ZIP from [`dist/GoblinPawnStars-1.6.4.zip`](dist/GoblinPawnStars-1.6.4.zip).
   The folder layout must be
   `Interface/AddOns/GoblinPawnStars/GoblinPawnStars.toc`.
-- `/gps version` should report **1.6.3** and interface **16001**.
-- `/gps test` should report **32 passed, 0 failed**. The macro-journal tests skip
+- `/gps version` should report **1.6.4** and interface **16001**.
+- `/gps test` should report **34 passed, 0 failed**. The macro-journal tests skip
   themselves in the live client so they never touch your real macros; the journal is
   tested for real in the cold-restart pass below.
 - Run `/console scriptErrors 1` before testing.
 - Run `/gps report` once and keep the output; it is the first thing to paste into
   a bug report.
-- The journal uses up to 24 macros named `GPSJ01`–`GPSJ24`. Leave macro slots free, and
-  do not rename or delete those macros while testing. `/gps reset` removes them.
+- The journal uses up to 24 macros split across two generations
+  (`GPSA01`–`GPSA12` and `GPSB01`–`GPSB12`). Leave macro slots free, and do not rename
+  or delete those macros while testing. `/gps reset` removes them. A save written by
+  1.6.3 or earlier lives in `GPSJ01`–`GPSJ24`; it is read once and retired by the next
+  save.
 
 ## 1. Cold-restart journal restore
 
@@ -60,7 +63,8 @@ journal restore must write to the restored save.
 3. `/gps reset` twice within 20 seconds. Expect
    `Shop reset. The goblin council has confiscated everything.`
 4. Verify credits are back to 250 and stock, tier, upgrades, staff, museum, Marta,
-   achievements, campaign, and prestige are cleared. No `GPSJ` macros should remain.
+   achievements, campaign, and prestige are cleared. No `GPSA`, `GPSB` or `GPSJ`
+   macros should remain.
 5. `/reload` and confirm the shop is still fresh — old progress must not return from the
    journal.
 6. Optional: repeat from **Settings → Backup & Restore → Reset all progress** (click

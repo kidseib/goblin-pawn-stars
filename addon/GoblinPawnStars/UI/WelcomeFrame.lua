@@ -38,6 +38,11 @@ local STEPS = {
 }
 
 local WHATS_NEW = {
+    ["1.6.4"] = {
+        "Saving is crash-safe: a failed or interrupted save can no longer lose the last good run.",
+        "The journal now keeps two alternating copies and verifies every write.",
+        "A normal shop no longer loses stock to the journal size limit.",
+    },
     ["1.6.3"] = {
         "New /gps report prints a pasteable client, save and economy report.",
         "The addon now remembers recent Lua errors so reports can include them.",

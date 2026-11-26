@@ -1,6 +1,6 @@
 # PROGRESS
 
-## Current state — v1.6.3
+## Current state — v1.6.4
 
 Phases 1–4 are implemented. Phase 5 (optional multiplayer) is deliberately not
 started. The addon is feature-complete for a single-player shop simulation and is
@@ -16,7 +16,10 @@ endless mode, franchise prestige and the macro save journal. **v1.5.0** adds nat
 adds questing auto-sell and doubles the arrival waits. **v1.6.1** fixes the minimap
 coin's ring, background and waiting-customer pip. **v1.6.3** adds `/gps report`
 (client probe, journal status, recent Lua errors, economy snapshot), remembers the
-last eight Lua errors for it, and lowers the tier-3 shop to 5,000 gc.
+last eight Lua errors for it, and lowers the tier-3 shop to 5,000 gc. **v1.6.4** makes
+the macro journal crash-safe: two alternating generations, a read-back check on every
+chunk, a commit header written last, and a regression test that fails a write halfway
+and at the commit step and still restores the previous run.
 
 | Phase | Scope | Status |
 | --- | --- | --- |
@@ -64,7 +67,7 @@ Commands, run from the repository root:
 
 ```
 npm run check              -> Lua 5.1 syntax OK: 55 files, 12,976 lines; TOC OK
-npm test                   -> 32 passed, 0 failed; UI smoke: all tabs and overlays
+npm test                   -> 34 passed, 0 failed; UI smoke: all tabs and overlays
 node tools/sim_30min.js    -> scripted 30-minute progression + 10-minute idle probe
 ```
 

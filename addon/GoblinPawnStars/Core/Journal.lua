@@ -7,6 +7,12 @@
     Chunks use a short comment header and a base64 payload. Macro bodies are
     capped at 255 characters, so the payload is kept deliberately small and
     inventory is trimmed (lowest value first) if it would not fit.
+
+    Saves alternate between two generations (A and B). Each write is read back
+    and compared before the next step, and a generation only becomes current
+    when its header chunk is rewritten as committed at the very end. A crash or
+    a rejected write therefore leaves the other generation, and the macro list,
+    exactly as it was.
 --------------------------------------------------------------------------- ]]
 
 local ADDON, ns = ...
@@ -15,9 +21,12 @@ local DB = ns.DB
 local J = {}
 ns.Journal = J
 
-local CHUNK_SIZE = 220
-local MAX_CHUNKS = 24
-local PREFIX = "--GPSJ1:"
+local CHUNK_SIZE = 210
+local MAX_CHUNKS = 12          -- per generation; a save needs two of them
+local LEGACY_CHUNKS = 24       -- pre-1.6.4 single-generation saves
+local PREFIX_V1 = "--GPSJ1:"
+local PREFIX_V2 = "--GPSJ2:"
+local GENERATIONS = { "A", "B" }
 local MACRO_ICON = 134400
 local SAVE_THROTTLE = 45
 
@@ -32,6 +41,8 @@ J.status = {
     savedAt = 0,
     trimmed = false,
     error = nil,
+    generation = nil,
+    counter = 0,
 }
 
 -- A broken save path is invisible until the next login, so the first failure of
@@ -114,58 +125,121 @@ local function checksum(text)
     return math.floor(value)
 end
 
-local function makeChunk(sequence, total, stamp, data)
-    return string.format("%s%.0f:%.0f:%.0f:%s", PREFIX, sequence, total, stamp, data)
+local function chunkName(generation, index)
+    return string.format("GPS%s%02d", generation, index)
+end
+
+local function legacyName(index)
+    return string.format("GPSJ%02d", index)
+end
+
+local function bodyLooksLikeJournal(body)
+    if type(body) ~= "string" then return false end
+    return body:sub(1, #PREFIX_V2) == PREFIX_V2 or body:sub(1, #PREFIX_V1) == PREFIX_V1
+end
+
+local function makeChunk(generation, counter, index, total, stamp, state, data)
+    -- %.0f keeps Lua 5.1 happy and avoids the integer-subtype checks newer
+    -- sandboxes add to %d for the checksum-sized numbers here.
+    return string.format("%s%s:%.0f:%.0f:%.0f:%.0f:%s:%s",
+        PREFIX_V2, generation, counter, index, total, stamp, state, data)
 end
 
 local function parseChunk(body)
-    if type(body) ~= "string" or body:sub(1, #PREFIX) ~= PREFIX then return nil end
-    local sequence, total, stamp, data = body:match("^%-%-GPSJ1:(%d+):(%d+):(%d+):(.*)$")
-    if not sequence then return nil end
-    return tonumber(sequence), tonumber(total), tonumber(stamp), data
+    if type(body) ~= "string" then return nil end
+    if body:sub(1, #PREFIX_V2) == PREFIX_V2 then
+        local generation, counter, index, total, stamp, state, data =
+            body:match("^%-%-GPSJ2:([AB]):(%d+):(%d+):(%d+):(%d+):([cp]):(.*)$")
+        if not generation or not data then return nil end
+        return {
+            version = 2,
+            generation = generation,
+            counter = tonumber(counter) or 0,
+            index = tonumber(index),
+            total = tonumber(total),
+            stamp = tonumber(stamp),
+            state = state,
+            data = data,
+        }
+    end
+    local index, total, stamp, data = body:match("^%-%-GPSJ1:(%d+):(%d+):(%d+):(.*)$")
+    if not index or not data then return nil end
+    return {
+        version = 1,
+        index = tonumber(index),
+        total = tonumber(total),
+        stamp = tonumber(stamp),
+        data = data,
+    }
 end
 
 ---------------------------------------------------------------------------
 -- Snapshot sizing
 ---------------------------------------------------------------------------
 
+local PACK_FORMAT = 2
+
 local function encodedSnapshot(snapshot)
     return base64Encode(DB.Encode(snapshot, true))
 end
 
+local function inventoryWeight(record)
+    if type(record) ~= "table" then return 0 end
+    local value = tonumber(record.value) or tonumber(record[7]) or 1
+    local count = tonumber(record.count) or tonumber(record[8]) or 1
+    return value * count
+end
+
+-- Trims the cheapest stock until the encoded snapshot fits one generation. Runs
+-- after packing, so the budget is measured on the bytes that actually ship.
 local function trimSnapshot(snapshot, encoded)
     local limit = MAX_CHUNKS * CHUNK_SIZE
     if #encoded <= limit then return encoded, false end
 
-    local entries = {}
-    for uid, record in pairs(snapshot.inventory or {}) do
-        entries[#entries + 1] = {
-            uid = uid,
-            weight = (tonumber(record.value) or 1) * (tonumber(record.count) or 1),
-        }
+    local packed = snapshot.inventoryFormat == PACK_FORMAT
+    local records = {}
+    for key, record in pairs(snapshot.inventory or {}) do
+        records[#records + 1] = { key = key, record = record, weight = inventoryWeight(record) }
     end
-    table.sort(entries, function(a, b) return a.weight < b.weight end)
+    table.sort(records, function(a, b) return a.weight < b.weight end)
 
     local removed = 0
+    local function rebuild()
+        if packed then
+            local kept = {}
+            for _, entry in ipairs(records) do
+                if not entry.dropped then kept[#kept + 1] = entry.record end
+            end
+            snapshot.inventory = kept
+        else
+            for _, entry in ipairs(records) do
+                if entry.dropped then snapshot.inventory[entry.key] = nil end
+            end
+        end
+        return encodedSnapshot(snapshot)
+    end
+
     local index = 1
-    while #encoded > limit and index <= #entries do
+    while #encoded > limit and index <= #records do
         for _ = 1, 4 do
-            local entry = entries[index]
+            local entry = records[index]
             index = index + 1
             if not entry then break end
-            snapshot.inventory[entry.uid] = nil
+            entry.dropped = true
             removed = removed + 1
         end
-        encoded = encodedSnapshot(snapshot)
+        encoded = rebuild()
     end
     -- Stock is the cheapest thing to lose; economy, campaign, museum and stats
     -- matter more than the shelves. Never refuse to save over a full stockroom.
     if #encoded > limit then
-        for uid in pairs(snapshot.inventory or {}) do
-            snapshot.inventory[uid] = nil
-            removed = removed + 1
+        for _, entry in ipairs(records) do
+            if not entry.dropped then
+                entry.dropped = true
+                removed = removed + 1
+            end
         end
-        encoded = encodedSnapshot(snapshot)
+        encoded = rebuild()
     end
     return encoded, removed > 0
 end
@@ -179,8 +253,6 @@ end
 -- fixed tuple: uid, id, name, quality, ilvl, category, value, count, fake.
 -- Icons are rebuilt from the item ID at login; the UI falls back to a question
 -- mark when the client has no cached icon.
-local PACK_FORMAT = 2
-
 local function packInventory(snapshot)
     local packed = {}
     for uid, record in pairs(snapshot.inventory or {}) do
@@ -247,24 +319,65 @@ end
 -- Reading macro chunks
 ---------------------------------------------------------------------------
 
-local function readChunks()
-    local available = ns.Compat.MacroCount()
-    if available == nil then return nil, false end
+local function storedBody(name)
+    local index = ns.Compat.MacroIndexByName(name)
+    if not index or index <= 0 then return nil end
+    local existingName, body = ns.Compat.MacroInfo(index)
+    if existingName ~= name then return nil end
+    return body
+end
 
-    local chunks = {}
-    for index = 1, 36 do
-        local name, body = ns.Compat.MacroInfo(index)
-        if name and body then
-            local sequence, total, stamp, data = parseChunk(body)
-            if sequence and data then
-                if chunks[sequence] then
-                    return nil, true, "duplicate journal chunk " .. tostring(sequence)
-                end
-                chunks[sequence] = { total = total, stamp = stamp, data = data }
+-- Splits the macro list into the two save generations plus any pre-1.6.4
+-- single-generation save left behind by an older install.
+local function collectJournal()
+    local generations = {}
+    for _, generation in ipairs(GENERATIONS) do
+        local chunks = {}
+        for index = 1, MAX_CHUNKS do
+            local parsed = parseChunk(storedBody(chunkName(generation, index)))
+            if parsed and parsed.version == 2 and parsed.generation == generation then
+                chunks[parsed.index] = parsed
             end
         end
+        if next(chunks) then generations[generation] = chunks end
     end
-    return chunks, true
+
+    local legacy = {}
+    for index = 1, LEGACY_CHUNKS do
+        local parsed = parseChunk(storedBody(legacyName(index)))
+        if parsed and parsed.version == 1 then legacy[parsed.index] = parsed end
+    end
+    return generations, legacy
+end
+
+-- Rebuilds one generation's payload. Every inconsistency is rejected here, so
+-- only a complete, checksum-clean and committed save can ever become current.
+local function assemble(chunks, limit, requireCommit)
+    local total
+    for index, chunk in pairs(chunks) do
+        if not chunk.total or chunk.total < 1 or chunk.total > limit then
+            return nil, "invalid journal chunk count"
+        end
+        if not total then total = chunk.total end
+        if chunk.total ~= total then return nil, "journal chunks disagree on length" end
+        if index > total then return nil, "journal chunk out of range" end
+    end
+    if not total then return nil, "empty" end
+    if requireCommit and (not chunks[1] or chunks[1].state ~= "c") then
+        return nil, "journal save did not finish"
+    end
+
+    local parts = {}
+    for index = 1, total do
+        local chunk = chunks[index]
+        if not chunk then return nil, "journal is incomplete" end
+        parts[index] = chunk.data
+    end
+    local encoded = table.concat(parts)
+    if checksum(encoded) ~= chunks[1].stamp then
+        return nil, "journal checksum mismatch"
+    end
+    return encoded, total
 end
 
 ---------------------------------------------------------------------------
@@ -289,63 +402,61 @@ function J.TryLoad(force)
         return true
     end
 
-    local chunks, available, readError = readChunks()
-    if not available then
+    if ns.Compat.MacroCount() == nil then
         J.status.error = "macro API unavailable"
         scheduleRetry()
         return false
     end
-    if readError then
-        loaded = true
-        J.status.error = readError
-        return false
-    end
-    if not chunks or next(chunks) == nil then
-        loaded = true
-        J.status.error = nil
-        J.status.savedAt = 0
-        J.status.chunks = 0
-        J.status.empty = true
-        return true
-    end
 
-    local total
-    for sequence, chunk in pairs(chunks) do
-        if not total then total = chunk.total end
-        if not chunk.total or chunk.total < 1 or chunk.total > MAX_CHUNKS then
-            loaded = true
-            J.status.error = "invalid journal chunk count"
-            return false
-        end
-        if chunk.total ~= total then
-            loaded = true
-            J.status.error = "journal chunks disagree on length"
-            return false
-        end
-        if sequence > total then
-            loaded = true
-            J.status.error = "journal chunk out of range"
-            return false
+    local generations, legacy = collectJournal()
+
+    -- Both generations are checked. The highest committed counter wins, so a
+    -- pending or half-written generation simply loses to the previous save.
+    local best
+    for _, name in ipairs(GENERATIONS) do
+        local chunks = generations[name]
+        if chunks then
+            local candidate, candidateTotal = assemble(chunks, MAX_CHUNKS, true)
+            local counter = chunks[1] and chunks[1].counter or 0
+            if candidate and (not best or counter > best.counter) then
+                best = { encoded = candidate, total = candidateTotal, generation = name, counter = counter }
+            end
         end
     end
 
-    local encoded = {}
-    for sequence = 1, total do
-        local chunk = chunks[sequence]
-        if not chunk then
+    local encoded, total, generation, counter
+    if best then
+        encoded, total, generation, counter = best.encoded, best.total, best.generation, best.counter
+    elseif next(legacy) then
+        -- Single-generation save from 1.6.3 or earlier: no commit header exists.
+        local legacyEncoded, legacyTotal, legacyError = assemble(legacy, LEGACY_CHUNKS, false)
+        if not legacyEncoded then
+            loaded = true
+            J.status.error = legacyError
+            return false
+        end
+        encoded, total = legacyEncoded, legacyTotal
+    end
+
+    if not encoded then
+        local sawChunks = next(legacy) ~= nil
+        for _, name in ipairs(GENERATIONS) do
+            if generations[name] then sawChunks = true end
+        end
+        if sawChunks then
+            -- Chunks exist but none is a finished save: the macro list may still
+            -- be filling in, or the last save stopped before its commit header.
             J.status.error = "journal is incomplete"
             scheduleRetry()
             return false
         end
-        encoded[sequence] = chunk.data
-    end
-    encoded = table.concat(encoded)
-
-    local stamp = chunks[1].stamp
-    if checksum(encoded) ~= stamp then
         loaded = true
-        J.status.error = "journal checksum mismatch"
-        return false
+        J.status.error = nil
+        J.status.savedAt = 0
+        J.status.chunks = 0
+        J.status.generation = nil
+        J.status.empty = true
+        return true
     end
 
     local text = base64Decode(encoded)
@@ -367,12 +478,14 @@ function J.TryLoad(force)
     end
 
     local journalAt = tonumber(payload.savedAt) or 0
-    local current = DB.Get()
-    if hasProgress(current) and (current.savedAt or 0) >= journalAt then
+    local currentPriority = DB.Get()
+    if hasProgress(currentPriority) and (currentPriority.savedAt or 0) >= journalAt then
         loaded = true
         J.status.error = nil
         J.status.savedAt = journalAt
         J.status.chunks = total
+        J.status.generation = generation
+        J.status.counter = counter or 0
         J.status.empty = false
         return true
     end
@@ -384,7 +497,7 @@ function J.TryLoad(force)
         text = ns.Serialize.Encode(payload)
     end
 
-    local login = current.lastSession and current.lastSession.login
+    local login = currentPriority.lastSession and currentPriority.lastSession.login
     local ok, importError = DB.Import(text, true)
     if not ok then
         J.status.error = "journal import failed: " .. tostring(importError)
@@ -402,6 +515,8 @@ function J.TryLoad(force)
     J.status.error = nil
     J.status.savedAt = journalAt
     J.status.chunks = total
+    J.status.generation = generation
+    J.status.counter = counter or 0
     J.status.empty = false
 
     if not fresh.settings.journalHintShown then
@@ -419,47 +534,85 @@ end
 -- Saving
 ---------------------------------------------------------------------------
 
-local function writeChunks(encoded, stamp)
+-- Writes one macro and proves it landed: the body is read back and compared
+-- with what was sent. A client that truncates, refuses or renames the body
+-- fails the save before anything is deleted.
+local function writeChunk(name, body)
+    local index = ns.Compat.MacroIndexByName(name)
+    if index and index > 0 then
+        local existingName, existingBody = ns.Compat.MacroInfo(index)
+        if existingBody and not bodyLooksLikeJournal(existingBody) then
+            return false, "macro name collision on " .. name
+        end
+        if existingBody ~= body then
+            if not ns.Compat.EditMacro(index, name, MACRO_ICON, body) then
+                return false, "could not update " .. name
+            end
+        end
+    else
+        local created = ns.Compat.CreateMacro(name, MACRO_ICON, body)
+        if not created then
+            return false, "could not create " .. name .. " (macro slots may be full)"
+        end
+    end
+
+    local stored = storedBody(name)
+    if stored ~= body then
+        return false, "verification failed for " .. name
+    end
+    return true
+end
+
+-- Delete by name, not by a numeric index that shifts after every delete.
+local function deleteGeneration(generation, keepCount)
+    if not generation then return end
+    for index = (keepCount or 0) + 1, MAX_CHUNKS do
+        local name = chunkName(generation, index)
+        local macroIndex = ns.Compat.MacroIndexByName(name)
+        if macroIndex and macroIndex > 0 then
+            local _, body = ns.Compat.MacroInfo(macroIndex)
+            if bodyLooksLikeJournal(body) then ns.Compat.DeleteMacro(macroIndex) end
+        end
+    end
+end
+
+local function deleteLegacy()
+    for index = 1, LEGACY_CHUNKS do
+        local name = legacyName(index)
+        local macroIndex = ns.Compat.MacroIndexByName(name)
+        if macroIndex and macroIndex > 0 then
+            local _, body = ns.Compat.MacroInfo(macroIndex)
+            if bodyLooksLikeJournal(body) then ns.Compat.DeleteMacro(macroIndex) end
+        end
+    end
+end
+
+-- Writes a whole generation. The header goes first as pending, every payload
+-- chunk is verified, and only then the header is rewritten as committed; until
+-- that last verified write this generation can never win at login.
+local function writeGeneration(generation, counter, encoded, stamp)
     local total = math.ceil(#encoded / CHUNK_SIZE)
     if total < 1 or total > MAX_CHUNKS then
-        return false, "journal does not fit in " .. tostring(MAX_CHUNKS) .. " macros"
+        return false, "journal does not fit in " .. tostring(MAX_CHUNKS) .. " macros per generation"
     end
 
-    for sequence = 1, total do
-        local data = encoded:sub((sequence - 1) * CHUNK_SIZE + 1, sequence * CHUNK_SIZE)
-        local body = makeChunk(sequence, total, stamp, data)
-        local name = string.format("GPSJ%02d", sequence)
-        local index = ns.Compat.MacroIndexByName(name)
-
-        if index and index > 0 then
-            local existingName, existingBody = ns.Compat.MacroInfo(index)
-            if existingBody and existingBody:sub(1, #PREFIX) ~= PREFIX then
-                return false, "macro name collision on " .. name
-            end
-            if existingBody ~= body then
-                if not ns.Compat.EditMacro(index, name, MACRO_ICON, body) then
-                    return false, "could not update " .. name
-                end
-            end
-        else
-            local created = ns.Compat.CreateMacro(name, MACRO_ICON, body)
-            if not created then
-                return false, "could not create " .. name .. " (macro slots may be full)"
-            end
-        end
+    local function bodyFor(index, state)
+        local data = encoded:sub((index - 1) * CHUNK_SIZE + 1, index * CHUNK_SIZE)
+        return makeChunk(generation, counter, index, total, stamp, state, data)
     end
 
-    -- Delete by name, not by a numeric index that shifts after every delete.
-    for sequence = total + 1, MAX_CHUNKS do
-        local name = string.format("GPSJ%02d", sequence)
-        local index = ns.Compat.MacroIndexByName(name)
-        if index and index > 0 then
-            local _, body = ns.Compat.MacroInfo(index)
-            if body and body:sub(1, #PREFIX) == PREFIX then
-                ns.Compat.DeleteMacro(index)
-            end
-        end
+    local ok, detail = writeChunk(chunkName(generation, 1), bodyFor(1, "p"))
+    if not ok then return false, detail end
+
+    for index = 2, total do
+        ok, detail = writeChunk(chunkName(generation, index), bodyFor(index, "c"))
+        if not ok then return false, detail end
     end
+
+    ok, detail = writeChunk(chunkName(generation, 1), bodyFor(1, "c"))
+    if not ok then return false, detail end
+
+    deleteGeneration(generation, total)
     return true, total
 end
 
@@ -480,11 +633,12 @@ function J.SaveNow()
 
     saving = true
     local snapshot = DB.Snapshot()
+    -- Pack first: the journal's budget is measured on what is actually written,
+    -- and packing is what makes a normal shop fit without losing stock.
+    packInventory(snapshot)
     local encoded = encodedSnapshot(snapshot)
     local trimmed
     encoded, trimmed = trimSnapshot(snapshot, encoded)
-    packInventory(snapshot)
-    encoded = encodedSnapshot(snapshot)
     if #encoded > MAX_CHUNKS * CHUNK_SIZE then
         saving = false
         reportSaveFailure("journal is too large, even without stock")
@@ -492,12 +646,42 @@ function J.SaveNow()
     end
 
     local stamp = checksum(encoded)
-    local ok, detail = writeChunks(encoded, stamp)
+
+    -- Write the generation that is not current. If nothing was loaded this
+    -- session, look first so an existing save is never blindly overwritten.
+    if not J.status.generation then
+        local generations = collectJournal()
+        local newest
+        for _, name in ipairs(GENERATIONS) do
+            local chunks = generations[name]
+            local header = chunks and chunks[1]
+            if header and header.state == "c" then
+                if not newest or (header.counter or 0) > newest.counter then
+                    newest = { name = name, counter = header.counter or 0 }
+                end
+            end
+        end
+        if newest then
+            J.status.generation = newest.name
+            J.status.counter = newest.counter
+        end
+    end
+
+    local previous = J.status.generation
+    local generation = previous == "A" and "B" or "A"
+    local counter = (tonumber(J.status.counter) or 0) + 1
+
+    local ok, detail = writeGeneration(generation, counter, encoded, stamp)
     saving = false
     if not ok then
         reportSaveFailure(detail)
         return false
     end
+
+    -- The new generation is complete, verified and committed. Only now is the
+    -- previous save allowed to disappear.
+    deleteGeneration(previous)
+    deleteLegacy()
 
     lastSave = U.now()
     pending = false
@@ -506,6 +690,8 @@ function J.SaveNow()
     J.status.savedAt = lastSave
     J.status.trimmed = trimmed and true or false
     J.status.empty = false
+    J.status.generation = generation
+    J.status.counter = counter
     return true, J.status
 end
 
@@ -522,22 +708,15 @@ end
 
 function J.Clear()
     if ns.Compat.MacroCount() == nil then return false end
-    -- Names are stable; macro indices compact when one is removed.
-    for sequence = 1, MAX_CHUNKS do
-        local name = string.format("GPSJ%02d", sequence)
-        local index = ns.Compat.MacroIndexByName(name)
-        if index and index > 0 then
-            local _, body = ns.Compat.MacroInfo(index)
-            if body and body:sub(1, #PREFIX) == PREFIX then
-                ns.Compat.DeleteMacro(index)
-            end
-        end
-    end
+    for _, generation in ipairs(GENERATIONS) do deleteGeneration(generation) end
+    deleteLegacy()
     lastSave = 0
     J.status.savedAt = 0
     J.status.chunks = 0
     J.status.error = nil
     J.status.empty = true
+    J.status.generation = nil
+    J.status.counter = 0
     return true
 end
 
@@ -562,7 +741,8 @@ function J.Report()
     local slots = ns.Compat.MacroCount()
     ns.Print("Macro journal: " .. (active and "|cff7bd66bon|r" or "|cffff5555off|r") ..
         " · " .. (loaded and "loaded this session" or "not loaded yet"))
-    ns.Print(string.format("  Chunks: %d/%d · macro list: %s", J.status.chunks or 0, MAX_CHUNKS,
+    ns.Print(string.format("  Chunks: %d/%d · generation %s · macro list: %s",
+        J.status.chunks or 0, MAX_CHUNKS, tostring(J.status.generation or "none"),
         slots and (tostring(slots) .. " slot(s) visible") or "|cffff5555unavailable|r"))
     if (J.status.savedAt or 0) > 0 then
         ns.Print("  Last save: " .. U.clock(math.max(0, U.now() - J.status.savedAt)) .. " ago" ..
@@ -589,8 +769,8 @@ function J.StatusText()
     if (status.savedAt or 0) > 0 then
         local age = math.max(0, U.now() - status.savedAt)
         local trimmed = status.trimmed and " · inventory trimmed" or ""
-        return string.format("Journal: %d chunks · saved %s ago%s",
-            status.chunks or 0, U.clock(age), trimmed)
+        return string.format("Journal: %d chunks (gen %s) · saved %s ago%s",
+            status.chunks or 0, tostring(status.generation or "?"), U.clock(age), trimmed)
     end
     if loaded then return "Journal empty; the next autosave will fill it." end
     return "Journal waiting for the macro list."

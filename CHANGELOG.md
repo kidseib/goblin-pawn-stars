@@ -2,6 +2,30 @@
 
 All notable changes to Goblin Pawn Stars. Format loosely follows Keep a Changelog.
 
+## [1.6.4] — 2026-11-26
+
+### Fixed
+
+- A save that is interrupted or rejected can no longer destroy the last good run. The
+  macro journal now writes to two alternating generations: every chunk is read back and
+  compared after it is written, the new generation's header is only marked committed
+  after the whole payload verified, and the previous generation is deleted only then.
+  If anything fails — a full macro list, a truncated body, a write that reports success
+  but stores something else, or a crash before the commit write — the previous save
+  stays current and loads at the next login.
+- Stock trimming now measures the packed snapshot it actually writes, instead of the
+  unpacked one, so a normal shop no longer loses stock to the journal budget.
+
+### Changed
+
+- Each generation holds up to 12 chunks (`GPSA01`–`GPSA12`, `GPSB01`–`GPSB12`), the
+  same 24-macro footprint as before. Saves written by 1.6.3 and earlier (`GPSJ01`–
+  `GPSJ24`) are still read once and are retired by the next save.
+- `/gps journal`, the Deed footer and `/gps report` name the generation a run was
+  restored from or saved to.
+
+No save-schema or economy changes.
+
 ## [1.6.3] — 2026-11-26
 
 ### Added
