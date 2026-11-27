@@ -58,11 +58,23 @@ function M.Attach(parent, icon, zoom)
     local selectedMethod, selectedID, displayID, loadedCallback
     local generation = 0
     local loading, ready = false, false
+    local visible = true
 
     function widget:SetWalking(walking)
         if not ready then return end
         set(model, "SetRotation", walking and -1.05 or -0.25, false)
         set(model, "SetAnimation", walking and walk or stand, 0)
+    end
+
+    function widget:SetVisible(shown)
+        visible = shown and true or false
+        if visible then
+            model:Show()
+            if ready then icon:Hide() end
+        else
+            model:Hide()
+            icon:Show()
+        end
     end
 
     local function reveal(fromEvent)
@@ -83,8 +95,8 @@ function M.Attach(parent, icon, zoom)
         set(model, "SetPortraitZoom", zoom)
         widget:SetWalking(false)
         model:SetAlpha(1)
-        icon:Hide()
-        if loadedCallback then
+        widget:SetVisible(visible)
+        if visible and loadedCallback then
             local callback = loadedCallback
             loadedCallback = nil
             local ok, err = pcall(callback, widget)

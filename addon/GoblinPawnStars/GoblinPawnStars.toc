@@ -4,7 +4,7 @@
 ## Author: ErrorSeib & Buffy (Codebuff)
 ## Credit: Created by ErrorSeib & Buffy (Codebuff)
 ## X-Credits: ErrorSeib & Buffy (Codebuff)
-## Version: 1.7.7
+## Version: 1.7.8
 ## SavedVariables: GoblinPawnStarsDB, GoblinPawnStarsBackups
 ## IconTexture: Interface\Icons\INV_Misc_Coin_01
 ## AddonCompartmentFunc: GoblinPawnStars_CompartmentClick
@@ -21,6 +21,7 @@
 
 Core\Bootstrap.lua
 Core\Compat.lua
+Core\Perf.lua
 Core\Persist.lua
 Core\Backups.lua
 Core\Journal.lua

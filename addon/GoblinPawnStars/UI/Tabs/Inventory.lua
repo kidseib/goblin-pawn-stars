@@ -122,7 +122,7 @@ ns.UI.Tabs.inventory = {
         end
 
         function ui.Refresh()
-            local items = ns.Inventory.List({
+            local items, marketValues = ns.Inventory.List({
                 search = ui.search,
                 category = ui.category,
                 sort = ui.sort,
@@ -145,7 +145,7 @@ ns.UI.Tabs.inventory = {
                 row:Show()
                 row.icon:SetIcon(record.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
                 row.name:SetText(T.ItemName(record))
-                local market = ns.Market.Value(record)
+                local market = marketValues and marketValues[record] or ns.Market.Value(record)
                 local delta = market - (record.value or 0)
                 local deltaText = ""
                 if math.abs(delta) >= 1 then

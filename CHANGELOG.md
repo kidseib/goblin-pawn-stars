@@ -2,6 +2,37 @@
 
 All notable changes to Goblin Pawn Stars. Format loosely follows Keep a Changelog.
 
+## [1.7.8] — 2026-11-27
+
+A presentation and responsiveness pass. Gameplay, arrival timing, stock and the
+economy are unchanged.
+
+### Added
+
+- **Settings → Performance mode** (top-right toggle) for lighter clients: class icons
+  replace 3D customer portraits, animation helpers take their instant path, and the
+  arrival card switches to its compact layout. It is an overlay, so turning it off
+  restores the player's existing motion and notification choices.
+- The arrival card now queues a second customer as an updated waiting count instead of
+  replacing the first customer's name and portrait. It also pauses its dismissal timer
+  while hovered and has a close button that dismisses only the card.
+- `/gps profile` reports rolling last/max timings for journal saves, backup encodes,
+  bag scans and active-tab refreshes. Samples use the existing clock and are taken only
+  when the operation runs; there is no new update loop.
+
+### Changed
+
+- The Inventory tab reuses the market values already resolved for the value sort when
+  rendering rows, instead of recalculating every visible stack a second time.
+
+### Tests
+
+- The suite is now **55 tests**. UI smoke covers hover-paused arrival dismissal, the
+  close control, simultaneous-arrival aggregation, Performance mode on and off,
+  class-icon portrait fallback, animation bypass, and compact arrival layout.
+
+---
+
 ## [1.7.7] — 2026-11-27
 
 ### Fixed

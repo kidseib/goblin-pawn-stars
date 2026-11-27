@@ -1,10 +1,16 @@
 # PROGRESS
 
-## Current state — v1.7.5
+## Current state — v1.7.8
 
 Phases 1–4 are implemented. Phase 5 (optional multiplayer) is deliberately not
 started. The addon is feature-complete for a single-player shop simulation and is
 packaged as an installable ZIP. Created by **ErrorSeib & Buffy (Codebuff)**.
+
+**v1.7.8** is a presentation and responsiveness release: Settings has a one-click
+Performance mode, simultaneous arrivals aggregate on one card, the card pauses while
+hovered and has its own close control, `/gps profile` keeps rolling operation timings,
+and the Inventory tab reuses sort-time market values. No gameplay or arrival timing
+changed. The headless suite is **55 tests**; UI smoke is green.
 
 v1.1.0 added the welcome window, Settings category, Addon Compartment entry and an
 item-parsing correctness pass. v1.1.1 fixed the sidebar/tab hit area. v1.2.0 added the
@@ -127,7 +133,7 @@ The new pacing and toggle still need a live-client pass.
 
 ## What exists
 
-* 60 Lua files, 16,146 lines, loaded by a single TOC at Interface 16001.
+* 61 Lua files, 16,902 lines, loaded by a single TOC at Interface 16001.
 * Ten-tab main window, movable negotiation window, wholesaler window, encounter popup,
   minimap coin, toasts, tooltips, optional sound.
 * The Deed: three payments, an ending choice, endless mode, franchise prestige, one

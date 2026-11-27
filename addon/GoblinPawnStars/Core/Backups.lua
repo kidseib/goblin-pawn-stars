@@ -79,7 +79,9 @@ end
 function B.Capture(reason, store)
     local db = DB.Get()
     if not db then return nil, "no shop data" end
+    local started = ns.Perf and ns.Perf.Now and ns.Perf.Now()
     local ok, text = pcall(DB.Export)
+    if ns.Perf then ns.Perf.Record("backup", started) end
     if not ok or type(text) ~= "string" or text == "" then
         return nil, "could not encode the shop"
     end

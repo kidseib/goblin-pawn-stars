@@ -15,6 +15,8 @@ local revision, dismissal = 0, 0
 local current, animated, previewing
 local scope, layout
 local dragging, dragged, walking
+local hovering, closePressed = false, false
+local dismissWindow, dismissAt, pausedRemaining
 
 local function placement()
     return ns.DB.Get().settings.arrivalPositions
@@ -34,6 +36,10 @@ function arrival.Hide()
     current = nil
     previewing = false
     walking = false
+    hovering = false
+    closePressed = false
+    dismissAt = nil
+    pausedRemaining = nil
     if card then
         if dragging then card:StopMovingOrSizing() end
         dragging = false
@@ -43,12 +49,49 @@ function arrival.Hide()
     end
 end
 
+local function nowSeconds()
+    if type(GetTime) ~= "function" then return nil end
+    local ok, value = pcall(GetTime)
+    if not ok or not tonumber(value) then return nil end
+    return tonumber(value)
+end
+
 local function dismissAfter(seconds)
     dismissal = dismissal + 1
     local shown, timer = revision, dismissal
+    dismissWindow = seconds
+    local now = nowSeconds()
+    dismissAt = now and (now + seconds) or nil
+    if hovering then pausedRemaining = seconds end
     ns.Compat.After(seconds, function()
-        if shown == revision and timer == dismissal and not dragging then arrival.Hide() end
+        if shown == revision and timer == dismissal and not dragging and not hovering then
+            arrival.Hide()
+        end
     end)
+end
+
+local function beginHover()
+    if dragging or hovering then return end
+    hovering = true
+    local now = nowSeconds()
+    if dismissAt and now then
+        pausedRemaining = math.max(0, dismissAt - now)
+    else
+        pausedRemaining = dismissWindow
+    end
+end
+
+local function endHover()
+    if not hovering then return end
+    hovering = false
+    local remaining = pausedRemaining or dismissWindow or 0
+    pausedRemaining = nil
+    if not card or not card:IsShown() then return end
+    if remaining > 0 then
+        dismissAfter(remaining)
+    else
+        arrival.Hide()
+    end
 end
 
 function arrival.Refresh()
@@ -80,7 +123,7 @@ function arrival.Position()
     card.door:SetSize(large and 76 or 52, large and 86 or 56)
     card.name:ClearAllPoints()
     card.name:SetPoint("LEFT", card, "LEFT", layout.text, large and 13 or 7)
-    card.name:SetPoint("RIGHT", card, "RIGHT", -12, large and 13 or 7)
+    card.name:SetPoint("RIGHT", card, "RIGHT", -30, large and 13 or 7)
     card.name:SetFont(T.font, large and 20 or 13, "")
     card.hint:SetShown(large)
     placeActor()
@@ -113,10 +156,16 @@ local function build()
     end)
     panel:SetScript("OnMouseUp", function(_, button)
         if button ~= "LeftButton" or dragging or dragged then return end
+        if closePressed or not panel:IsShown() then
+            closePressed = false
+            return
+        end
         arrival.Hide()
         ns.UI.Open()
         ns.UI.ShowTab("customers")
     end)
+    panel:SetScript("OnEnter", beginHover)
+    panel:SetScript("OnLeave", endHover)
 
     panel.door = panel:CreateTexture(nil, "ARTWORK")
     panel.door:SetPoint("LEFT", 8, 0)
@@ -141,19 +190,53 @@ local function build()
     panel.detail:SetPoint("TOPLEFT", panel.name, "BOTTOMLEFT", 0, -4)
     panel.hint = W.Text(panel, "Drag to move", 9, T.colors.muted)
     panel.hint:SetPoint("BOTTOMRIGHT", -12, 10)
-    local ok, widget = pcall(ns.UI.CustomerModel.Attach, panel.actor, panel.icon, 0)
-    panel.model = ok and widget or nil
+    panel.model = false
+    panel.close = W.Button(panel, "X", 18, 18, function() arrival.Hide() end, "danger")
+    if panel.close then
+        panel.close:SetPoint("TOPRIGHT", -6, -6)
+        panel.close:SetScript("OnMouseDown", function() closePressed = true end)
+        panel.close:SetScript("OnEnter", beginHover)
+        panel.close:SetScript("OnLeave", function()
+            closePressed = false
+            endHover()
+        end)
+    end
     panel:Hide()
     return panel
 end
 
+-- Performance mode skips creating a PlayerModel entirely. If it is switched
+-- off later, the next arrival attaches one lazily.
+local function ensureModel()
+    if not card then return nil end
+    if not card.model then
+        local ok, widget = pcall(ns.UI.CustomerModel.Attach, card.actor, card.icon, 0)
+        card.model = ok and widget or false
+    end
+    return card.model or nil
+end
+
 function arrival.Show(customer, preview)
+    local performance = ns.Util.PerformanceMode() and not preview
     local mode = preview and "Animated" or ns.DB.Get().settings.customerArrival
     if not preview and (mode == "Off" or #ns.Customers.Waiting() == 0) then return end
+    if performance then mode = "Compact" end
     card = card or build()
     if not card then return end
 
     animated = mode ~= "Compact"
+    if not preview and not previewing and current and card:IsShown() then
+        -- A second arrival must not replace the customer already on screen.
+        -- Keep the first card and just refresh its queue count and style.
+        arrival.Position()
+        card.door:SetShown(animated)
+        card.recess:SetShown(animated)
+        arrival.Refresh()
+        if ns.Anim and ns.Anim.Flash then ns.Anim.Flash(card.flash) end
+        dismissAfter(scope == "shop" and 5 or 4)
+        return card
+    end
+
     current, previewing = customer, preview
     revision = revision + 1
     local shown = revision
@@ -172,21 +255,30 @@ function arrival.Show(customer, preview)
     W.SetClassIcon(card.icon, customer.class)
     card:Show()
 
-    if card.model then
-        card.model:SetWalking(false)
-        local ok, err = pcall(card.model.SetCustomer, card.model, customer, function(model)
-            if shown ~= revision or not animated then return end
-            walking = true
-            placeActor()
-            model:SetWalking(true)
-            ns.Anim.CustomerWalk(card.actor, layout.distance, function()
-                if shown ~= revision then return end
-                walking = false
+    if performance then
+        if card.model and card.model.SetVisible then
+            pcall(card.model.SetVisible, card.model, false)
+        end
+        card.icon:Show()
+    else
+        local widget = ensureModel()
+        if widget then
+            if widget.SetVisible then pcall(widget.SetVisible, widget, true) end
+            widget:SetWalking(false)
+            local ok, err = pcall(widget.SetCustomer, widget, customer, function(model)
+                if shown ~= revision or not animated then return end
+                walking = true
                 placeActor()
-                model:SetWalking(false)
+                model:SetWalking(true)
+                ns.Anim.CustomerWalk(card.actor, layout.distance, function()
+                    if shown ~= revision then return end
+                    walking = false
+                    placeActor()
+                    model:SetWalking(false)
+                end)
             end)
-        end)
-        if not ok then ns.Debug("customer model: " .. tostring(err)) end
+            if not ok then ns.Debug("customer model: " .. tostring(err)) end
+        end
     end
     if animated and (scope == "shop" or customer.rare or customer.regular) then
         ns.Anim.Flash(card.flash)

@@ -236,6 +236,7 @@ local function settingsLine()
         " · pace " .. tostring(settings.arrivalPace or "Normal") ..
         " · arrivals " .. tostring(settings.customerArrival or "Animated") ..
         " · auto-sell " .. (settings.autoSell ~= false and "on" or "off") ..
+        " · performance " .. (settings.performance == true and "on" or "off") ..
         " · sound " .. (settings.sound ~= false and "on" or "off") ..
         " · paused " .. (settings.paused and "on" or "off") ..
         " · debug " .. (ns.debugEnabled and "on" or "off")
@@ -301,6 +302,17 @@ local function profileLine(label, fn, detail)
     return "GPS| " .. label .. ": " .. ms .. " ms" .. (detail and detail(result) or "")
 end
 
+local function rollingLine(key, label)
+    local metric = ns.Perf and ns.Perf.Get and ns.Perf.Get(key)
+    if not metric or (metric.count or 0) == 0 then
+        return "GPS| rolling " .. label .. ": no samples yet"
+    end
+    local suffix = metric.label and (" · " .. tostring(metric.label)) or ""
+    return string.format("GPS| rolling %s: last %d ms · max %d ms · %d samples%s",
+        label, math.floor((tonumber(metric.last) or 0) + 0.5),
+        math.floor((tonumber(metric.max) or 0) + 0.5), metric.count, suffix)
+end
+
 local function memoryText()
     if type(GetAddOnMemoryUsage) ~= "function" then return "unknown" end
     local ok, value = pcall(GetAddOnMemoryUsage, ns.ADDON)
@@ -342,6 +354,11 @@ function R.Profile()
     lines[#lines + 1] = profileLine("UI refresh (" .. shopState .. ")", function()
         if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end
     end)
+
+    lines[#lines + 1] = rollingLine("journal", "journal save")
+    lines[#lines + 1] = rollingLine("backup", "backup encode")
+    lines[#lines + 1] = rollingLine("bags", "bag scan")
+    lines[#lines + 1] = rollingLine("tab", "active-tab refresh")
 
     local saveMs = tonumber(status.saveMs) or 0
     lines[#lines + 1] = string.format("GPS| last journal save: %s · %d chunks · gen %s",

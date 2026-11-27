@@ -175,7 +175,9 @@ function Inv.List(filter)
         if av == bv then return (a.name or "") < (b.name or "") end
         return av > bv
     end)
-    return list
+    -- The caller may display these rows; hand back the values already resolved
+    -- for the sort so it does not call Market.Value again per visible row.
+    return list, values
 end
 
 function Inv.TotalMarketValue()

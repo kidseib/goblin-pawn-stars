@@ -72,6 +72,7 @@ function __smoke()
             arrivalDb.shop.waiting[2] = { name = "Second merchant", rare = true }
             UI.CustomerArrival.Show(arrivalDb.shop.waiting[2])
             expired()
+            assert(panel.name:GetText() == "Test merchant", "second arrival replaced the first card")
             assert(panel:IsShown() and not panel.door:IsShown(), "old timer hid the compact card")
             actorPoint = panel.actor.__points[#panel.actor.__points]
             assert(actorPoint.point == "LEFT" and actorPoint[3] == 8,
@@ -98,6 +99,43 @@ function __smoke()
         UI.CustomerArrival.Hide()
         __NS.db = clone
         assert(checked, problem)
+    end)
+
+    attempt("arrival card pauses on hover and closes without opening Customers", function()
+        local UI = __NS.UI
+        local db = __NS.DB.Scratch()
+        local real = __NS.db
+        __NS.db = db
+        db.shop.waiting = { { name = "Hover merchant", class = "MAGE", race = "Goblin" } }
+        local ok, err = pcall(function()
+            UI.Close()
+            local panel = UI.CustomerArrival.Show(db.shop.waiting[1])
+            local timer = TIMERS[#TIMERS].callback
+            local enter = panel:GetScript("OnEnter")
+            local leave = panel:GetScript("OnLeave")
+            assert(enter and leave and panel.close, "arrival card lacks hover and close controls")
+
+            enter(panel)
+            timer()
+            assert(panel:IsShown(), "hover did not pause the dismissal timer")
+            leave(panel)
+            assert(panel:IsShown(), "leaving hid the card immediately")
+            local remaining = TIMERS[#TIMERS].callback
+            assert(remaining ~= timer, "leaving did not reschedule the remaining dismissal")
+            remaining()
+            assert(not panel:IsShown(), "the resumed dismissal timer did not hide the card")
+
+            panel = UI.CustomerArrival.Show(db.shop.waiting[1])
+            panel.close:GetScript("OnMouseDown")(panel.close, "LeftButton")
+            panel.close:GetScript("OnClick")(panel.close, "LeftButton")
+            panel:GetScript("OnMouseUp")(panel, "LeftButton")
+            assert(not panel:IsShown(), "close control did not dismiss the card")
+            assert(not UI.IsOpen(), "close control opened the Customers tab")
+            assert(#db.shop.waiting == 1, "closing the card changed the waiting queue")
+        end)
+        UI.CustomerArrival.Hide()
+        __NS.db = real
+        assert(ok, err)
     end)
 
     attempt("arrival error falls back to the original toast", function()
@@ -259,11 +297,94 @@ function __smoke()
                 "questing toggle did not turn on")
             assert(click(buttons[10]) == "Off" and db.settings.questAutoSell == false,
                 "questing toggle did not turn off")
+
+            local performanceButton = buttons[#buttons]
+            local originalHide = UI.CustomerArrival.Hide
+            local hideCalls = 0
+            UI.CustomerArrival.Hide = function(...)
+                hideCalls = hideCalls + 1
+                return originalHide(...)
+            end
+            local performanceOk, performanceErr = pcall(function()
+                local groups = 0
+                local region = {
+                    SetAlpha = function() end,
+                    CreateAnimationGroup = function()
+                        groups = groups + 1
+                        return nil
+                    end,
+                }
+                assert(click(performanceButton) == "Performance: On",
+                    "performance mode did not turn on")
+                assert(db.settings.performance == true, "performance mode did not persist")
+                assert(hideCalls >= 1, "performance mode did not hide the arrival card")
+                assert(__NS.Anim.Reveal(region, 0.2, 0) == false and groups == 0,
+                    "performance mode still ran a fade animation")
+                assert(click(performanceButton) == "Performance: Off",
+                    "performance mode did not turn off")
+                assert(db.settings.performance == false, "performance mode did not clear")
+                __NS.Anim.Reveal(region, 0.2, 0)
+                assert(groups == 1, "animations did not resume after performance mode turned off")
+            end)
+            UI.CustomerArrival.Hide = originalHide
+            assert(performanceOk, performanceErr)
         end)
         widgets.Button = makeButton
         __NS.db = clone
         UI.Refresh()
         assert(ok, problem)
+    end)
+
+    attempt("performance mode skips 3D portraits and compacts arrivals", function()
+        local UI, W = __NS.UI, __NS.Widgets
+        local db = __NS.DB.Scratch()
+        local real = __NS.db
+        __NS.db = db
+        local originalAttach = UI.CustomerModel.Attach
+        local attaches, visible = 0, nil
+        UI.CustomerModel.Attach = function(...)
+            attaches = attaches + 1
+            return {
+                SetCustomer = function() end,
+                SetVisible = function(_, shown) visible = shown end,
+                SetWalking = function() end,
+            }
+        end
+        local ok, err = pcall(function()
+            db.settings.performance = true
+            db.settings.customerArrival = "Animated"
+
+            local portrait = W.Portrait(UIParent, 40, "WARRIOR")
+            portrait:SetCustomer({ class = "MAGE" })
+            assert(attaches == 0, "performance mode attached a 3D portrait")
+
+            db.settings.performance = false
+            portrait:SetCustomer({ class = "MAGE" })
+            assert(attaches == 1 and visible == true, "normal mode did not restore the 3D portrait")
+
+            db.settings.performance = true
+            portrait:SetCustomer({ class = "MAGE" })
+            assert(attaches == 1 and visible == false, "performance mode did not hide the existing 3D portrait")
+
+            db.shop.waiting = { { name = "Perf merchant", class = "MAGE", race = "Goblin" } }
+            UI.Close()
+            local panel = UI.CustomerArrival.Show(db.shop.waiting[1])
+            assert(panel and panel:IsShown(), "performance arrival did not show")
+            assert(not panel.door:IsShown(), "performance arrival was not compact")
+            assert(panel.icon:IsShown(), "performance arrival did not show the class icon")
+            assert(panel:GetWidth() == 274, "performance arrival did not use the compact width")
+
+            UI.CustomerArrival.Hide()
+            db.settings.performance = false
+            panel = UI.CustomerArrival.Show(db.shop.waiting[1])
+            assert(panel and panel:IsShown() and panel.door:IsShown(),
+                "turning performance mode off did not restore the animated arrival card")
+            assert(panel:GetWidth() == 306, "normal arrival did not return to the screen width")
+        end)
+        UI.CustomerArrival.Hide()
+        UI.CustomerModel.Attach = originalAttach
+        __NS.db = real
+        assert(ok, err)
     end)
 
     attempt("rolling backup window captures without changing the shop", function()
@@ -336,6 +457,25 @@ function __smoke()
         __NS.UI.ShowTab("inventory")
         local def = __NS.UI.Tabs.inventory
         if def and def.api then def.api.Refresh() end
+    end)
+
+    attempt("inventory rows reuse the value resolved by the value sort", function()
+        local ui, Market = __NS.UI.Tabs.inventory.api, __NS.Market
+        local original = Market.Value
+        local calls = 0
+        Market.Value = function(record)
+            calls = calls + 1
+            return original(record)
+        end
+        local ok, err = pcall(function()
+            ui.search, ui.category, ui.sort = "", "all", "value"
+            ui.Refresh()
+            assert(calls == __NS.Inventory.Count(),
+                string.format("inventory tab resolved Market.Value %d times for %d stacks",
+                    calls, __NS.Inventory.Count()))
+        end)
+        Market.Value = original
+        assert(ok, err)
     end)
 
     attempt("dashboard refresh", function()

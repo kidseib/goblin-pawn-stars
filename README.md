@@ -4,10 +4,10 @@
 
 <p align="center">
   <a href="https://github.com/kidseib/goblin-pawn-stars/actions/workflows/ci.yml"><img src="https://github.com/kidseib/goblin-pawn-stars/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
-  <img src="https://img.shields.io/badge/version-1.7.7-c9a24a?style=flat-square" alt="Version 1.7.7">
+  <img src="https://img.shields.io/badge/version-1.7.8-c9a24a?style=flat-square" alt="Version 1.7.8">
   <img src="https://img.shields.io/badge/interface-16001-3f7d4e?style=flat-square" alt="Interface 16001">
   <img src="https://img.shields.io/badge/Lua-5.1-2c2d72?style=flat-square&logo=lua&logoColor=white" alt="Lua 5.1">
-  <img src="https://img.shields.io/badge/tests-54%2F54-3f7d4e?style=flat-square" alt="54 of 54 tests passing">
+  <img src="https://img.shields.io/badge/tests-55%2F55-3f7d4e?style=flat-square" alt="55 of 55 tests passing">
   <img src="https://img.shields.io/badge/dependencies-none-6b4f2a?style=flat-square" alt="No runtime dependencies">
   <img src="https://img.shields.io/badge/license-MIT-3f7d4e?style=flat-square" alt="MIT License">
 </p>
@@ -32,19 +32,20 @@
   <a href="#persistence-important-beta-note">Persistence</a> ·
   <a href="#compatibility-and-safety">Safety</a> ·
   <a href="#development">Development</a> ·
-  <a href="TESTING.md">Testing 1.7.7</a> ·
+  <a href="TESTING.md">Testing 1.7.8</a> ·
   <a href="#ai-disclosure">AI disclosure</a> ·
   <a href="#license">License</a>
 </p>
 
-> **Status — 1.7.7.** The addon is feature-complete and passes the
-> 54-test headless suite plus the UI smoke pass. Live-client validation is still in
+> **Status — 1.7.8.** The addon is feature-complete and passes the
+> 55-test headless suite plus the UI smoke pass. Live-client validation is still in
 > progress: see [TESTING.md](TESTING.md) for the in-game checklist and
 > [Testing status](#testing-status) for what is and is not verified.
 >
-> **1.7.7** fixes the customer arrival card so the NPC walks into the doorway
-> portrait instead of resting beside it. See the
-> [release notes](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.7)
+> **1.7.8** adds a one-click **Performance mode**, groups simultaneous customers on
+> the arrival card, pauses its dismissal while hovered, adds a close control, and
+> extends `/gps profile` with rolling last/max timings. See the
+> [release notes](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.8)
 > for the full patch notes.
 
 ---
@@ -102,8 +103,8 @@ customers are procedural, and no real item, bag slot or copper is ever touched.
 ## Install
 
 1. Download
-   [`GoblinPawnStars-1.7.7.zip`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.7/GoblinPawnStars-1.7.7.zip)
-   from the [v1.7.7 release](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.7),
+   [`GoblinPawnStars-1.7.8.zip`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.8/GoblinPawnStars-1.7.8.zip)
+   from the [v1.7.8 release](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.8),
    or build it with `npm run package`.
 2. Extract it so the folder layout is:
 
@@ -124,17 +125,17 @@ Check it before extracting:
 
 ```powershell
 # Windows PowerShell
-Get-FileHash .\GoblinPawnStars-1.7.7.zip -Algorithm SHA256
+Get-FileHash .\GoblinPawnStars-1.7.8.zip -Algorithm SHA256
 ```
 
 ```bash
 # macOS / Linux
-shasum -a 256 GoblinPawnStars-1.7.7.zip
-# or: sha256sum GoblinPawnStars-1.7.7.zip
+shasum -a 256 GoblinPawnStars-1.7.8.zip
+# or: sha256sum GoblinPawnStars-1.7.8.zip
 ```
 
 Compare the result with the
-[`GoblinPawnStars-1.7.7.zip.sha256`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.7/GoblinPawnStars-1.7.7.zip.sha256)
+[`GoblinPawnStars-1.7.8.zip.sha256`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.8/GoblinPawnStars-1.7.8.zip.sha256)
 attached to the same release.
 
 ---
@@ -213,7 +214,7 @@ Ten tabs plus a movable negotiation window, a standalone wholesaler window and e
 | **Employees** | Six staff, hiring, promotion, wages and the salesperson's queue automation |
 | **Achievements** | 26 custom milestones with progress bars and fictional shop titles |
 | **Ledger** | Filterable transaction history and lifetime totals |
-| **Settings** | Sound, minimap button, auto-collect, questing auto-sell, arrival pace, pause, window scale, backup/restore, diagnostics, reset |
+| **Settings** | Performance mode, sound, minimap button, auto-collect, questing auto-sell, arrival pace, pause, window scale, backup/restore, diagnostics, reset |
 
 A standalone **Wholesaler** window (Dashboard → Wholesaler, or `/gps wholesale`) sells
 three rotating bulk lots for Goblin Credits. Each lot is one virtual stack; the price is
@@ -425,8 +426,8 @@ npm run package      # builds dist/GoblinPawnStars-<version>.zip
 node tools/sim_30min.js  # optional: 30-minute progression probe + 10-minute idle probe
 ```
 
-The headless harness loads all 60 addon files in TOC order with mocked WoW APIs,
-runs the 54-test diagnostics suite (economy, negotiation invariants, wholesaler, salesperson auto-sales,
+The headless harness loads all 61 addon files in TOC order with mocked WoW APIs,
+runs the 55-test diagnostics suite (economy, negotiation invariants, wholesaler, salesperson auto-sales,
 throughput, encounters, serialization, achievements, expenses, macro-journal
 round-trip/corruption/immediate rebind/deferred franchise commits, the three payments,
 museum donations, Marta and franchise),
@@ -444,8 +445,8 @@ ticks. See `PROGRESS.md` for exactly what was and was not verified.
 
 ## Testing status
 
-* Lua 5.1 syntax check: **passing** (60 files, 16,633 lines).
-* Headless diagnostics suite: **54/54 passing** (the exact count is printed by
+* Lua 5.1 syntax check: **passing** (61 files, 16,902 lines).
+* Headless diagnostics suite: **55/55 passing** (the exact count is printed by
   `npm test`).
 * UI smoke (all tabs, splash modes, guided tour, goal card, options panel, negotiation,
   events, wholesaler window, slash commands) and a simulated hour of play: **passing

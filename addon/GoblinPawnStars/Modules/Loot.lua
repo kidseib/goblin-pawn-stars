@@ -73,7 +73,7 @@ end
 
 -- Returns number of new stock records created and how many gains were deferred
 -- (uncached item data, storage full, or over the per-scan cap).
-function L.Scan(force)
+local function scan(force)
     local db = DB.Get()
     if not force and db.settings.autoCollect == false then return 0, 0 end
 
@@ -172,6 +172,16 @@ function L.Scan(force)
         deferRetries = 0
     end
 
+    return added, deferred
+end
+
+-- Every real scan, including event/timer scans forced from Settings, goes
+-- through this wrapper so its duration is recorded once.
+function L.Scan(force)
+    local started = ns.Perf and ns.Perf.Now and ns.Perf.Now()
+    local ok, added, deferred = pcall(scan, force)
+    if ns.Perf then ns.Perf.Record("bags", started) end
+    if not ok then error(added, 0) end
     return added, deferred
 end
 

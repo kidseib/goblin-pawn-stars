@@ -8,7 +8,7 @@
 local ADDON, ns = ...
 
 ns.ADDON = ADDON
-ns.VERSION = "1.7.7"
+ns.VERSION = "1.7.8"
 ns.CREDIT = "ErrorSeib & Buffy (Codebuff)"
 ns.INTERFACE = 16001
 ns.PREFIX = "|cff7bd66bGoblin Pawn Stars|r: "
@@ -123,6 +123,15 @@ end
 function U.now()
     if type(time) == "function" then return time() end
     return 0
+end
+
+-- Presentation-only switch. Gameplay code must never branch on this.
+function U.PerformanceMode()
+    local db = ns.DB
+    if not db or type(db.Get) ~= "function" then return false end
+    local ok, current = pcall(db.Get)
+    if not ok or not current or not current.settings then return false end
+    return current.settings.performance == true
 end
 
 function U.today()

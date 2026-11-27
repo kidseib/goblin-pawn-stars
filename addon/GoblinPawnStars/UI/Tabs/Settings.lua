@@ -268,11 +268,28 @@ ns.UI.Tabs.settings = {
         version:SetPoint("BOTTOMRIGHT", -12, 18)
         version:SetJustifyH("RIGHT")
 
+        -- One switch for a lighter client: class icons instead of PlayerModels,
+        -- instant animation paths, and the compact arrival card. It is an
+        -- overlay, so turning it off restores the player's existing choices.
+        local performanceButton = W.Button(options, "Performance: Off", 132, 22, function()
+            local db = ns.DB.Get()
+            db.settings.performance = db.settings.performance ~= true
+            if ns.UI.CustomerArrival then ns.UI.CustomerArrival.Hide() end
+            if ns.UI.Negotiation and ns.UI.Negotiation.Refresh then
+                pcall(ns.UI.Negotiation.Refresh)
+            end
+            if ns.UI and ns.UI.Refresh then ns.UI.Refresh(true) end
+        end, "neutral")
+        performanceButton:SetPoint("TOPRIGHT", -12, -4)
+
         function ui.Refresh()
             for _, refreshToggle in ipairs(toggles) do refreshToggle() end
             paceButton:SetLabel(ns.Shop.ArrivalPace())
             arrivalButton:SetLabel(arrivalMode())
             scaleValue:SetText(math.floor((ns.DB.Get().settings.scale or 1) * 100 + 0.5) .. "%")
+            local performance = ns.DB.Get().settings.performance == true
+            performanceButton:SetLabel("Performance: " .. (performance and "On" or "Off"))
+            performanceButton:SetTone(performance and "primary" or "neutral")
         end
 
         return ui

@@ -171,9 +171,12 @@ function D.Run()
 
                 local function assertOrder(label, filter)
                     calls = 0
-                    local listed = ns.Inventory.List(filter)
+                    local listed, values = ns.Inventory.List(filter)
                     expectEqual(#listed, count, label .. " lost stacks")
                     expectEqual(calls, count, label .. " should call Market.Value once per stack")
+                    expect(values ~= nil, label .. " did not return the resolved values")
+                    expectEqual(values and values[listed[1]], expectedValues[listed[1]],
+                        label .. " returned the wrong resolved value")
                     for position = 1, count do
                         expectEqual(listed[position].name, expected[position].name,
                             label .. " changed the order at position " .. position)
@@ -199,6 +202,29 @@ function D.Run()
             ns.Market.Value = realValue
             if not ok then error(err, 0) end
         end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("performance telemetry keeps last and maximum timings", function()
+        local P = ns.Perf
+        P.Reset()
+        P.RecordValue("probe", 12)
+        P.RecordValue("probe", 7)
+        local metric = P.Get("probe")
+        expectEqual(metric.count, 2, "telemetry sample count")
+        expectEqual(math.floor(metric.last + 0.5), 7, "telemetry last sample")
+        expectEqual(math.floor(metric.max + 0.5), 12, "telemetry maximum")
+
+        P.RecordValue("probe", 20)
+        metric = P.Get("probe")
+        expectEqual(metric.count, 3, "telemetry did not count the new sample")
+        expectEqual(math.floor(metric.last + 0.5), 20, "telemetry last sample did not update")
+        expectEqual(math.floor(metric.max + 0.5), 20, "telemetry maximum did not grow")
+
+        P.RecordValue("probe", nil)
+        expectEqual(P.Get("probe").count, 3, "an invalid sample changed the count")
+        P.Reset()
+        expect(P.Get("probe") == nil, "telemetry reset kept a metric")
     end)
 
     -----------------------------------------------------------------------

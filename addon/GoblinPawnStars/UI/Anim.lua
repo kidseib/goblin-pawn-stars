@@ -25,7 +25,8 @@ local function still()
     local db = ns.DB
     if not db or type(db.Get) ~= "function" then return false end
     local ok, current = pcall(db.Get)
-    return ok and current and current.settings and current.settings.animations == false
+    return ok and current and current.settings
+        and (current.settings.animations == false or current.settings.performance == true)
 end
 
 local function groupFor(region)

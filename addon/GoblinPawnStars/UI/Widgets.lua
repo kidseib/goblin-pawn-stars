@@ -190,6 +190,11 @@ function W.Portrait(parent, size, class, rareColor)
     local model
     function frame:SetCustomer(customer)
         W.SetClassIcon(icon, customer.class)
+        if ns.Util.PerformanceMode() then
+            if model and model.SetVisible then pcall(model.SetVisible, model, false) end
+            icon:Show()
+            return
+        end
         if model == nil then
             local factory = ns.UI.CustomerModel
             local ok, widget = pcall(function()
@@ -197,7 +202,10 @@ function W.Portrait(parent, size, class, rareColor)
             end)
             model = ok and widget or false
         end
-        if model then pcall(model.SetCustomer, model, customer) end
+        if model then
+            if model.SetVisible then pcall(model.SetVisible, model, true) end
+            pcall(model.SetCustomer, model, customer)
+        end
     end
 
     return frame

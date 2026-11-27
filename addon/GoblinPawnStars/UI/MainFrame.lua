@@ -275,6 +275,13 @@ local function getTab(id)
     return def
 end
 
+local function refreshTab(id, fn)
+    local started = ns.Perf and ns.Perf.Now and ns.Perf.Now()
+    local ok, err = pcall(fn)
+    if ns.Perf then ns.Perf.Record("tab", started, id) end
+    return ok, err
+end
+
 function ns.UI.ShowTab(id)
     if not ns.UI.Tabs[id] then id = "dashboard" end
     local previousTab = activeTab
@@ -305,7 +312,7 @@ function ns.UI.ShowTab(id)
             ns.Anim.Reveal(def.frame, 0.16, 0.35)
         end
         if def.api and def.api.Refresh then
-            local ok, err = pcall(def.api.Refresh)
+            local ok, err = refreshTab(id, def.api.Refresh)
             if not ok then
                 ns.RecordError("tab:" .. tostring(id), err)
                 ns.Debug("refresh error on " .. id .. ": " .. tostring(err))
@@ -392,7 +399,7 @@ function ns.UI.Refresh()
     refreshHeader()
     local def = ns.UI.Tabs[activeTab]
     if def and def.api and def.api.Refresh and frame and frame:IsShown() then
-        local ok, err = pcall(def.api.Refresh)
+        local ok, err = refreshTab(activeTab, def.api.Refresh)
         if not ok then
             ns.RecordError("refresh", err)
             ns.Debug("refresh error: " .. tostring(err))
@@ -423,7 +430,7 @@ function ns.UI.Tick(dt)
         if def and def.api and def.api.Refresh then
             if activeTab == "dashboard" or activeTab == "deed"
                 or activeTab == "market" or activeTab == "customers" then
-                pcall(def.api.Refresh)
+                refreshTab(activeTab, def.api.Refresh)
             end
         end
     end

@@ -99,6 +99,9 @@ local function finishSave(started)
         -- misleading wall-clock number.
         J.status.saveMs = 0
     end
+    if ns.Perf and (J.status.saveMs or 0) > 0 then
+        ns.Perf.RecordValue("journal", J.status.saveMs)
+    end
     return true, J.status
 end
 
