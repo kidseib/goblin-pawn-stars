@@ -32,6 +32,7 @@ function C.OnTick(dt)
     ns.Wholesaler.Tick(dt)
     ns.Encounters.Tick(dt)
     if ns.Journal and ns.Journal.Tick then ns.Journal.Tick() end
+    if ns.Backups and ns.Backups.Tick then ns.Backups.Tick(dt) end
 
     saveAccumulator = saveAccumulator + dt
     if saveAccumulator >= AUTOSAVE then

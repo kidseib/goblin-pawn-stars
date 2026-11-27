@@ -463,6 +463,7 @@ function ns.UI.CheckLayout()
     inspectFrame("Negotiation window", moduleFrame(ns.UI.Negotiation), problems)
     inspectFrame("Encounter window", moduleFrame(ns.UI.Event), problems)
     inspectFrame("Wholesaler window", moduleFrame(ns.UI.Wholesaler), problems)
+    inspectFrame("Backup window", moduleFrame(ns.UI.BackupFrame), problems)
     inspectFrame("Welcome window", moduleFrame(ns.UI.Welcome), problems)
 
     local scale = 1

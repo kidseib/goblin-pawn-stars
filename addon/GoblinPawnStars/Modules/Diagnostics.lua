@@ -393,6 +393,92 @@ function D.Run()
     end)
 
     -----------------------------------------------------------------------
+    test("rolling backups keep three exact snapshots without granting credits or stock", function()
+        withScratch(nil, function(scratch)
+            local store = ns.Backups.NewStore()
+            ns.Inventory.Add({
+                id = 8101, name = "Backup Test A", quality = 2, ilvl = 10,
+                classID = 15, subclassID = 0, category = "misc", value = 50,
+            })
+            local items = ns.Inventory.Count()
+            for index = 1, 4 do
+                scratch.credits = 1000 + index
+                local snapshot, err = ns.Backups.Capture("manual", store)
+                expect(snapshot, "capture failed: " .. tostring(err))
+                expectEqual(scratch.credits, 1000 + index, "capture changed credits")
+                expectEqual(ns.Inventory.Count(), items, "capture changed stock")
+            end
+            local slots = ns.Backups.Slots(store)
+            expectEqual(#slots, 3, "rolling store should keep three snapshots")
+            expectEqual(slots[1].credits, 1004, "newest snapshot missing")
+            expectEqual(slots[3].credits, 1002, "oldest snapshot was not evicted")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("a confirmed restore is exact and keeps a pre-restore backup", function()
+        withScratch(nil, function(scratch)
+            local store = ns.Backups.NewStore()
+            ns.Inventory.Add({
+                id = 8102, name = "Backup Test B", quality = 2, ilvl = 10,
+                classID = 15, subclassID = 0, category = "misc", value = 50,
+            })
+            scratch.credits = 700
+            local beforeItems = ns.Inventory.Count()
+            local snapshot = ns.Backups.Capture("manual", store)
+            expect(snapshot, "capture failed")
+
+            scratch.credits = 900
+            ns.Inventory.Add({
+                id = 8103, name = "Backup Test C", quality = 2, ilvl = 10,
+                classID = 15, subclassID = 0, category = "misc", value = 50,
+            })
+            local changedItems = ns.Inventory.Count()
+
+            local blocked = ns.Backups.Restore(1, false, store)
+            expect(not blocked, "restore ran without confirmation")
+            expectEqual(ns.DB.Get().credits, 900, "unconfirmed restore changed credits")
+            expectEqual(ns.Inventory.Count(), changedItems, "unconfirmed restore changed stock")
+            expectEqual(#ns.Backups.Slots(store), 1, "unconfirmed restore created a backup")
+
+            local ok, err = ns.Backups.Restore(1, true, store)
+            expect(ok, "confirmed restore failed: " .. tostring(err))
+            expectEqual(ns.DB.Get().credits, 700, "restore did not return exact credits")
+            expectEqual(ns.Inventory.Count(), beforeItems, "restore did not return exact stock")
+
+            local slots = ns.Backups.Slots(store)
+            expectEqual(#slots, 2, "pre-restore backup was not captured")
+            expectEqual(slots[1].reason, "pre-restore", "newest slot is not the safety backup")
+            expectEqual(slots[1].credits, 900, "pre-restore backup has the wrong credits")
+            expectEqual(slots[1].items, changedItems, "pre-restore backup has the wrong stock")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("a failed restore leaves the current shop untouched", function()
+        withScratch(nil, function(scratch)
+            local store = ns.Backups.NewStore()
+            scratch.credits = 321
+            ns.Inventory.Add({
+                id = 8104, name = "Backup Test D", quality = 2, ilvl = 10,
+                classID = 15, subclassID = 0, category = "misc", value = 50,
+            })
+            expect(ns.Backups.Capture("manual", store), "capture failed")
+            store.slots[1].text = "not a backup"
+            scratch.credits = 654
+
+            local ok = ns.Backups.Restore(1, true, store)
+            expect(not ok, "corrupt backup was accepted")
+            expectEqual(ns.DB.Get().credits, 654, "failed restore changed credits")
+            expectEqual(ns.Inventory.Count(), 1, "failed restore changed stock")
+            local slots = ns.Backups.Slots(store)
+            expectEqual(#slots, 2, "failed restore did not keep a safety snapshot")
+            expectEqual(slots[1].reason, "pre-restore", "safety snapshot missing")
+            expectEqual(slots[1].credits, 654, "safety snapshot has the wrong credits")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
     test("starter crate grants stock without granting credits", function()
         withScratch(nil, function(scratch)
             local startingCredits = scratch.credits

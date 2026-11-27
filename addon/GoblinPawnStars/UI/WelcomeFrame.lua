@@ -38,6 +38,11 @@ local STEPS = {
 }
 
 local WHATS_NEW = {
+    ["1.7.2"] = {
+        "Settings → Rolling backups keeps three timestamped snapshots of your shop.",
+        "Restore asks for a second click and saves the current state before replacing it.",
+        "A snapshot is read-only: it never grants credits or stock.",
+    },
     ["1.7.1"] = {
         "The haggling window shows the real odds of your counter before you commit.",
         "Customers open below their limit, and the first buyer is eager to deal.",

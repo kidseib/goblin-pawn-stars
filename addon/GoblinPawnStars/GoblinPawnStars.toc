@@ -4,8 +4,8 @@
 ## Author: ErrorSeib & Buffy (Codebuff)
 ## Credit: Created by ErrorSeib & Buffy (Codebuff)
 ## X-Credits: ErrorSeib & Buffy (Codebuff)
-## Version: 1.7.1
-## SavedVariables: GoblinPawnStarsDB
+## Version: 1.7.2
+## SavedVariables: GoblinPawnStarsDB, GoblinPawnStarsBackups
 ## IconTexture: Interface\Icons\INV_Misc_Coin_01
 ## AddonCompartmentFunc: GoblinPawnStars_CompartmentClick
 ## AddonCompartmentFuncOnEnter: GoblinPawnStars_CompartmentEnter
@@ -22,6 +22,7 @@
 Core\Bootstrap.lua
 Core\Compat.lua
 Core\Persist.lua
+Core\Backups.lua
 Core\Journal.lua
 Core\Slash.lua
 
@@ -75,6 +76,7 @@ UI\Tabs\Settings.lua
 UI\NegotiationFrame.lua
 UI\EventFrame.lua
 UI\WholesalerFrame.lua
+UI\BackupFrame.lua
 UI\MainFrame.lua
 UI\Tour.lua
 UI\WelcomeFrame.lua

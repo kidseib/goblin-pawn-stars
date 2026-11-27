@@ -178,6 +178,11 @@ ns.UI.Tabs.settings = {
         local backupTitle = W.Text(backup, "BACKUP & RESTORE", 10, T.colors.goldDim)
         backupTitle:SetPoint("TOPLEFT", 12, -10)
 
+        local rollingButton = W.Button(backup, "Rolling backups", 110, 20, function()
+            if ns.UI.BackupFrame then ns.UI.BackupFrame.Show() end
+        end, "neutral")
+        rollingButton:SetPoint("TOPRIGHT", -12, -4)
+
         local backupNote = W.Text(backup,
             "Copy this string somewhere safe, or paste an old one and restore.\n" ..
             "|cffffcc55Beta workaround:|r Forever writes SavedVariables but does not load them at login. The Deed tab now checkpoints a compact snapshot into macro bodies automatically; manual export remains the belt-and-braces backup.",

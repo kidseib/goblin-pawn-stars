@@ -2,6 +2,39 @@
 
 All notable changes to Goblin Pawn Stars. Format loosely follows Keep a Changelog.
 
+## [1.7.2] — 2026-11-27
+
+Rolling backups for the shop save. This release also ships the 1.7.1 payout and
+preset fixes, which were committed but never tagged.
+
+### Added
+
+- Three timestamped shop snapshots are kept in a separate
+  `GoblinPawnStarsBackups` SavedVariables table, so the backup list can never nest
+  inside the next backup.
+- Settings → **Rolling backups** opens a window listing the three newest snapshots
+  with their timestamp, reason, credits, stock stacks and sales. **Backup now**
+  captures a manual snapshot.
+- The clock captures the first automatic snapshot after 30 seconds and another every
+  10 minutes, but only when the shop has a sale, stock or campaign progress.
+- Restore requires a second click on **Confirm**; the first click names the snapshot
+  and times out after six seconds. A capture between the clicks cannot shift the
+  pending restore onto a different snapshot.
+- Every confirmed restore first captures a **Before restore** snapshot of the state
+  being replaced. If that safety capture cannot be encoded, the restore is aborted.
+  Restoring replaces the active database with the snapshot; it never merges or
+  grants credits or stock.
+
+### Tests
+
+- 50 tests pass. Three new tests assert that capture changes neither credits nor
+  stock, that four captures leave exactly the newest three, that a restore requires
+  confirmation and reproduces the snapshot exactly, that the pre-restore snapshot
+  holds the replaced state, and that a corrupt snapshot changes nothing. The UI
+  smoke builds the backup window and captures from it.
+
+---
+
 ## [1.7.1] — 2026-11-26
 
 ### Fixed

@@ -1,9 +1,9 @@
 # TODO
 
-## Must do in-game before calling 1.7.1 final
+## Must do in-game before calling 1.7.2 final
 
-The 1.7.1 mock suite has 47 tests (46 at the original checkpoint, plus the
-customer-relative preset test). None of it has run in World of Warcraft; this block is
+The 1.7.2 mock suite has 50 tests (47 through the 1.7.1 checkpoint, plus three
+rolling-backup tests). None of it has run in World of Warcraft; this block is
 the release gate. The older 1.4.0 list below is still open.
 
 - [ ] Fresh save, first NPC: the scripted gullible buyer opens around 65% of market,
@@ -19,6 +19,24 @@ the release gate. The older 1.4.0 list below is still open.
 - [ ] High-opening customer: Low/Fair/Greedy never fall below the current offer and stay
       increasing.
 - [ ] Run the full in-game checklist in `PROGRESS.md`.
+
+## Must do in-game for rolling backups (shipped in 1.7.2)
+
+- [ ] With stock and a sale recorded, open Settings → **Rolling backups** and click
+      **Backup now**. Confirm the row shows the timestamp, credits, stock stacks and
+      sales, and the header credits and stock do not change.
+- [ ] Wait 30 seconds after login, then 10 minutes; confirm automatic snapshots appear
+      without spending or granting credits or stock. A paused shop should not capture.
+- [ ] Click **Restore** once and confirm the warning names the snapshot; click
+      **Confirm** and verify credits, stock and tier match that snapshot exactly. The
+      newest row must be the **Before restore** snapshot of the state just replaced.
+- [ ] Restore the pre-restore snapshot back and confirm the two states round-trip
+      exactly, with no extra stock, credits or sale payouts.
+- [ ] Corrupt or remove a snapshot in `GoblinPawnStarsBackups`; confirm a failed
+      restore leaves the current shop untouched and keeps the safety snapshot.
+- [ ] `/reload` and relog: confirm `GoblinPawnStarsBackups` persists, keeps only the
+      three newest, and the 1.7.1 full export path still works.
+- [x] Released as 1.7.2; the 1.7.1 ZIP stays superseded.
 
 ## Older in-game checklist (1.4.0) — still open
 - [ ] Cold-restart after a campaign payment and confirm the macro journal restores

@@ -257,6 +257,33 @@ function __smoke()
         assert(ok, problem)
     end)
 
+    attempt("rolling backup window captures without changing the shop", function()
+        local previous = __NS.db
+        local wasScratch = __NS.DB.scratch
+        local ok, problem = pcall(function()
+            local db = __NS.DB.Scratch()
+            __NS.db = db
+            local backup = __NS.UI.BackupFrame
+            assert(backup, "backup window did not load")
+            backup.Show()
+            local frame = backup.Frame()
+            assert(frame and frame:IsShown(), "backup window did not show")
+            local beforeCredits = db.credits
+            local beforeItems = __NS.Inventory.Count()
+            local snapshot, err = __NS.Backups.Capture("manual")
+            assert(snapshot, "manual backup failed: " .. tostring(err))
+            assert(db.credits == beforeCredits, "backup capture changed credits")
+            assert(__NS.Inventory.Count() == beforeItems, "backup capture changed stock")
+            backup.Refresh()
+            assert(#__NS.Backups.Slots() >= 1, "backup window did not list the snapshot")
+            backup.Hide()
+            assert(not frame:IsShown(), "backup window did not hide")
+        end)
+        __NS.db = previous
+        __NS.DB.scratch = wasScratch
+        assert(ok, problem)
+    end)
+
     attempt("main window open", function() __NS.UI.Open() end)
     attempt("main window toggle", function() __NS.UI.Toggle(); __NS.UI.Toggle() end)
 

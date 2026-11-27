@@ -1,6 +1,6 @@
 # PROGRESS
 
-## Current state — v1.7.1
+## Current state — v1.7.2
 
 Phases 1–4 are implemented. Phase 5 (optional multiplayer) is deliberately not
 started. The addon is feature-complete for a single-player shop simulation and is
@@ -45,6 +45,24 @@ never suggest a pay cut. The mock suite is **47 tests** (46 at the original 1.7.
 checkpoint, plus the customer-relative preset test); no part of the addon has been run
 in the live client.
 
+### v1.7.2 — rolling backups
+
+`Core/Backups.lua` and `UI/BackupFrame.lua` add three timestamped snapshots in a
+separate `GoblinPawnStarsBackups` SavedVariables table. Capture only reads the shop
+and stores `DB.Export()` text; it never calls an economy function. The first automatic
+capture runs after 30 seconds, then every 600 seconds while the shop has progress;
+**Backup now** and the pre-restore capture are manual. A restore needs a second
+click, always writes a `pre-restore` snapshot first, and replaces the database with
+`DB.Import()` rather than merging. If that safety snapshot cannot be encoded the
+restore aborts. The backup store is separate from the shop database, so snapshots
+cannot contain themselves.
+
+The 1.7.1 ZIP predates this work and is superseded by the 1.7.2 build; the 1.7.1
+checkpoint remains `ef03caf`, and 1.7.2 is the release that ships the 1.7.1 fixes and
+the backups together. The suite is **50 tests** (47 plus three backup tests) and the
+UI smoke builds and captures from the backup window. This work has not run in the
+live client.
+
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 1 | Shop UI, virtual loot inventory, customer generation, negotiation, fictional currency, persistent saving | **Done** |
@@ -72,7 +90,7 @@ The new pacing and toggle still need a live-client pass.
 
 ## What exists
 
-* 58 Lua files, 15,696 lines, loaded by a single TOC at Interface 16001.
+* 60 Lua files, 16,146 lines, loaded by a single TOC at Interface 16001.
 * Ten-tab main window, movable negotiation window, wholesaler window, encounter popup,
   minimap coin, toasts, tooltips, optional sound.
 * The Deed: three payments, an ending choice, endless mode, franchise prestige, one
@@ -81,8 +99,9 @@ The new pacing and toggle still need a live-client pass.
   salesperson automation.
 * 12 inventory categories, 13 races, 9 personalities, 5 shop tiers, 11 upgrades,
   6 employees, 11 market events, 11 encounter types, 26 achievements.
-* Standard SavedVariables, a chunked macro journal for the beta save bug, and a
-  full copy-paste backup/restore path.
+* Standard SavedVariables, a chunked macro journal for the beta save bug, a
+  full copy-paste backup/restore path, and three rolling snapshots in a separate
+  SavedVariables table.
 * One guarded compatibility layer for every risky client API.
 
 ## Verification performed
@@ -94,6 +113,10 @@ npm run check              -> Lua 5.1 syntax OK: 58 files, 15,696 lines; TOC OK
 npm run verify             -> 47 passed, 0 failed; UI smoke: all tabs and overlays
 node tools/sim_30min.js    -> scripted 30-minute progression + 10-minute idle probe
 ```
+
+The 1.7.2 release prep reran `npm run check` (60 files, 16,151 lines) and
+`npm run verify` (50 passed, 0 failed; UI smoke green). The 30-minute simulation was
+not rerun for this save-store and UI-only change.
 
 The headless suite executes the real addon code in fengari with mocked WoW APIs. It
 covers:
@@ -158,11 +181,15 @@ tier 2 around minute 15, salesperson hired at tier 2, 2.3–3.0 customers/min, a
 numbers are not a campaign pacing test. The debt amounts (1,500 / 6,000 / 25,000) are
 unchanged from the outlined design and need a real play pass.
 
-## Not verified — needs an in-game pass (1.7.1)
+## Not verified — needs an in-game pass (1.7.2)
 
 No part of this addon has been run inside World of Warcraft. The 1.7.1 checklist below
 is the remaining release gate; the older list after it is still open.
 
+- **Rolling backups:** the Settings entry and window layout; automatic snapshots at 30
+  seconds and every 10 minutes; `GoblinPawnStarsBackups` persisting across `/reload`
+  and relog; an exact restore round-trip; the pre-restore row; a corrupt snapshot
+  leaving the shop untouched; and a paused shop skipping automatic capture.
 - **1.7.1 counter flow:** the odds bar and preset prices in the live window; the
   scripted first buyer opens around 65% of market; Low/Fair/Greedy read about 94/88/64%
   on a fresh save; a landed counter completes and pays; the banner and feedback equal
