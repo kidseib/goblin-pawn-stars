@@ -1,0 +1,111 @@
+name: Publish 1.7.8
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      PATCH_URL: https://d.uguu.se/ldNxMouTwNhP.patch
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Apply the 1.7.8 source patch
+        run: |
+          set -euo pipefail
+          if grep -q '^## Version: 1.7.8' addon/GoblinPawnStars/GoblinPawnStars.toc; then
+            echo "Patch already applied; continuing an interrupted publish."
+          else
+            curl -fsSL "$PATCH_URL" -o /tmp/release.patch
+            git apply --check /tmp/release.patch
+            git apply /tmp/release.patch
+          fi
+          grep -q '^## Version: 1.7.8' addon/GoblinPawnStars/GoblinPawnStars.toc
+          grep -q 'ns.VERSION = "1.7.8"' addon/GoblinPawnStars/Core/Bootstrap.lua
+          test -f addon/GoblinPawnStars/Core/Perf.lua
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify before publishing
+        run: npm run verify
+
+      - name: Commit and push the source
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "Source already committed."
+          else
+            git add -A
+            git commit -m "Release 1.7.8 with Performance mode and arrival-card polish."
+            git push origin HEAD:main
+          fi
+          echo "RELEASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Build the addon ZIP and release notes
+        run: |
+          set -euo pipefail
+          npm run package
+          VERSION="$(sed -n 's/^## Version: //p' addon/GoblinPawnStars/GoblinPawnStars.toc | tr -d '\r')"
+          ZIP="dist/GoblinPawnStars-${VERSION}.zip"
+          test -f "$ZIP"
+          ( cd dist && sha256sum "GoblinPawnStars-${VERSION}.zip" > "GoblinPawnStars-${VERSION}.zip.sha256" )
+          awk -v version="$VERSION" '
+            $0 ~ "^## \\[" version "\\]" { print; capture = 1; next }
+            capture && /^## \[/ { exit }
+            capture { print }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          test -s RELEASE_NOTES.md
+          {
+            echo
+            echo "---"
+            echo
+            echo "**Download:** \`GoblinPawnStars-${VERSION}.zip\` (attached below)."
+            echo
+            echo "**SHA-256:** \`$(cut -d' ' -f1 "dist/GoblinPawnStars-${VERSION}.zip.sha256")\`"
+            echo
+            echo "Extract so the TOC sits at \`Interface/AddOns/GoblinPawnStars/GoblinPawnStars.toc\`, then \`/reload\` and \`/gps\`."
+          } >> RELEASE_NOTES.md
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="v${VERSION}"
+          ASSETS="dist/GoblinPawnStars-${VERSION}.zip dist/GoblinPawnStars-${VERSION}.zip.sha256"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" $ASSETS --clobber
+            gh release edit "$TAG" --notes-file RELEASE_NOTES.md
+          else
+            gh release create "$TAG" $ASSETS \
+              --title "Goblin Pawn Stars ${VERSION}" \
+              --notes-file RELEASE_NOTES.md \
+              --target "$RELEASE_SHA"
+          fi
+
+      - name: Remove the one-shot publisher
+        if: success()
+        run: |
+          set -euo pipefail
+          git pull --rebase origin main
+          git rm .github/workflows/publish-1.7.8.yml
+          git commit -m "chore: remove the one-shot 1.7.8 publisher"
+          git push origin HEAD:main
