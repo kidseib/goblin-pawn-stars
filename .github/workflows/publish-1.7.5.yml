@@ -1,0 +1,72 @@
+name: Publish 1.7.5
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - ".github/workflows/publish-1.7.5.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply the 1.7.5 source patch
+        run: |
+          set -euo pipefail
+          if grep -q '^## Version: 1.7.5' addon/GoblinPawnStars/GoblinPawnStars.toc; then
+            echo "Source is already 1.7.5"
+          else
+            curl -fsSL --retry 3 --max-time 120 \
+              "https://d.uguu.se/cuVcQtiKTeFe.patch" -o /tmp/1.7.5.patch
+            echo "717f7543ab516263d0cc7c13617c3249f9d2cbbe39fffc94817fe824e16d7c29  /tmp/1.7.5.patch" | sha256sum -c -
+            git config user.name "Codebuff"
+            git config user.email "noreply@codebuff.com"
+            git am /tmp/1.7.5.patch
+          fi
+
+      - name: Drop the one-shot workflow
+        run: |
+          set -euo pipefail
+          if [ -f .github/workflows/publish-1.7.5.yml ]; then
+            git rm .github/workflows/publish-1.7.5.yml
+            git commit -m "chore: remove the one-shot 1.7.5 workflow"
+          fi
+
+      - name: Tag and push the source
+        run: |
+          set -euo pipefail
+          git tag -f -a v1.7.5 -m "Goblin Pawn Stars 1.7.5"
+          git push origin HEAD:main
+          git push -f origin v1.7.5
+
+      - name: Build the install ZIP
+        run: |
+          set -euo pipefail
+          npm run package
+          sha256sum dist/GoblinPawnStars-1.7.5.zip > dist/GoblinPawnStars-1.7.5.zip.sha256
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          awk '/^## \[1\.7\.5\]/{flag=1} flag{print} /^---$/{if(flag) exit}' CHANGELOG.md > /tmp/notes.md
+          if gh release view v1.7.5 >/dev/null 2>&1; then
+            gh release upload v1.7.5 dist/GoblinPawnStars-1.7.5.zip dist/GoblinPawnStars-1.7.5.zip.sha256 --clobber
+            gh release edit v1.7.5 --draft=false --latest --notes-file /tmp/notes.md
+          else
+            gh release create v1.7.5 \
+              dist/GoblinPawnStars-1.7.5.zip \
+              dist/GoblinPawnStars-1.7.5.zip.sha256 \
+              --title "Goblin Pawn Stars 1.7.5" \
+              --notes-file /tmp/notes.md \
+              --latest
+          fi
