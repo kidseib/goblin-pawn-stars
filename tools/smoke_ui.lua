@@ -38,6 +38,9 @@ function __smoke()
             assert(panel and panel:IsShown() and panel.door:IsShown(), "missing closed-shop entrance")
             assert(panel.name:GetText() == "Test merchant", "customer name missing")
             assert(panel.detail:GetText():find("1 waiting", 1, true), "queue count missing")
+            local actorPoint = panel.actor.__points[#panel.actor.__points]
+            assert(actorPoint.point == "LEFT" and actorPoint[3] == 4,
+                "closed-shop customer did not rest inside the doorway")
             local firstPoint = panel.__points[#panel.__points]
             assert(firstPoint.point == "CENTER" and firstPoint[3] == 0 and firstPoint[4] == 0,
                 "closed-shop card did not start centered")
@@ -57,6 +60,9 @@ function __smoke()
             local shopPoint = panel.__points[#panel.__points]
             assert(panel:GetWidth() == 420 and shopPoint[3] == 0 and shopPoint[4] == 0,
                 "open-shop card did not enlarge and center independently")
+            actorPoint = panel.actor.__points[#panel.actor.__points]
+            assert(actorPoint.point == "LEFT" and actorPoint[3] == 6,
+                "open-shop customer did not rest inside the doorway")
             panel.GetCenter = function() return -60, 130 end
             panel:GetScript("OnDragStart")(panel)
             panel:GetScript("OnDragStop")(panel)
@@ -67,6 +73,9 @@ function __smoke()
             UI.CustomerArrival.Show(arrivalDb.shop.waiting[2])
             expired()
             assert(panel:IsShown() and not panel.door:IsShown(), "old timer hid the compact card")
+            actorPoint = panel.actor.__points[#panel.actor.__points]
+            assert(actorPoint.point == "LEFT" and actorPoint[3] == 8,
+                "compact customer moved out of the icon")
             assert(panel.detail:GetText():find("2 waiting", 1, true), "queue count did not update")
             panel:GetScript("OnMouseDown")(panel, "LeftButton")
             panel:GetScript("OnMouseUp")(panel, "LeftButton")

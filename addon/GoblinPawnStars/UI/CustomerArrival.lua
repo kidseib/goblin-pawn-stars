@@ -6,8 +6,8 @@ ns.UI.CustomerArrival = arrival
 
 local layouts = {
     compact = { width = 274, height = 46, actor = 30, start = 8, distance = 0, text = 46 },
-    screen = { width = 306, height = 74, actor = 62, start = 4, distance = 34, text = 108 },
-    shop = { width = 420, height = 112, actor = 96, start = 6, distance = 58, text = 174 },
+    screen = { width = 306, height = 74, actor = 62, start = 4, distance = 20, text = 108 },
+    shop = { width = 420, height = 112, actor = 96, start = 6, distance = 32, text = 174 },
 }
 
 local card
@@ -22,7 +22,9 @@ end
 
 local function placeActor()
     if not card or not layout then return end
-    local offset = layout.start + (walking and 0 or layout.distance)
+    -- Rest inside the doorway. The walk starts just left of it and translates
+    -- into this position; it must not finish beside the empty door frame.
+    local offset = layout.start - (walking and layout.distance or 0)
     card.actor:ClearAllPoints()
     card.actor:SetPoint("LEFT", card, "LEFT", offset, 0)
 end

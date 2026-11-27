@@ -2,6 +2,21 @@
 
 All notable changes to Goblin Pawn Stars. Format loosely follows Keep a Changelog.
 
+## [1.7.7] — 2026-11-27
+
+### Fixed
+
+- The customer arrival card's NPC model now walks into the doorway and rests
+  inside the portrait instead of finishing beside the empty frame. The compact
+  card keeps the model centered on its icon.
+
+### Tests
+
+- UI smoke now checks the model's resting position in the closed-shop, open-shop
+  and compact arrival cards.
+
+---
+
 ## [1.7.6] — 2026-11-27
 
 A performance and diagnostics release. The Inventory tab no longer recalculates

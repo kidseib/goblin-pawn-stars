@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/kidseib/goblin-pawn-stars/actions/workflows/ci.yml"><img src="https://github.com/kidseib/goblin-pawn-stars/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
-  <img src="https://img.shields.io/badge/version-1.7.6-c9a24a?style=flat-square" alt="Version 1.7.6">
+  <img src="https://img.shields.io/badge/version-1.7.7-c9a24a?style=flat-square" alt="Version 1.7.7">
   <img src="https://img.shields.io/badge/interface-16001-3f7d4e?style=flat-square" alt="Interface 16001">
   <img src="https://img.shields.io/badge/Lua-5.1-2c2d72?style=flat-square&logo=lua&logoColor=white" alt="Lua 5.1">
   <img src="https://img.shields.io/badge/tests-54%2F54-3f7d4e?style=flat-square" alt="54 of 54 tests passing">
@@ -32,19 +32,19 @@
   <a href="#persistence-important-beta-note">Persistence</a> ·
   <a href="#compatibility-and-safety">Safety</a> ·
   <a href="#development">Development</a> ·
-  <a href="TESTING.md">Testing 1.7.6</a> ·
+  <a href="TESTING.md">Testing 1.7.7</a> ·
   <a href="#ai-disclosure">AI disclosure</a> ·
   <a href="#license">License</a>
 </p>
 
-> **Status — 1.7.6.** The addon is feature-complete and passes the
+> **Status — 1.7.7.** The addon is feature-complete and passes the
 > 54-test headless suite plus the UI smoke pass. Live-client validation is still in
 > progress: see [TESTING.md](TESTING.md) for the in-game checklist and
 > [Testing status](#testing-status) for what is and is not verified.
 >
-> **1.7.6** removes repeated market lookups from the Inventory value sort and adds
-> `/gps profile` for timing the heavy paths. See the
-> [release notes](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.6)
+> **1.7.7** fixes the customer arrival card so the NPC walks into the doorway
+> portrait instead of resting beside it. See the
+> [release notes](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.7)
 > for the full patch notes.
 
 ---
@@ -102,8 +102,8 @@ customers are procedural, and no real item, bag slot or copper is ever touched.
 ## Install
 
 1. Download
-   [`GoblinPawnStars-1.7.6.zip`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.6/GoblinPawnStars-1.7.6.zip)
-   from the [v1.7.6 release](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.6),
+   [`GoblinPawnStars-1.7.7.zip`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.7/GoblinPawnStars-1.7.7.zip)
+   from the [v1.7.7 release](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.7),
    or build it with `npm run package`.
 2. Extract it so the folder layout is:
 
@@ -124,17 +124,17 @@ Check it before extracting:
 
 ```powershell
 # Windows PowerShell
-Get-FileHash .\GoblinPawnStars-1.7.6.zip -Algorithm SHA256
+Get-FileHash .\GoblinPawnStars-1.7.7.zip -Algorithm SHA256
 ```
 
 ```bash
 # macOS / Linux
-shasum -a 256 GoblinPawnStars-1.7.6.zip
-# or: sha256sum GoblinPawnStars-1.7.6.zip
+shasum -a 256 GoblinPawnStars-1.7.7.zip
+# or: sha256sum GoblinPawnStars-1.7.7.zip
 ```
 
 Compare the result with the
-[`GoblinPawnStars-1.7.6.zip.sha256`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.6/GoblinPawnStars-1.7.6.zip.sha256)
+[`GoblinPawnStars-1.7.7.zip.sha256`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.7/GoblinPawnStars-1.7.7.zip.sha256)
 attached to the same release.
 
 ---
