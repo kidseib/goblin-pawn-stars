@@ -38,6 +38,12 @@ local STEPS = {
 }
 
 local WHATS_NEW = {
+    ["1.7.5"] = {
+        "Autosaves now run every five minutes, and wait until the shop and counter are idle.",
+        "A save writes one batch and leaves one journal generation on the macro list.",
+        "The red save error from a full macro list clears itself.",
+        "Settings → Save Now writes a checkpoint immediately.",
+    },
     ["1.7.4"] = {
         "Autosaves stop hitching: the journal no longer re-checks and deletes every chunk.",
         "The last two saves stay on the macro list as a fallback.",

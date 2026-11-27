@@ -178,6 +178,19 @@ ns.UI.Tabs.settings = {
         local backupTitle = W.Text(backup, "BACKUP & RESTORE", 10, T.colors.goldDim)
         backupTitle:SetPoint("TOPLEFT", 12, -10)
 
+        local saveNowButton = W.Button(backup, "Save Now", 90, 20, function()
+            if not ns.Journal then return end
+            local ok, status = ns.Journal.SaveNow(true)
+            if ok then
+                ui.status:SetText(string.format("|cff5fd64fJournal saved: %d chunks.|r",
+                    status and status.chunks or 0))
+            else
+                ui.status:SetText("|cffff6b5e" .. tostring(ns.Journal.StatusText()) .. "|r")
+            end
+            if ns.UI.Refresh then ns.UI.Refresh() end
+        end, "primary")
+        saveNowButton:SetPoint("TOPRIGHT", -126, -4)
+
         local rollingButton = W.Button(backup, "Rolling backups", 110, 20, function()
             if ns.UI.BackupFrame then ns.UI.BackupFrame.Show() end
         end, "neutral")

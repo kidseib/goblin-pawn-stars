@@ -1,6 +1,6 @@
 # PROGRESS
 
-## Current state — v1.7.4
+## Current state — v1.7.5
 
 Phases 1–4 are implemented. Phase 5 (optional multiplayer) is deliberately not
 started. The addon is feature-complete for a single-player shop simulation and is
@@ -62,6 +62,20 @@ checkpoint remains `ef03caf`, and 1.7.2 is the release that ships the 1.7.1 fixe
 the backups together. The suite is **50 tests** (47 plus three backup tests) and the
 UI smoke builds and captures from the backup window. This work has not run in the
 live client.
+
+### v1.7.5 — five-minute, idle-only autosaves
+
+1.7.4 kept both macro generations, so at rest it held 24 chunks; with the player's
+own macros that could fill the client list and leave the red save error up. 1.7.5
+retires the replaced generation after every successful save, so only one generation
+is on the list. Autosaves run every five minutes (the first at five), wait until the
+shop window is closed and no customer is at the counter, and write the whole
+generation in one batch. Every chunk is read back before the commit header; the
+previous generation is untouched until then. The incremental tick writer and its
+cleanup/verification queues were removed. A completely full list rewrites the
+committed generation in place as a last resort, and failures back off from one
+minute to five. Settings and The Deed both have an immediate checkpoint button. The
+suite is **53 tests**. This work has not run in the live client.
 
 ### v1.7.4 — stop the journal stutter
 

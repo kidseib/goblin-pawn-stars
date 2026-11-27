@@ -225,7 +225,7 @@ ns.UI.Tabs.deed = {
         ui.prestige:SetPoint("BOTTOMRIGHT", -190, 9)
 
         local checkpoint = W.Button(footer, "Checkpoint Now", 138, 24, function()
-            local ok, status = ns.Journal.SaveNow()
+            local ok, status = ns.Journal.SaveNow(true)
             if ok then
                 if ns.UI and ns.UI.Toast then
                     ns.UI.Toast(string.format("Journal saved: %d chunks.", status.chunks or 0))

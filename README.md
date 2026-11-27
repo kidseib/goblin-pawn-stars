@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/kidseib/goblin-pawn-stars/actions/workflows/ci.yml"><img src="https://github.com/kidseib/goblin-pawn-stars/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
-  <img src="https://img.shields.io/badge/version-1.7.4-c9a24a?style=flat-square" alt="Version 1.7.4">
+  <img src="https://img.shields.io/badge/version-1.7.5-c9a24a?style=flat-square" alt="Version 1.7.5">
   <img src="https://img.shields.io/badge/interface-16001-3f7d4e?style=flat-square" alt="Interface 16001">
   <img src="https://img.shields.io/badge/Lua-5.1-2c2d72?style=flat-square&logo=lua&logoColor=white" alt="Lua 5.1">
   <img src="https://img.shields.io/badge/tests-53%2F53-3f7d4e?style=flat-square" alt="53 of 53 tests passing">
@@ -32,12 +32,12 @@
   <a href="#persistence-important-beta-note">Persistence</a> ·
   <a href="#compatibility-and-safety">Safety</a> ·
   <a href="#development">Development</a> ·
-  <a href="TESTING.md">Testing 1.7.4</a> ·
+  <a href="TESTING.md">Testing 1.7.5</a> ·
   <a href="#ai-disclosure">AI disclosure</a> ·
   <a href="#license">License</a>
 </p>
 
-> **Status — 1.7.4.** The addon is feature-complete and passes the
+> **Status — 1.7.5.** The addon is feature-complete and passes the
 > 53-test headless suite plus the UI smoke pass. Live-client validation is still in
 > progress: see [TESTING.md](TESTING.md) for the in-game checklist and
 > [Testing status](#testing-status) for what is and is not verified.
@@ -97,8 +97,8 @@ customers are procedural, and no real item, bag slot or copper is ever touched.
 ## Install
 
 1. Download
-   [`GoblinPawnStars-1.7.4.zip`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.4/GoblinPawnStars-1.7.4.zip)
-   from the [v1.7.4 release](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.4),
+   [`GoblinPawnStars-1.7.5.zip`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.5/GoblinPawnStars-1.7.5.zip)
+   from the [v1.7.5 release](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.5),
    or build it with `npm run package`.
 2. Extract it so the folder layout is:
 
@@ -119,17 +119,17 @@ Check it before extracting:
 
 ```powershell
 # Windows PowerShell
-Get-FileHash .\GoblinPawnStars-1.7.4.zip -Algorithm SHA256
+Get-FileHash .\GoblinPawnStars-1.7.5.zip -Algorithm SHA256
 ```
 
 ```bash
 # macOS / Linux
-shasum -a 256 GoblinPawnStars-1.7.4.zip
-# or: sha256sum GoblinPawnStars-1.7.4.zip
+shasum -a 256 GoblinPawnStars-1.7.5.zip
+# or: sha256sum GoblinPawnStars-1.7.5.zip
 ```
 
 Compare the result with the
-[`GoblinPawnStars-1.7.4.zip.sha256`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.4/GoblinPawnStars-1.7.4.zip.sha256)
+[`GoblinPawnStars-1.7.5.zip.sha256`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.5/GoblinPawnStars-1.7.5.zip.sha256)
 attached to the same release.
 
 ---

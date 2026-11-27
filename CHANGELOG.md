@@ -2,6 +2,47 @@
 
 All notable changes to Goblin Pawn Stars. Format loosely follows Keep a Changelog.
 
+## [1.7.5] — 2026-11-27
+
+Make saving invisible during play. 1.7.4 stopped the per-chunk read-back, but it
+kept both macro generations on the list. At 24 chunks that could fill the client's
+macro slots, leave the red **save error** in the header, and still write a batch of
+macros while the shop was open.
+
+### Changed
+
+- Autosaves run every **5 minutes**, with the first save at 5 minutes. Logout,
+  imports, `/gps verify` and **Checkpoint Now** still save immediately.
+- **Settings → Save Now** writes a checkpoint immediately and reports the chunk
+  count, alongside the existing Deed-tab checkpoint.
+- Autosaves wait until the shop window is closed and no customer is at the counter.
+  A save that comes due during a sale runs after the customer leaves.
+- A save is one batch (one frame), not one macro per tick. It writes the new
+  generation, reads every chunk back, rewrites the commit header, and retires the
+  old generation. The macro list holds one journal generation at rest instead of
+  two, and the previous one is untouched until the new one has fully verified.
+- The incremental tick writer and its cleanup and verification queues are gone.
+  A save is a single synchronous batch, so there is no half-finished job to
+  resume, clean up or time across ticks.
+- The previous generation is retired after every successful save, so 1.7.4's
+  24-chunk footprint (and the slot-full red error) is gone.
+- If the macro list is completely full, the save rewrites the committed generation
+  in place rather than leaving the journal stuck. Legacy 1.6.x chunks are still
+  freed first, and a failed save never deletes the last good generation.
+- Failed saves back off from one minute up to the five-minute interval, so an
+  environment failure does not retry every tick.
+- The header keeps **saved** green for five and a half minutes, matching the new
+  cadence instead of turning orange after 90 seconds.
+
+### Tests
+
+- 53 tests pass, including a new autosave test that proves the save waits for the
+  counter to clear and leaves only one generation on the macro list, and a direct
+  check that an interrupted write leaves the previous generation's chunks byte-for-
+  byte intact.
+
+---
+
 ## [1.7.4] — 2026-11-27
 
 Fix the stutter 1.7.3 still caused after a sale. 1.7.3 spread the journal writes
