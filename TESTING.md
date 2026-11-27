@@ -1,4 +1,4 @@
-# Testing Goblin Pawn Stars 1.7.2 in-game
+# Testing Goblin Pawn Stars 1.7.3 in-game
 
 This is the live-client pass for **The Deed**. The headless suite already covers the
 economy and state math; this checklist covers what mocks cannot: real macros,
@@ -10,12 +10,12 @@ scale, and any Lua error.
 
 ## Before you start
 
-- Install `GoblinPawnStars-1.7.2.zip` from the
-  [v1.7.2 release](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.2).
+- Install `GoblinPawnStars-1.7.3.zip` from the
+  [v1.7.3 release](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.3).
   The folder layout must be
   `Interface/AddOns/GoblinPawnStars/GoblinPawnStars.toc`.
-- `/gps version` should report **1.7.2** and interface **16001**.
-- `/gps test` should report **50 passed, 0 failed**. The macro-journal tests skip
+- `/gps version` should report **1.7.3** and interface **16001**.
+- `/gps test` should report **53 passed, 0 failed**. The macro-journal tests skip
   themselves in the live client so they never touch your real macros; the journal is
   tested for real in the cold-restart pass below.
 - Run `/console scriptErrors 1` before testing.
@@ -136,8 +136,10 @@ Unlocked after the first payment.
 ## 9. Save state, motion and layout (1.7.0)
 
 1. The header now ends with a save state. Play for half a minute; it should read
-   **saved 20s ago** and refresh. If it reads **save error**, **save pending** or
-   **save off**, run `/gps journal` and paste the result.
+   **saved 20s ago** and refresh. A save may show **save pending** for a few seconds
+   while the journal writes one macro per tick; that is expected and the client must
+   stay responsive. If it settles on **save error** or **save off**, run
+   `/gps journal` and paste the result.
 2. Run `/gps verify`. It should print **Save verified — generation A/B verified: N gc,
    N sales, N stock stacks**, and the header should then read **saved 0s ago**. If it
    fails, the message names the field that differs (credits, tier, sales, served).
@@ -149,9 +151,10 @@ Unlocked after the first payment.
    off-screen**; if it names a window, screenshot it at that scale.
 6. Make the first sale on a fresh save. The first three customers are scripted; the low
    preset should be a comfortable win so a new player learns the haggle.
-7. Freeze check with a full stockroom: fill the shelves, then `/gps journal` and read
-   **Last save: … (took N ms)**. A save should stay in the low tens of milliseconds and
-   the client must not hitch when it runs.
+7. Freeze check with a full stockroom: fill the shelves, then `/gps journal`. An
+   incremental save reports **written one macro per tick**; watch the header while it
+   reads **save pending** and confirm the client does not hitch. A logout or `/gps verify`
+   save still reports its blocking milliseconds and may be slower.
 8. Long-session check: leave the shop open with auto-sell running for ten minutes. The
    client must stay as responsive at the end as at the start; the credits number pulses
    on every sale and must not build anything up.

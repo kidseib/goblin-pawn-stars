@@ -30,7 +30,9 @@ local PREFIX_V2 = "--GPSJ2:"
 local GENERATIONS = { "A", "B" }
 local MACRO_ICON = 134400
 local SAVE_THROTTLE = 30
-local RETRY_DELAY = 8
+-- A failed macro write is expensive and usually environmental (a full macro
+-- list), so retry it at most once a minute instead of every eight seconds.
+local RETRY_DELAY = 60
 local FIRST_SAVE = 10
 local EMPTY_ATTEMPTS = 3
 
@@ -40,6 +42,8 @@ local loaded = false
 local loading = false
 local saving = false
 local pending = false
+local job = nil
+local nextAttempt = 0
 
 -- U.now() is whole seconds, so a save's duration is measured with GetTime.
 local function millis()
@@ -76,22 +80,31 @@ end
 
 -- Both success paths end the same way: the journal is no longer in flight and
 -- the status describes the save that just landed.
-local function finishSave(started)
+local function finishSave(started, sync)
     saving = false
     lastSave = U.now()
     pending = false
+    nextAttempt = 0
     J.status.error = nil
     J.status.empty = false
     J.status.savedAt = lastSave
-    local finished = millis()
-    J.status.saveMs = (started and finished)
-        and math.max(0, math.floor(finished - started + 0.5)) or 0
+    if sync then
+        local finished = millis()
+        J.status.saveMs = (started and finished)
+            and math.max(0, math.floor(finished - started + 0.5)) or 0
+    else
+        -- An incremental save spans many ticks; its wall-clock total is not a
+        -- frame cost and must not be reported as one.
+        J.status.saveMs = 0
+    end
     return true, J.status
 end
 
 local function abandonSave(detail)
     saving = false
+    job = nil
     reportSaveFailure(detail)
+    nextAttempt = U.now() + RETRY_DELAY
     return false
 end
 
@@ -394,26 +407,32 @@ end
 -- Rebuilds one generation's payload. Every inconsistency is rejected here, so
 -- only a complete, checksum-clean and committed save can ever become current.
 local function assemble(chunks, limit, requireCommit)
-    local total
-    for index, chunk in pairs(chunks) do
-        if not chunk.total or chunk.total < 1 or chunk.total > limit then
-            return nil, "invalid journal chunk count"
+    local total = chunks[1] and chunks[1].total
+    if not total then
+        for _, chunk in pairs(chunks) do
+            total = chunk.total
+            break
         end
-        if not total then total = chunk.total end
-        if chunk.total ~= total then return nil, "journal chunks disagree on length" end
-        if index > total then return nil, "journal chunk out of range" end
     end
-    if not total then return nil, "empty" end
+    if not total or total < 1 or total > limit then
+        return nil, "invalid journal chunk count"
+    end
     if requireCommit and (not chunks[1] or chunks[1].state ~= "c") then
         return nil, "journal save did not finish"
     end
 
     local parts = {}
+    local seen = 0
     for index = 1, total do
         local chunk = chunks[index]
         if not chunk then return nil, "journal is incomplete" end
+        if chunk.total ~= total then return nil, "journal chunks disagree on length" end
         parts[index] = chunk.data
+        seen = seen + 1
     end
+    -- Chunks past `total` are leftovers from an older, larger save in the same
+    -- generation slot. They are ignored here and deleted one per tick later.
+    if seen < 1 then return nil, "empty" end
     local encoded = table.concat(parts)
     if checksum(encoded) ~= chunks[1].stamp then
         return nil, "journal checksum mismatch"
@@ -481,10 +500,10 @@ function J.TryLoad(force)
     elseif next(legacy) then
         loadedStamp = legacy[1] and legacy[1].stamp
         -- Single-generation save from 1.6.3 or earlier: no commit header exists.
-        local legacyEncoded, legacyTotal, legacyError = assemble(legacy, LEGACY_CHUNKS, false)
+        local legacyEncoded, legacyTotal = assemble(legacy, LEGACY_CHUNKS, false)
         if not legacyEncoded then
             loaded = true
-            J.status.error = legacyError
+            J.status.error = legacyTotal
             return false
         end
         encoded, total = legacyEncoded, legacyTotal
@@ -609,7 +628,9 @@ end
 -- Writes one macro and proves it landed: the body is read back and compared
 -- with what was sent. A client that truncates, refuses or renames the body
 -- fails the save before anything is deleted.
-local function writeChunk(name, body)
+-- Writes one macro without waiting for the macro list to answer. The caller
+-- verifies the body; the beta client can surface a new macro a frame late.
+local function writeChunkRaw(name, body)
     local index = ns.Compat.MacroIndexByName(name)
     if index and index > 0 then
         local _, existingBody = ns.Compat.MacroInfo(index)
@@ -618,18 +639,27 @@ local function writeChunk(name, body)
         end
         if existingBody ~= body then
             -- Some clients answer EditMacro with nothing at all even when it
-            -- worked, so the read-back below decides, not the return value.
+            -- worked, so the caller's read-back decides, not the return value.
             ns.Compat.EditMacro(index, name, MACRO_ICON, body)
         end
-    else
-        ns.Compat.CreateMacro(name, MACRO_ICON, body)
+        return true
     end
 
-    local stored = storedBody(name)
-    if stored ~= body then
-        if index and index > 0 then return false, "could not update " .. name end
+    -- Some clients create the macro but answer with nothing. The read-back is
+    -- what decides; a genuinely refused create still reports a failure.
+    if not ns.Compat.CreateMacro(name, MACRO_ICON, body) then
+        if storedBody(name) == body then return true end
         return false, "could not create " .. name .. " (macro slots may be full)"
     end
+    return true
+end
+
+local function deleteChunk(name)
+    local macroIndex = ns.Compat.MacroIndexByName(name)
+    if not macroIndex or macroIndex <= 0 then return false end
+    local _, body = ns.Compat.MacroInfo(macroIndex)
+    if not bodyLooksLikeJournal(body) then return false end
+    ns.Compat.DeleteMacro(macroIndex)
     return true
 end
 
@@ -637,153 +667,399 @@ end
 local function deleteGeneration(generation, keepCount)
     if not generation then return end
     for index = (keepCount or 0) + 1, MAX_CHUNKS do
-        local name = chunkName(generation, index)
-        local macroIndex = ns.Compat.MacroIndexByName(name)
-        if macroIndex and macroIndex > 0 then
-            local _, body = ns.Compat.MacroInfo(macroIndex)
-            if bodyLooksLikeJournal(body) then ns.Compat.DeleteMacro(macroIndex) end
-        end
+        deleteChunk(chunkName(generation, index))
     end
 end
 
-local function deleteLegacy()
+local function legacyChunkNames()
+    local names = {}
     for index = 1, LEGACY_CHUNKS do
         local name = legacyName(index)
         local macroIndex = ns.Compat.MacroIndexByName(name)
         if macroIndex and macroIndex > 0 then
             local _, body = ns.Compat.MacroInfo(macroIndex)
-            if bodyLooksLikeJournal(body) then ns.Compat.DeleteMacro(macroIndex) end
+            if bodyLooksLikeJournal(body) then names[#names + 1] = name end
+        end
+    end
+    return names
+end
+
+local function deleteLegacy()
+    for _, name in ipairs(legacyChunkNames()) do deleteChunk(name) end
+end
+
+---------------------------------------------------------------------------
+-- Incremental writer
+--
+-- A save writes up to MAX_CHUNKS macros. Doing all of them in one frame made
+-- the client hitch for over a second on every autosave, and a failed save
+-- retried the whole batch every eight seconds. This writer commits one macro
+-- per clock tick instead. The previous generation stays committed until the
+-- new header is rewritten at the end, so an interrupted save is ignored at
+-- login and the last good save is still there.
+---------------------------------------------------------------------------
+
+local cleanup = {}
+local cleanupSet = {}
+local VERIFY_TICKS = 3
+
+local function queueCleanup(names)
+    for _, name in ipairs(names or {}) do
+        if not cleanupSet[name] then
+            cleanupSet[name] = true
+            cleanup[#cleanup + 1] = name
         end
     end
 end
 
--- Writes a whole generation. The header goes first as pending, every payload
--- chunk is verified, and only then the header is rewritten as committed; until
--- that last verified write this generation can never win at login.
-local function writeGeneration(generation, counter, encoded, stamp)
-    local total = math.ceil(#encoded / CHUNK_SIZE)
-    if total < 1 or total > MAX_CHUNKS then
-        return false, "journal does not fit in " .. tostring(MAX_CHUNKS) .. " macros per generation"
-    end
-
-    local function bodyFor(index, state)
-        local data = encoded:sub((index - 1) * CHUNK_SIZE + 1, index * CHUNK_SIZE)
-        return makeChunk(generation, counter, index, total, stamp, state, data)
-    end
-
-    local ok, detail = writeChunk(chunkName(generation, 1), bodyFor(1, "p"))
-    if not ok then return false, detail end
-
-    for index = 2, total do
-        ok, detail = writeChunk(chunkName(generation, index), bodyFor(index, "c"))
-        if not ok then return false, detail end
-    end
-
-    ok, detail = writeChunk(chunkName(generation, 1), bodyFor(1, "c"))
-    if not ok then return false, detail end
-
-    deleteGeneration(generation, total)
-    return true, total
+local function popCleanup()
+    local name = table.remove(cleanup, 1)
+    if name then cleanupSet[name] = nil end
+    return name
 end
 
-function J.SaveNow(force)
-    if saving or loading then return false end
-    local db = DB.Get()
-    if db.settings.macroJournal == false then
-        return false
+-- A new save reuses one whole generation's names. Drop any pending cleanup for
+-- that generation so a queued delete cannot remove a chunk the new job writes.
+local function dropCleanup(generation)
+    if not generation then return end
+    local prefix = "GPS" .. generation
+    local kept = {}
+    cleanupSet = {}
+    for _, name in ipairs(cleanup) do
+        if name:sub(1, #prefix) ~= prefix then
+            kept[#kept + 1] = name
+            cleanupSet[name] = true
+        end
     end
+    cleanup = kept
+end
+
+local function flushCleanup()
+    local guard = 0
+    local name = popCleanup()
+    while name and guard < 200 do
+        deleteChunk(name)
+        guard = guard + 1
+        name = popCleanup()
+    end
+end
+
+local function chunkExists(name)
+    local index = ns.Compat.MacroIndexByName(name)
+    return index ~= nil and index > 0
+end
+
+local function jobBody(current, index, state)
+    local data = current.encoded:sub((index - 1) * CHUNK_SIZE + 1, index * CHUNK_SIZE)
+    return makeChunk(current.generation, current.counter, index, current.total,
+        current.stamp, state, data)
+end
+
+local function verifyJob(current)
+    if not current.verifyName then return true end
+    if storedBody(current.verifyName) == current.verifyBody then
+        current.verifyName = nil
+        current.verifyBody = nil
+        current.verifyTries = 0
+        return true
+    end
+    current.verifyTries = (current.verifyTries or 0) + 1
+    if current.verifyTries >= VERIFY_TICKS then
+        return false, "could not update " .. current.verifyName
+    end
+    return nil
+end
+
+local function prepareJob(force)
+    local db = DB.Get()
+    if db.settings.macroJournal == false then return nil, "journal off" end
     if ns.Compat.InCombat() then
         pending = true
-        return false
+        return nil, "in combat"
     end
-    if ns.Compat.MacroCount() == nil then
-        reportSaveFailure("macro API unavailable")
-        return false
-    end
+    if ns.Compat.MacroCount() == nil then return nil, "macro API unavailable" end
 
-    -- Never write over a journal this session has not read. The macro list can
-    -- appear a moment after login, and the first autosave used to replace a
-    -- good save with fresh defaults when that happened.
     if not loaded then
         local settled, restored = J.TryLoad()
-        if not settled then
-            -- Usually just the macro list arriving late. Saying nothing here is
-            -- deliberate: the retries and the next tick save on their own, and a
-            -- chat warning at login would only alarm a player whose save is fine.
-            J.status.error = "waiting for the macro list"
-            return false
-        end
-        if restored then
-            -- TryLoad imported the saved run; the macros already hold it.
-            lastSave = U.now()
-            pending = false
-            return true, J.status
-        end
+        if not settled then return nil, "waiting for the macro list" end
+        if restored then return "restored" end
     end
 
-    saving = true
-    local started = millis()
     local snapshot = DB.Snapshot()
-    -- Pack first: the journal's budget is measured on what is actually written,
-    -- and packing is what makes a normal shop fit without losing stock.
     packInventory(snapshot)
     local encoded = encodedSnapshot(snapshot)
 
-    -- Compare the shop before trimming. Most autosaves carry identical data,
-    -- and trimming is by far the expensive half of a save, so an unchanged
-    -- save must not pay for it (or rewrite 24 macros the player can see).
+    -- Most autosaves carry identical data. Skip before trimming: trimming is
+    -- the expensive half, and an unchanged save must not rewrite the macros.
     local fingerprint = payloadFingerprint(encoded)
     if not force and J.status.fingerprint == fingerprint and J.status.generation then
-        return finishSave(started)
+        return "unchanged"
     end
 
     local trimmed
     encoded, trimmed = trimSnapshot(snapshot, encoded)
     if #encoded > BUDGET then
-        return abandonSave("journal is too large, even without stock")
+        return nil, "journal is too large, even without stock"
+    end
+    local total = math.ceil(#encoded / CHUNK_SIZE)
+    if total < 1 or total > MAX_CHUNKS then
+        return nil, "journal does not fit in " .. tostring(MAX_CHUNKS) ..
+            " macros per generation"
     end
 
-    -- Write the generation that is not current, so a crash at any point leaves
-    -- the previous committed save intact.
     local previous = J.status.generation
     local generation = previous == "A" and "B" or "A"
-    local counter = (J.status.counter or 0) + 1
-    local stamp = checksum(encoded)
+    dropCleanup(generation)
+    return {
+        generation = generation,
+        previous = previous,
+        counter = (J.status.counter or 0) + 1,
+        encoded = encoded,
+        stamp = checksum(encoded),
+        total = total,
+        index = 1,
+        fingerprint = fingerprint,
+        trimmed = trimmed and true or false,
+        started = millis(),
+        freeStage = 0,
+        freeQueue = {},
+    }
+end
 
-    local ok, result = writeGeneration(generation, counter, encoded, stamp)
-    if not ok then return abandonSave(result) end
+-- Runs when a chunk could not be created. Legacy chunks are the first thing
+-- to go: a pre-1.6.4 save left up to 24 of them behind, and writing a new
+-- generation next to them could exceed the client's macro limit forever. The
+-- committed generation is never removed here; a failed save must leave the
+-- last good save intact.
+local function queueFreeSlots(current)
+    if #current.freeQueue > 0 then return true end
+    if current.freeStage < 1 then
+        current.freeStage = 1
+        current.freeQueue = legacyChunkNames()
+    end
+    return #current.freeQueue > 0
+end
 
-    -- The new generation is complete, verified and committed. Only now is the
-    -- previous save allowed to disappear.
-    deleteGeneration(previous)
-    deleteLegacy()
+local function finishJob(current)
+    job = nil
+    J.status.chunks = current.total
+    J.status.trimmed = current.trimmed
+    J.status.stamp = current.stamp
+    J.status.fingerprint = current.fingerprint
+    J.status.generation = current.generation
+    J.status.counter = current.counter
+    J.status.attempts = 0
 
-    J.status.chunks = result
-    J.status.trimmed = trimmed
-    J.status.stamp = stamp
-    J.status.fingerprint = fingerprint
-    J.status.generation = generation
-    J.status.counter = counter
-    return finishSave(started)
+    -- The replaced generation, leftovers from a larger save in this slot, and
+    -- any legacy chunks still around. They are removed one per tick so cleanup
+    -- cannot hitch either.
+    local stale = {}
+    if current.previous then
+        for index = 1, MAX_CHUNKS do
+            local name = chunkName(current.previous, index)
+            if chunkExists(name) then stale[#stale + 1] = name end
+        end
+    end
+    for index = current.total + 1, MAX_CHUNKS do
+        local name = chunkName(current.generation, index)
+        if chunkExists(name) then stale[#stale + 1] = name end
+    end
+    for _, name in ipairs(legacyChunkNames()) do stale[#stale + 1] = name end
+    queueCleanup(stale)
+    return finishSave(current.started, current.sync)
+end
+
+local function stepJob(sync)
+    local current = job
+    if not current then return false end
+
+    -- Verify the previous write before sending the next one. A live client can
+    -- take a frame to surface a new macro body; a logout save cannot wait.
+    if current.verifyName then
+        local verified, detail = verifyJob(current)
+        if verified == nil then
+            if not sync then return true end
+            verified, detail = false, detail or ("could not update " .. current.verifyName)
+        end
+        if not verified then
+            job = nil
+            abandonSave(detail)
+            return false
+        end
+    end
+
+    if current.committed then
+        finishJob(current)
+        return true
+    end
+
+    if #current.freeQueue > 0 then
+        deleteChunk(table.remove(current.freeQueue, 1))
+        return true
+    end
+
+    if current.index > current.total then
+        local name = chunkName(current.generation, 1)
+        local body = jobBody(current, 1, "c")
+        local ok, detail = writeChunkRaw(name, body)
+        if not ok then
+            if queueFreeSlots(current) then return true end
+            job = nil
+            abandonSave(detail)
+            return false
+        end
+        current.verifyName = name
+        current.verifyBody = body
+        current.verifyTries = 0
+        current.committed = true
+        if sync then
+            local verified, verifyDetail = verifyJob(current)
+            if verified ~= true then
+                job = nil
+                abandonSave(verifyDetail or ("could not update " .. name))
+                return false
+            end
+            finishJob(current)
+        end
+        return true
+    end
+
+    local index = current.index
+    local name = chunkName(current.generation, index)
+    local body = jobBody(current, index, index == 1 and "p" or "c")
+    local ok, detail = writeChunkRaw(name, body)
+    if not ok then
+        if queueFreeSlots(current) then return true end
+        job = nil
+        abandonSave(detail)
+        return false
+    end
+    current.index = index + 1
+    current.verifyName = name
+    current.verifyBody = body
+    current.verifyTries = 0
+    if sync then
+        local verified, verifyDetail = verifyJob(current)
+        if verified ~= true then
+            job = nil
+            abandonSave(verifyDetail or ("could not update " .. name))
+            return false
+        end
+    end
+    return true
+end
+
+-- One unit of save work per clock tick: verify, free a slot, or write a chunk.
+function J.Step()
+    if job then return stepJob(false) end
+    local name = popCleanup()
+    if name then
+        deleteChunk(name)
+        return true
+    end
+    return false
+end
+
+function J.Pending()
+    return job ~= nil
+end
+
+function J.SaveNow(force)
+    if saving or loading then return false, J.status end
+    saving = true
+    -- A logout or restore must save the state in hand, not a half-written job
+    -- that started before the last sale. Drop it and capture a fresh snapshot.
+    if job and force then job = nil end
+
+    if not job then
+        local started, detail = prepareJob(force)
+        if started == "unchanged" then
+            saving = false
+            return finishSave(nil)
+        elseif started == "restored" then
+            -- TryLoad imported the saved run; the macros already hold it.
+            saving = false
+            lastSave = U.now()
+            pending = false
+            return true, J.status
+        elseif not started then
+            saving = false
+            if detail == "journal off" or detail == "in combat"
+                or detail == "waiting for the macro list" then
+                return false, J.status
+            end
+            reportSaveFailure(detail or "could not prepare a save")
+            nextAttempt = U.now() + RETRY_DELAY
+            return false, J.status
+        end
+        started.sync = true
+        job = started
+    end
+
+    local guard = 0
+    while job and guard < 200 do
+        guard = guard + 1
+        stepJob(true)
+    end
+    -- An explicit save (logout, verify, import) also retires the chunks the
+    -- autosave would otherwise clean up one per tick.
+    flushCleanup()
+    saving = false
+    if job then
+        job = nil
+        return false, J.status
+    end
+    return J.status.error == nil, J.status
 end
 
 -- Saves start early (a short session must still land one) and retry quickly
 -- after a failure instead of waiting out the full throttle.
+-- Starts an incremental save and returns immediately; J.Step/J.Tick do the
+-- macro writes one at a time. SaveNow drives the same job to completion.
+function J.Begin(force)
+    if job or saving then return false end
+    local now = U.now()
+    local started, detail = prepareJob(force)
+    if started == "unchanged" then
+        return finishSave(nil)
+    elseif started == "restored" then
+        lastSave = now
+        pending = false
+        return true, J.status
+    elseif not started then
+        if detail ~= "in combat" and detail ~= "journal off"
+            and detail ~= "waiting for the macro list" then
+            reportSaveFailure(detail or "could not prepare a save")
+            nextAttempt = now + RETRY_DELAY
+        end
+        return false
+    end
+    job = started
+    return true, J.status
+end
+
 function J.Save()
     if not ns.db or loaded == false then return false end
+    if job or saving then return false end
     local now = U.now()
     if now - startedAt < FIRST_SAVE then return false end
+    if now < nextAttempt then return false end
     local wait = J.status.error and RETRY_DELAY or SAVE_THROTTLE
     if now - lastSave < wait and not pending then return false end
-    return J.SaveNow()
+    return J.Begin(false)
 end
 
 -- Drives the save schedule itself, so a short session still lands a save about
 -- ten seconds in instead of waiting for the next thirty-second autosave.
 function J.Tick()
     if not loaded then return end
-    if pending and not ns.Compat.InCombat() then
-        J.SaveNow()
+    if job then
+        stepJob(false)
+        return
+    end
+    local name = popCleanup()
+    if name then
+        deleteChunk(name)
         return
     end
     J.Save()
@@ -793,6 +1069,10 @@ function J.Clear()
     if ns.Compat.MacroCount() == nil then return false end
     for _, generation in ipairs(GENERATIONS) do deleteGeneration(generation) end
     deleteLegacy()
+    job = nil
+    cleanup = {}
+    cleanupSet = {}
+    nextAttempt = 0
     lastSave = 0
     J.status.savedAt = 0
     J.status.chunks = 0
@@ -834,7 +1114,8 @@ function J.Report()
     if (J.status.savedAt or 0) > 0 then
         local spent = tonumber(J.status.saveMs) or 0
         ns.Print("  Last save: " .. U.clock(math.max(0, U.now() - J.status.savedAt)) .. " ago" ..
-            (spent > 0 and string.format(" (took %d ms)", spent) or "") ..
+            (spent > 0 and string.format(" (took %d ms)", spent)
+                or " (written one macro per tick)") ..
             (J.status.trimmed and " · stock trimmed to fit" or ""))
     else
         ns.Print("  Last save: none recorded")
@@ -966,6 +1247,6 @@ J.events = ns.Compat.EventFrame({
         end
     end,
     PLAYER_LOGOUT = function()
-        J.SaveNow()
+        J.SaveNow(true)
     end,
 })

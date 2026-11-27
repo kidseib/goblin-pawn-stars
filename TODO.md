@@ -1,11 +1,19 @@
 # TODO
 
-## Must do in-game before calling 1.7.2 final
+## Must do in-game before calling 1.7.3 final
 
-The 1.7.2 mock suite has 50 tests (47 through the 1.7.1 checkpoint, plus three
-rolling-backup tests). None of it has run in World of Warcraft; this block is
-the release gate. The older 1.4.0 list below is still open.
+The 1.7.3 mock suite has 53 tests (50 through 1.7.2, plus three save-path
+regressions). None of it has run in World of Warcraft; this block is the release
+gate. The older 1.4.0 list below is still open.
 
+- [ ] Upgrade from a 1.7.0 save with old `GPSJ01`–`GPSJ24` macros. The header may
+      read **save pending** while the journal writes one macro per second; it must
+      settle on **saved 0s ago** and the old chunks must disappear. It must not freeze
+      for a second on each autosave.
+- [ ] Fill the macro list close to the client cap and confirm the save still recovers
+      (or reports a specific `save error` without deleting the last good save).
+- [ ] Accept an offer during an autosave: the negotiation window and payout must stay
+      responsive, and `/gps journal` should say the save was written one macro per tick.
 - [ ] Fresh save, first NPC: the scripted gullible buyer opens around 65% of market,
       below Low/Fair/Greedy; the presets read about 94/88/64%.
 - [ ] Land a Low/Fair counter: the window completes, the payout banner and feedback

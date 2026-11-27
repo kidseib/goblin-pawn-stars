@@ -529,7 +529,7 @@ function DB.Import(text, skipSave)
     DB.scratch = false
     if not skipSave then
         DB.Save()
-        if ns.Journal and ns.Journal.SaveNow then ns.Journal.SaveNow() end
+        if ns.Journal and ns.Journal.SaveNow then ns.Journal.SaveNow(true) end
     end
     return true
 end

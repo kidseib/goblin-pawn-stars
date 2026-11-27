@@ -1642,6 +1642,177 @@ function D.Run()
         end
     end)
 
+    -----------------------------------------------------------------------
+    test("a journal save writes at most one macro per tick", function()
+        if type(__clearMacros) ~= "function" or type(MACRO_STORE) ~= "table" then return end
+        __clearMacros()
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+
+        local db = ns.DB.Scratch()
+        db.settings.macroJournal = true
+        db.credits = 500
+        db.stats.sales = 2
+        ns.db = db
+        ns.Journal.TryLoad(true)
+        expect(ns.Journal.SaveNow(), "seed save failed: " .. tostring(ns.Journal.status.error))
+        db.credits = 750
+
+        local originalCreate, originalEdit = ns.Compat.CreateMacro, ns.Compat.EditMacro
+        local originalDelete = ns.Compat.DeleteMacro
+        local mutations = 0
+        local function counted(fn, ...)
+            mutations = mutations + 1
+            return fn(...)
+        end
+        ns.Compat.CreateMacro = function(...) return counted(originalCreate, ...) end
+        ns.Compat.EditMacro = function(...) return counted(originalEdit, ...) end
+        ns.Compat.DeleteMacro = function(...) return counted(originalDelete, ...) end
+
+        expect(ns.Journal.Begin(true), "incremental save did not start: " ..
+            tostring(ns.Journal.status.error))
+
+        local worst, steps = 0, 0
+        while ns.Journal.Pending() and steps < 80 do
+            steps = steps + 1
+            local before = mutations
+            ns.Journal.Step()
+            local used = mutations - before
+            if used > worst then worst = used end
+        end
+
+        ns.Compat.CreateMacro, ns.Compat.EditMacro = originalCreate, originalEdit
+        ns.Compat.DeleteMacro = originalDelete
+
+        expect(worst <= 1, "a single tick performed " .. worst .. " macro writes")
+        expect(steps > 1, "the save did not span multiple ticks")
+        expect(ns.Journal.status.generation ~= nil, "the incremental save did not commit")
+        expect(ns.Journal.status.error == nil, "the incremental save reported " ..
+            tostring(ns.Journal.status.error))
+
+        local fresh = ns.DB.Scratch()
+        fresh.settings.macroJournal = true
+        ns.db = fresh
+        expect(ns.Journal.TryLoad(true), "the incremental save did not load")
+        expectEqual(ns.DB.Get().credits, 750, "the incremental save lost credits")
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __clearMacros()
+    end)
+
+    -----------------------------------------------------------------------
+    test("a full macro list frees old chunks and saves again", function()
+        if type(__clearMacros) ~= "function" or type(MACRO_STORE) ~= "table" then return end
+        __clearMacros()
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+
+        -- 24 chunks from a pre-1.6.4 save plus the player's own macros fill the
+        -- client's 36 slots. The upgrade save used to fail here forever.
+        for index = 1, 24 do
+            MACRO_STORE[index] = {
+                name = string.format("GPSJ%02d", index),
+                icon = 134400,
+                body = string.format("--GPSJ1:%.0f:24:0:%s", index, string.rep("A", 8)),
+            }
+        end
+        for index = 25, 36 do
+            MACRO_STORE[index] = {
+                name = "PLAYER" .. index,
+                icon = 134400,
+                body = "/say hello",
+            }
+        end
+
+        local db = ns.DB.Scratch()
+        db.settings.macroJournal = true
+        db.credits = 4321
+        db.stats.sales = 6
+        ns.db = db
+        local settled = ns.Journal.TryLoad(true)
+        expect(settled or ns.Journal.status.error ~= nil,
+            "the full macro list crashed the loader")
+
+        expect(ns.Journal.Begin(true), "a save could not start with a full macro list: " ..
+            tostring(ns.Journal.status.error))
+
+        local steps = 0
+        while ns.Journal.Pending() and steps < 120 do
+            steps = steps + 1
+            ns.Journal.Step()
+        end
+        for _ = 1, 40 do ns.Journal.Step() end
+
+        expect(ns.Journal.status.generation ~= nil, "the save never committed: " ..
+            tostring(ns.Journal.status.error))
+        expect(ns.Journal.status.error == nil, "the save left an error: " ..
+            tostring(ns.Journal.status.error))
+        for _, macro in pairs(MACRO_STORE) do
+            expect(type(macro.name) ~= "string" or macro.name:sub(1, 4) ~= "GPSJ",
+                "a pre-1.6.4 chunk survived the upgrade save")
+        end
+
+        local fresh = ns.DB.Scratch()
+        fresh.settings.macroJournal = true
+        ns.db = fresh
+        expect(ns.Journal.TryLoad(true), "the migrated save did not load")
+        expectEqual(ns.DB.Get().credits, 4321, "the migrated save lost credits")
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __clearMacros()
+    end)
+
+    -----------------------------------------------------------------------
+    test("a failed journal save waits instead of retrying every tick", function()
+        if type(__clearMacros) ~= "function" or type(MACRO_STORE) ~= "table" then return end
+        __clearMacros()
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+
+        local db = ns.DB.Scratch()
+        db.settings.macroJournal = true
+        db.credits = 600
+        db.stats.sales = 1
+        ns.db = db
+        ns.Journal.TryLoad(true)
+        expect(ns.Journal.SaveNow(), "seed save failed: " .. tostring(ns.Journal.status.error))
+
+        local originalCreate, originalEdit = ns.Compat.CreateMacro, ns.Compat.EditMacro
+        local mutations = 0
+        ns.Compat.CreateMacro = function() mutations = mutations + 1; return nil end
+        ns.Compat.EditMacro = function() mutations = mutations + 1; return false end
+
+        db.credits = 601
+        ns.Journal.Begin(true)
+        local steps = 0
+        while ns.Journal.Pending() and steps < 20 do
+            steps = steps + 1
+            ns.Journal.Step()
+        end
+        expect(ns.Journal.status.error ~= nil, "the failed save did not record an error")
+        local failed = mutations
+        expect(failed > 0, "the failed save never attempted a write")
+
+        -- The autosave calls J.Save every tick. It must honor the retry delay,
+        -- not rewrite the macro list every second.
+        for _ = 1, 10 do ns.Journal.Save() end
+        expectEqual(mutations, failed, "a save retried before the retry delay")
+
+        ns.Compat.CreateMacro, ns.Compat.EditMacro = originalCreate, originalEdit
+
+        local fresh = ns.DB.Scratch()
+        fresh.settings.macroJournal = true
+        ns.db = fresh
+        expect(ns.Journal.TryLoad(true), "the failed save destroyed the last good save")
+        expectEqual(ns.DB.Get().credits, 600, "the failed save changed the last good save")
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __clearMacros()
+    end)
+
     return results
 end
 

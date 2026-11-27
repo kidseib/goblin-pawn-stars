@@ -38,6 +38,11 @@ local STEPS = {
 }
 
 local WHATS_NEW = {
+    ["1.7.3"] = {
+        "Saving no longer freezes the client: the journal writes one macro at a time.",
+        "A full macro list is cleaned up instead of leaving the save stuck on error.",
+        "Pausing the shop no longer pauses the autosave.",
+    },
     ["1.7.2"] = {
         "Settings → Rolling backups keeps three timestamped snapshots of your shop.",
         "Restore asks for a second click and saves the current state before replacing it.",

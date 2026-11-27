@@ -1,6 +1,6 @@
 # PROGRESS
 
-## Current state — v1.7.2
+## Current state — v1.7.3
 
 Phases 1–4 are implemented. Phase 5 (optional multiplayer) is deliberately not
 started. The addon is feature-complete for a single-player shop simulation and is
@@ -63,6 +63,19 @@ the backups together. The suite is **50 tests** (47 plus three backup tests) and
 UI smoke builds and captures from the backup window. This work has not run in the
 live client.
 
+### v1.7.3 — save-path freeze and recovery
+
+The journal writes one verified macro per clock tick instead of thirteen writes and a
+dozen deletions in one frame, so an autosave cannot hitch the client. The replaced
+generation is retired one macro per tick after the commit. A create failure frees
+pre-1.6.4 `GPSJ` chunks one at a time, which fixes the upgrade deadlock where 24 old
+chunks plus a new generation could exceed the macro limit forever; a failed save never
+removes the last committed generation. Failed saves back off for a minute instead of
+retrying every eight seconds, the legacy loader reports its real error again, pausing
+the shop no longer stops the autosave, and logout/restore save the latest state rather
+than an older in-flight snapshot. The suite is **53 tests** (50 plus three save-path
+regressions). This work has not run in the live client.
+
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 1 | Shop UI, virtual loot inventory, customer generation, negotiation, fictional currency, persistent saving | **Done** |
@@ -115,8 +128,9 @@ node tools/sim_30min.js    -> scripted 30-minute progression + 10-minute idle pr
 ```
 
 The 1.7.2 release prep reran `npm run check` (60 files, 16,151 lines) and
-`npm run verify` (50 passed, 0 failed; UI smoke green). The 30-minute simulation was
-not rerun for this save-store and UI-only change.
+`npm run verify` (50 passed, 0 failed; UI smoke green). The 1.7.3 prep ran
+`npm run check` (60 files, 16,595 lines) and `npm run verify` (53 passed, 0 failed;
+UI smoke green). The 30-minute simulation was not rerun for these save-path changes.
 
 The headless suite executes the real addon code in fengari with mocked WoW APIs. It
 covers:
@@ -181,11 +195,15 @@ tier 2 around minute 15, salesperson hired at tier 2, 2.3–3.0 customers/min, a
 numbers are not a campaign pacing test. The debt amounts (1,500 / 6,000 / 25,000) are
 unchanged from the outlined design and need a real play pass.
 
-## Not verified — needs an in-game pass (1.7.2)
+## Not verified — needs an in-game pass (1.7.3)
 
 No part of this addon has been run inside World of Warcraft. The 1.7.1 checklist below
 is the remaining release gate; the older list after it is still open.
 
+- **Save path:** the header during an autosave (it may read **save pending** while the
+  journal writes one macro per tick), a full macro list recovering by deleting old
+  `GPSJ` chunks, a save error waiting a minute before retrying, and a logout during an
+  in-flight save storing the latest sale.
 - **Rolling backups:** the Settings entry and window layout; automatic snapshots at 30
   seconds and every 10 minutes; `GoblinPawnStarsBackups` persisting across `/reload`
   and relog; an exact restore round-trip; the pre-restore row; a corrupt snapshot

@@ -21,6 +21,16 @@ end
 
 function C.OnTick(dt)
     local db = DB.Get()
+
+    -- Saving is not gameplay. Pausing the shop must not stall an incremental
+    -- journal write or the autosave, or a paused session could never settle.
+    if ns.Journal and ns.Journal.Tick then ns.Journal.Tick() end
+    saveAccumulator = saveAccumulator + dt
+    if saveAccumulator >= AUTOSAVE then
+        saveAccumulator = 0
+        DB.Save()
+    end
+
     if C.Paused() then return end
 
     db.stats.playtime = (db.stats.playtime or 0) + dt
@@ -31,14 +41,7 @@ function C.OnTick(dt)
     ns.Throughput.Tick(dt)
     ns.Wholesaler.Tick(dt)
     ns.Encounters.Tick(dt)
-    if ns.Journal and ns.Journal.Tick then ns.Journal.Tick() end
     if ns.Backups and ns.Backups.Tick then ns.Backups.Tick(dt) end
-
-    saveAccumulator = saveAccumulator + dt
-    if saveAccumulator >= AUTOSAVE then
-        saveAccumulator = 0
-        DB.Save()
-    end
 
     if ns.UI and ns.UI.Tick then
         local ok, err = pcall(ns.UI.Tick, dt)

@@ -2,6 +2,40 @@
 
 All notable changes to Goblin Pawn Stars. Format loosely follows Keep a Changelog.
 
+## [1.7.3] — 2026-11-27
+
+Fix the autosave freeze and the permanent `save error` some 1.7.0 installs hit after
+upgrading from an older journal. This release also ships the 1.7.1 payout fixes and
+the 1.7.2 rolling backups, which were never published.
+
+### Fixed
+
+- Journal saves no longer write a dozen macros and then delete another dozen in one
+  frame. The writer commits one verified macro per clock tick, and retires the old
+  generation one macro per tick after the new header lands, so an autosave can no
+  longer freeze the client for a second or more.
+- A full macro list no longer deadlocks the journal. A pre-1.6.4 save leaves up to 24
+  `GPSJ` chunks behind; writing a new 12-chunk generation next to them could exceed the
+  client's macro limit forever, because the old chunks were only deleted after a
+  successful save that could never fit. Those chunks are now removed as needed to make
+  room, one per tick, and a failed create still leaves the last good save intact.
+- A failed save retries once a minute instead of every eight seconds, so an environment
+  failure cannot turn into a stutter loop.
+- The legacy-journal loader reports its real error again. A three-value unpack of a
+  two-value return was clearing the message, which hid the reason from the header and
+  `/gps journal`.
+- Pausing the shop no longer stops the autosave or an in-flight journal write.
+- Logout and a restore/import save the state in hand instead of flushing a snapshot
+  that started before the last sale.
+
+### Tests
+
+- 53 tests pass. Three new tests assert that a save performs at most one macro write
+  per tick, that a full 36-macro list frees old `GPSJ` chunks and commits again, and
+  that a failed save waits instead of retrying every tick.
+
+---
+
 ## [1.7.2] — 2026-11-27
 
 Rolling backups for the shop save. This release also ships the 1.7.1 payout and
