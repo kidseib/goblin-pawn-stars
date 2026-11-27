@@ -38,6 +38,11 @@ local STEPS = {
 }
 
 local WHATS_NEW = {
+    ["1.7.4"] = {
+        "Autosaves stop hitching: the journal no longer re-checks and deletes every chunk.",
+        "The last two saves stay on the macro list as a fallback.",
+        "Autosaves run once a minute instead of every 30 seconds.",
+    },
     ["1.7.3"] = {
         "Saving no longer freezes the client: the journal writes one macro at a time.",
         "A full macro list is cleaned up instead of leaving the save stuck on error.",

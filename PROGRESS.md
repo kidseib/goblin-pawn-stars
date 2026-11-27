@@ -1,6 +1,6 @@
 # PROGRESS
 
-## Current state — v1.7.3
+## Current state — v1.7.4
 
 Phases 1–4 are implemented. Phase 5 (optional multiplayer) is deliberately not
 started. The addon is feature-complete for a single-player shop simulation and is
@@ -62,6 +62,16 @@ checkpoint remains `ef03caf`, and 1.7.2 is the release that ships the 1.7.1 fixe
 the backups together. The suite is **50 tests** (47 plus three backup tests) and the
 UI smoke builds and captures from the backup window. This work has not run in the
 live client.
+
+### v1.7.4 — stop the journal stutter
+
+1.7.3 spread the macro writes across ticks but still read every chunk back and
+deleted the replaced generation after each save. On the beta client those macro
+calls are the expensive part: a 12-chunk shop made about 80 calls every 30 seconds.
+1.7.4 keeps the previous generation as the crash fallback instead of deleting it,
+removes per-chunk read-back from automatic saves (logout, import and `/gps verify`
+still verify), and saves once a minute with the first save at 20 seconds. Legacy
+`GPSJ` chunks are scanned once per session. The suite remains **53 tests**.
 
 ### v1.7.3 — save-path freeze and recovery
 

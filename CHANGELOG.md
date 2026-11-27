@@ -2,6 +2,34 @@
 
 All notable changes to Goblin Pawn Stars. Format loosely follows Keep a Changelog.
 
+## [1.7.4] — 2026-11-27
+
+Fix the stutter 1.7.3 still caused after a sale. 1.7.3 spread the journal writes
+across clock ticks, but it still read every chunk back and deleted the previous
+generation after each save. On Forever the macro calls are the expensive part, so
+the client spent much of every 30 seconds waiting on the journal.
+
+### Fixed
+
+- The previous save generation is kept as the crash fallback instead of being
+  deleted after every autosave. That removes a dozen `DeleteMacro` calls from each
+  save and leaves two restorable saves on the macro list.
+- Automatic saves no longer read every chunk back. A save writes its chunks and the
+  commit header once; read-back verification remains on logout, import and
+  `/gps verify`, where the result is shown to the player.
+- Autosaves run once a minute instead of every 30 seconds, and the first save waits
+  20 seconds instead of 10, so the opening customer is not competing with a save.
+- Legacy `GPSJ` chunks are scanned once per session (or after loading a legacy
+  save), not on every save.
+- On a 12-chunk test shop the journal now makes about 12 macro calls a minute,
+  down from about 80 every 30 seconds.
+
+### Tests
+
+- 53 tests pass, including the full 36-macro recovery and failed-write tests.
+
+---
+
 ## [1.7.3] — 2026-11-27
 
 Fix the autosave freeze and the permanent `save error` some 1.7.0 installs hit after

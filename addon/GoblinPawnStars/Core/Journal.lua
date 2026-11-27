@@ -8,11 +8,11 @@
     capped at 255 characters, so the payload is kept deliberately small and
     inventory is trimmed (lowest value first) if it would not fit.
 
-    Saves alternate between two generations (A and B). Each write is read back
-    and compared before the next step, and a generation only becomes current
-    when its header chunk is rewritten as committed at the very end. A crash or
-    a rejected write therefore leaves the other generation, and the macro list,
-    exactly as it was.
+    Saves alternate between two generations (A and B). The previous generation
+    is kept as the crash fallback, and a generation only becomes current when its
+    header chunk is rewritten as committed at the very end. Automatic saves do
+    not read every chunk back: that costs a macro call per chunk and was the
+    source of the 1.7.3 stutter. Logout, import and `/gps verify` still verify.
 --------------------------------------------------------------------------- ]]
 
 local ADDON, ns = ...
@@ -29,11 +29,11 @@ local PREFIX_V1 = "--GPSJ1:"
 local PREFIX_V2 = "--GPSJ2:"
 local GENERATIONS = { "A", "B" }
 local MACRO_ICON = 134400
-local SAVE_THROTTLE = 30
+local SAVE_THROTTLE = 60
 -- A failed macro write is expensive and usually environmental (a full macro
 -- list), so retry it at most once a minute instead of every eight seconds.
 local RETRY_DELAY = 60
-local FIRST_SAVE = 10
+local FIRST_SAVE = 20
 local EMPTY_ATTEMPTS = 3
 
 local startedAt = U.now()
@@ -44,6 +44,7 @@ local saving = false
 local pending = false
 local job = nil
 local nextAttempt = 0
+local legacyScanned = false
 
 -- U.now() is whole seconds, so a save's duration is measured with GetTime.
 local function millis()
@@ -472,6 +473,9 @@ function J.TryLoad(force)
     end
 
     local generations, legacy = collectJournal()
+    -- A legacy save is a one-time migration cost: force one cleanup scan on the
+    -- next save, then leave the macro list alone unless a save needs slots.
+    if next(legacy) then legacyScanned = false end
 
     -- Both generations are checked. The highest committed counter wins, so a
     -- pending or half-written generation simply loses to the previous save.
@@ -625,11 +629,9 @@ end
 -- Saving
 ---------------------------------------------------------------------------
 
--- Writes one macro and proves it landed: the body is read back and compared
--- with what was sent. A client that truncates, refuses or renames the body
--- fails the save before anything is deleted.
--- Writes one macro without waiting for the macro list to answer. The caller
--- verifies the body; the beta client can surface a new macro a frame late.
+-- Writes one macro without waiting for the macro list to answer. SaveNow
+-- verifies the body; an automatic save trusts the write and lets the commit
+-- header plus the next login checksum catch a truncated payload.
 local function writeChunkRaw(name, body)
     local index = ns.Compat.MacroIndexByName(name)
     if index and index > 0 then
@@ -840,6 +842,12 @@ local function queueFreeSlots(current)
     return #current.freeQueue > 0
 end
 
+local function scanLegacyOnce()
+    if legacyScanned then return end
+    legacyScanned = true
+    queueCleanup(legacyChunkNames())
+end
+
 local function finishJob(current)
     job = nil
     J.status.chunks = current.total
@@ -850,22 +858,12 @@ local function finishJob(current)
     J.status.counter = current.counter
     J.status.attempts = 0
 
-    -- The replaced generation, leftovers from a larger save in this slot, and
-    -- any legacy chunks still around. They are removed one per tick so cleanup
-    -- cannot hitch either.
-    local stale = {}
-    if current.previous then
-        for index = 1, MAX_CHUNKS do
-            local name = chunkName(current.previous, index)
-            if chunkExists(name) then stale[#stale + 1] = name end
-        end
-    end
-    for index = current.total + 1, MAX_CHUNKS do
-        local name = chunkName(current.generation, index)
-        if chunkExists(name) then stale[#stale + 1] = name end
-    end
-    for _, name in ipairs(legacyChunkNames()) do stale[#stale + 1] = name end
-    queueCleanup(stale)
+    -- Keep the replaced generation. It is the crash fallback, and deleting it
+    -- after every save was a dozen extra macro calls every minute. Leftover
+    -- chunks in the new generation are ignored by the commit header's total and
+    -- are overwritten if a later save needs them. Only a pre-1.6.4 legacy save
+    -- is removed, and it is scanned once per session rather than every save.
+    scanLegacyOnce()
     return finishSave(current.started, current.sync)
 end
 
@@ -908,17 +906,22 @@ local function stepJob(sync)
             abandonSave(detail)
             return false
         end
-        current.verifyName = name
-        current.verifyBody = body
-        current.verifyTries = 0
         current.committed = true
         if sync then
+            current.verifyName = name
+            current.verifyBody = body
+            current.verifyTries = 0
             local verified, verifyDetail = verifyJob(current)
             if verified ~= true then
                 job = nil
                 abandonSave(verifyDetail or ("could not update " .. name))
                 return false
             end
+            finishJob(current)
+        else
+            -- The commit header is written last: a crash before this point
+            -- leaves the previous generation intact. No read-back on an
+            -- automatic save; verification is for logout and /gps verify.
             finishJob(current)
         end
         return true
@@ -935,10 +938,10 @@ local function stepJob(sync)
         return false
     end
     current.index = index + 1
-    current.verifyName = name
-    current.verifyBody = body
-    current.verifyTries = 0
     if sync then
+        current.verifyName = name
+        current.verifyBody = body
+        current.verifyTries = 0
         local verified, verifyDetail = verifyJob(current)
         if verified ~= true then
             job = nil
@@ -974,6 +977,8 @@ function J.SaveNow(force)
     if not job then
         local started, detail = prepareJob(force)
         if started == "unchanged" then
+            scanLegacyOnce()
+            flushCleanup()
             saving = false
             return finishSave(nil)
         elseif started == "restored" then
@@ -1021,6 +1026,7 @@ function J.Begin(force)
     local now = U.now()
     local started, detail = prepareJob(force)
     if started == "unchanged" then
+        scanLegacyOnce()
         return finishSave(nil)
     elseif started == "restored" then
         lastSave = now

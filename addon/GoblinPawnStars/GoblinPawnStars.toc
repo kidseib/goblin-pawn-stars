@@ -4,7 +4,7 @@
 ## Author: ErrorSeib & Buffy (Codebuff)
 ## Credit: Created by ErrorSeib & Buffy (Codebuff)
 ## X-Credits: ErrorSeib & Buffy (Codebuff)
-## Version: 1.7.3
+## Version: 1.7.4
 ## SavedVariables: GoblinPawnStarsDB, GoblinPawnStarsBackups
 ## IconTexture: Interface\Icons\INV_Misc_Coin_01
 ## AddonCompartmentFunc: GoblinPawnStars_CompartmentClick

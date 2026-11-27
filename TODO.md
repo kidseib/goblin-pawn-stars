@@ -1,8 +1,8 @@
 # TODO
 
-## Must do in-game before calling 1.7.3 final
+## Must do in-game before calling 1.7.4 final
 
-The 1.7.3 mock suite has 53 tests (50 through 1.7.2, plus three save-path
+The 1.7.4 mock suite has 53 tests (50 through 1.7.2, plus three save-path
 regressions). None of it has run in World of Warcraft; this block is the release
 gate. The older 1.4.0 list below is still open.
 
