@@ -123,6 +123,85 @@ function D.Run()
     end)
 
     -----------------------------------------------------------------------
+    test("inventory value sort resolves each stack once and keeps the old order", function()
+        withScratch(nil, function(scratch)
+            local realValue = ns.Market.Value
+            local calls = 0
+            local expectedValues = {}
+            local count, uniqueCount = 240, 200
+
+            ns.Market.Value = function(record)
+                calls = calls + 1
+                return expectedValues[record] or 0
+            end
+
+            local ok, err = pcall(function()
+                -- A stockroom this size makes the old comparator resolve market
+                -- values thousands of times; one call per stack is the contract.
+                for index = 1, uniqueCount do
+                    local record = {
+                        uid = index, id = 9000 + index,
+                        name = string.format("Unique %03d", index),
+                        category = "misc", count = 1,
+                    }
+                    expectedValues[record] = 1000 + index
+                    scratch.inventory[index] = record
+                end
+                for offset = 1, count - uniqueCount do
+                    local key = uniqueCount + offset
+                    local record = {
+                        uid = key, id = 9000 + key,
+                        name = string.format("Tie %03d", offset),
+                        category = "misc", count = 1,
+                    }
+                    expectedValues[record] = 900
+                    scratch.inventory[key] = record
+                end
+
+                -- The reference comparator is the old rule: high value first,
+                -- ties by name. It reads the stub values so calls stay measurable.
+                local expected = {}
+                for _, record in pairs(scratch.inventory) do expected[#expected + 1] = record end
+                table.sort(expected, function(a, b)
+                    if expectedValues[a] == expectedValues[b] then
+                        return (a.name or "") < (b.name or "")
+                    end
+                    return expectedValues[a] > expectedValues[b]
+                end)
+
+                local function assertOrder(label, filter)
+                    calls = 0
+                    local listed = ns.Inventory.List(filter)
+                    expectEqual(#listed, count, label .. " lost stacks")
+                    expectEqual(calls, count, label .. " should call Market.Value once per stack")
+                    for position = 1, count do
+                        expectEqual(listed[position].name, expected[position].name,
+                            label .. " changed the order at position " .. position)
+                    end
+                    return listed
+                end
+
+                local listed = assertOrder("value", { sort = "value" })
+                expectEqual(listed[1].name, "Unique 200", "highest value was not first")
+                expectEqual(listed[uniqueCount].name, "Unique 001", "lowest unique value was not last")
+                expectEqual(listed[uniqueCount + 1].name, "Tie 001", "first tied name is wrong")
+                expectEqual(listed[count].name, "Tie 040", "last tied name is wrong")
+
+                listed = assertOrder("default", nil)
+                expectEqual(listed[1].name, "Unique 200", "the default sort did not use value order")
+                expectEqual(listed[count].name, "Tie 040", "the default sort lost the name tie-break")
+
+                listed = assertOrder("unknown", { sort = "bogus" })
+                expectEqual(listed[1].name, "Unique 200", "an unknown sort did not fall back to value")
+                expectEqual(listed[count].name, "Tie 040", "an unknown sort lost the name tie-break")
+            end)
+
+            ns.Market.Value = realValue
+            if not ok then error(err, 0) end
+        end)
+    end)
+
+    -----------------------------------------------------------------------
     test("market multipliers stay in bounds", function()
         withScratch(nil, function(scratch)
             ns.Market.StartEvent("war_effort")

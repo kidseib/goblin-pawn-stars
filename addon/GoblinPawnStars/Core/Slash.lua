@@ -26,6 +26,7 @@ local function printHelp()
     ns.Print("  |cff7bd66b/gps version|r — print the version and interface number")
     ns.Print("  |cff7bd66b/gps journal|r — check whether progress is saving to the macro journal")
     ns.Print("  |cff7bd66b/gps report|r — print a pasteable client, save and economy report")
+    ns.Print("  |cff7bd66b/gps profile|r — time the backup, stock sort, bag scan and UI refresh")
     ns.Print("  |cff7bd66b/gps verify|r — save now, read the save back and compare it")
     ns.Print("  |cff7bd66b/gps uicheck|r — check the windows fit on screen at this scale")
     ns.Print("  |cff7bd66b/gps motion|r — turn window animations and flourishes on or off")
@@ -223,6 +224,15 @@ local function handler(message)
             ns.Report.Print()
         else
             ns.Warn("The report module did not load.")
+        end
+        return
+    end
+
+    if first == "profile" or first == "perf" then
+        if ns.Report and ns.Report.Profile then
+            ns.Report.Profile()
+        else
+            ns.Warn("The profile module did not load.")
         end
         return
     end

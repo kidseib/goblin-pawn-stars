@@ -2,6 +2,33 @@
 
 All notable changes to Goblin Pawn Stars. Format loosely follows Keep a Changelog.
 
+## [1.7.6] — 2026-11-27
+
+A performance and diagnostics release. The Inventory tab no longer recalculates
+every stack's market value several times per comparison, which gets expensive as
+the stockroom grows.
+
+### Fixed
+
+- The Inventory tab resolves each stack's market value once per sort instead of
+  recalculating it inside the comparator. Sales and arrivals that refresh an open
+  Inventory tab no longer repeat that work for every comparison.
+
+### Added
+
+- `/gps profile` times the backup encode, the stock sort, a read-only bag scan and
+  the current UI refresh, then reports the last journal save duration, macro slots
+  and addon memory. It does not change the shop; run it on the tab that feels slow
+  and send the `GPS|` lines with `/gps report`.
+
+### Tests
+
+- Added a regression test that builds a 240-stack stockroom and asserts the value
+  sort resolves each stack exactly once and keeps the old descending-value,
+  name-ordered tie-break for the explicit, default and unknown-sort paths.
+
+---
+
 ## [1.7.5] — 2026-11-27
 
 Make saving invisible during play. 1.7.4 stopped the per-chunk read-back, but it

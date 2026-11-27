@@ -137,10 +137,6 @@ function Inv.Matches(record, filter)
 end
 
 local SORTS = {
-    value = function(a, b)
-        if ns.Market.Value(a) == ns.Market.Value(b) then return (a.name or "") < (b.name or "") end
-        return ns.Market.Value(a) > ns.Market.Value(b)
-    end,
     name = function(a, b) return (a.name or "") < (b.name or "") end,
     rarity = function(a, b)
         if (a.quality or 0) == (b.quality or 0) then
@@ -158,7 +154,27 @@ function Inv.List(filter)
     for _, record in pairs(DB.Get().inventory) do
         if Inv.Matches(record, filter) then list[#list + 1] = record end
     end
-    table.sort(list, SORTS[filter.sort] or SORTS.value)
+
+    local sortKey = filter.sort or "value"
+    if SORTS[sortKey] then
+        table.sort(list, SORTS[sortKey])
+        return list
+    end
+
+    -- Value is the default and the fallback for an unknown sort key. Market.Value
+    -- depends on demand and active events, so it is not a cheap comparator. The
+    -- old value sort recalculated it several times per comparison; a large
+    -- stockroom then spent a long time sorting on every inventory refresh.
+    -- Resolve each stack once and sort the numbers.
+    local values = {}
+    for _, record in ipairs(list) do
+        values[record] = ns.Market.Value(record)
+    end
+    table.sort(list, function(a, b)
+        local av, bv = values[a], values[b]
+        if av == bv then return (a.name or "") < (b.name or "") end
+        return av > bv
+    end)
     return list
 end
 

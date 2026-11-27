@@ -4,10 +4,10 @@
 
 <p align="center">
   <a href="https://github.com/kidseib/goblin-pawn-stars/actions/workflows/ci.yml"><img src="https://github.com/kidseib/goblin-pawn-stars/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
-  <img src="https://img.shields.io/badge/version-1.7.5-c9a24a?style=flat-square" alt="Version 1.7.5">
+  <img src="https://img.shields.io/badge/version-1.7.6-c9a24a?style=flat-square" alt="Version 1.7.6">
   <img src="https://img.shields.io/badge/interface-16001-3f7d4e?style=flat-square" alt="Interface 16001">
   <img src="https://img.shields.io/badge/Lua-5.1-2c2d72?style=flat-square&logo=lua&logoColor=white" alt="Lua 5.1">
-  <img src="https://img.shields.io/badge/tests-53%2F53-3f7d4e?style=flat-square" alt="53 of 53 tests passing">
+  <img src="https://img.shields.io/badge/tests-54%2F54-3f7d4e?style=flat-square" alt="54 of 54 tests passing">
   <img src="https://img.shields.io/badge/dependencies-none-6b4f2a?style=flat-square" alt="No runtime dependencies">
   <img src="https://img.shields.io/badge/license-MIT-3f7d4e?style=flat-square" alt="MIT License">
 </p>
@@ -32,15 +32,20 @@
   <a href="#persistence-important-beta-note">Persistence</a> ·
   <a href="#compatibility-and-safety">Safety</a> ·
   <a href="#development">Development</a> ·
-  <a href="TESTING.md">Testing 1.7.5</a> ·
+  <a href="TESTING.md">Testing 1.7.6</a> ·
   <a href="#ai-disclosure">AI disclosure</a> ·
   <a href="#license">License</a>
 </p>
 
-> **Status — 1.7.5.** The addon is feature-complete and passes the
-> 53-test headless suite plus the UI smoke pass. Live-client validation is still in
+> **Status — 1.7.6.** The addon is feature-complete and passes the
+> 54-test headless suite plus the UI smoke pass. Live-client validation is still in
 > progress: see [TESTING.md](TESTING.md) for the in-game checklist and
 > [Testing status](#testing-status) for what is and is not verified.
+>
+> **1.7.6** removes repeated market lookups from the Inventory value sort and adds
+> `/gps profile` for timing the heavy paths. See the
+> [release notes](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.6)
+> for the full patch notes.
 
 ---
 
@@ -97,8 +102,8 @@ customers are procedural, and no real item, bag slot or copper is ever touched.
 ## Install
 
 1. Download
-   [`GoblinPawnStars-1.7.5.zip`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.5/GoblinPawnStars-1.7.5.zip)
-   from the [v1.7.5 release](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.5),
+   [`GoblinPawnStars-1.7.6.zip`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.6/GoblinPawnStars-1.7.6.zip)
+   from the [v1.7.6 release](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.6),
    or build it with `npm run package`.
 2. Extract it so the folder layout is:
 
@@ -119,17 +124,17 @@ Check it before extracting:
 
 ```powershell
 # Windows PowerShell
-Get-FileHash .\GoblinPawnStars-1.7.5.zip -Algorithm SHA256
+Get-FileHash .\GoblinPawnStars-1.7.6.zip -Algorithm SHA256
 ```
 
 ```bash
 # macOS / Linux
-shasum -a 256 GoblinPawnStars-1.7.5.zip
-# or: sha256sum GoblinPawnStars-1.7.5.zip
+shasum -a 256 GoblinPawnStars-1.7.6.zip
+# or: sha256sum GoblinPawnStars-1.7.6.zip
 ```
 
 Compare the result with the
-[`GoblinPawnStars-1.7.5.zip.sha256`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.5/GoblinPawnStars-1.7.5.zip.sha256)
+[`GoblinPawnStars-1.7.6.zip.sha256`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.6/GoblinPawnStars-1.7.6.zip.sha256)
 attached to the same release.
 
 ---
@@ -234,6 +239,7 @@ alert, toasts, optional sound cues, and item tooltips throughout.
 /gps reset               wipe all progress (asks twice)
 /gps journal             whether progress is saving, chunk count and last error
 /gps report              pasteable client, save, error and economy report
+/gps profile             time the backup, stock sort, bag scan and UI refresh
 /gps verify              save, read the save back and compare it with this run
 /gps uicheck             report any window that sits off-screen at this scale
 /gps motion              turn window animations and flourishes on or off
@@ -342,7 +348,7 @@ titles shown in the Achievements tab.
 ## Persistence (important beta note)
 
 The addon uses standard `## SavedVariables: GoblinPawnStarsDB`, saves on logout, and
-autosaves every 30 seconds of play.
+autosaves every 5 minutes of play.
 
 **Known client issue:** on the current Forever beta, the client writes SavedVariables
 on exit but does not load them back at login (documented by forever-addon-kit, and
@@ -419,8 +425,8 @@ npm run package      # builds dist/GoblinPawnStars-<version>.zip
 node tools/sim_30min.js  # optional: 30-minute progression probe + 10-minute idle probe
 ```
 
-The headless harness loads all 55 files in TOC order with mocked WoW APIs, runs 27
-simulation tests (economy, negotiation invariants, wholesaler, salesperson auto-sales,
+The headless harness loads all 60 addon files in TOC order with mocked WoW APIs,
+runs the 54-test diagnostics suite (economy, negotiation invariants, wholesaler, salesperson auto-sales,
 throughput, encounters, serialization, achievements, expenses, macro-journal
 round-trip/corruption/immediate rebind/deferred franchise commits, the three payments,
 museum donations, Marta and franchise),
@@ -438,8 +444,8 @@ ticks. See `PROGRESS.md` for exactly what was and was not verified.
 
 ## Testing status
 
-* Lua 5.1 syntax check: **passing** (58 files, 15,237 lines).
-* Headless simulation suite: **27/27 passing** (the exact count is printed by
+* Lua 5.1 syntax check: **passing** (60 files, 16,633 lines).
+* Headless diagnostics suite: **54/54 passing** (the exact count is printed by
   `npm test`).
 * UI smoke (all tabs, splash modes, guided tour, goal card, options panel, negotiation,
   events, wholesaler window, slash commands) and a simulated hour of play: **passing

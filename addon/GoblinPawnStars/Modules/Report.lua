@@ -280,6 +280,83 @@ function R.Print()
     end
 end
 
+local function clockMs()
+    if type(GetTime) ~= "function" then return nil end
+    local ok, value = pcall(GetTime)
+    if not ok or not tonumber(value) then return nil end
+    return tonumber(value) * 1000
+end
+
+local function profileLine(label, fn, detail)
+    local started = clockMs()
+    if not started then
+        return "GPS| " .. label .. ": timing unavailable"
+    end
+    local ok, result = pcall(fn)
+    if not ok then
+        return "GPS| " .. label .. ": failed · " .. truncate(result, ERROR_TEXT_LIMIT)
+    end
+    local finished = clockMs() or started
+    local ms = math.floor((finished - started) + 0.5)
+    return "GPS| " .. label .. ": " .. ms .. " ms" .. (detail and detail(result) or "")
+end
+
+local function memoryText()
+    if type(GetAddOnMemoryUsage) ~= "function" then return "unknown" end
+    local ok, value = pcall(GetAddOnMemoryUsage, ns.ADDON)
+    if not ok or not tonumber(value) then return "unknown" end
+    return string.format("%.1f MB", tonumber(value) / 1024)
+end
+
+-- Times the known heavy paths without changing the shop. Run it with the shop
+-- open on the tab that feels slow, then send the GPS| lines back with /gps report.
+function R.Profile()
+    local db = DB.Get()
+    local macros = attempt(nil, ns.Compat.MacroCount)
+    local status = ns.Journal and ns.Journal.status or {}
+    local lines = {
+        "GPS| performance profile · v" .. tostring(ns.VERSION) .. " · interface " .. int(ns.INTERFACE),
+        string.format("GPS| stock %d/%d · queue %d/%d · macro chunks %d · macro slots %s · memory %s",
+            ns.Inventory.Count(), ns.Inventory.Capacity(), #db.shop.waiting,
+            ns.Shop.WaitingSlots(), tonumber(status.chunks) or 0,
+            macros and tostring(macros) or "unavailable", memoryText()),
+    }
+
+    lines[#lines + 1] = profileLine("backup encode", function() return DB.Export() end, function(text)
+        return string.format(" · %d KB", math.floor(#text / 1024))
+    end)
+    lines[#lines + 1] = profileLine("stock sort (value)", function()
+        return ns.Inventory.List({ sort = "value" })
+    end, function(list)
+        return string.format(" · %d stacks", #list)
+    end)
+    if ns.Loot and ns.Loot.Diagnose then
+        lines[#lines + 1] = profileLine("bag scan (read-only)", function()
+            return ns.Loot.Diagnose()
+        end, function(report)
+            return string.format(" · %d bags · %d stacks · %d items",
+                tonumber(report.bags) or 0, tonumber(report.stacks) or 0, tonumber(report.items) or 0)
+        end)
+    end
+    local shopState = ns.UI and ns.UI.IsOpen and ns.UI.IsOpen() and "shop open" or "shop closed"
+    lines[#lines + 1] = profileLine("UI refresh (" .. shopState .. ")", function()
+        if ns.UI and ns.UI.Refresh then ns.UI.Refresh() end
+    end)
+
+    local saveMs = tonumber(status.saveMs) or 0
+    lines[#lines + 1] = string.format("GPS| last journal save: %s · %d chunks · gen %s",
+        saveMs > 0 and string.format("%d ms", math.floor(saveMs + 0.5)) or "not measured",
+        tonumber(status.chunks) or 0, tostring(status.generation or "none"))
+    if status.error then
+        lines[#lines + 1] = "GPS| journal error: " .. truncate(status.error, ERROR_TEXT_LIMIT)
+    end
+    lines[#lines + 1] = "GPS| run this with the shop open on the slow tab; it only reads and redraws."
+
+    ns.Print("Performance profile — copy the lines below.")
+    for _, line in ipairs(lines) do ns.Print(line) end
+    return table.concat(lines, "\n")
+end
+
 -- Chains the client's error handler so uncaught Lua errors are remembered
 -- without changing what the player normally sees.
 function R.Install()
