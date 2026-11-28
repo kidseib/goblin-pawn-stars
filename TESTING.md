@@ -1,4 +1,4 @@
-# Testing Goblin Pawn Stars 1.7.8 in-game
+# Testing Goblin Pawn Stars 1.7.9 in-game
 
 This is the live-client pass for **The Deed**. The headless suite already covers the
 economy and state math; this checklist covers what mocks cannot: real macros,
@@ -10,12 +10,12 @@ scale, and any Lua error.
 
 ## Before you start
 
-- Install `GoblinPawnStars-1.7.8.zip` from the
-  [v1.7.8 release](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.8).
+- Install `GoblinPawnStars-1.7.9.zip` from the
+  [v1.7.9 release](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.9).
   The folder layout must be
   `Interface/AddOns/GoblinPawnStars/GoblinPawnStars.toc`.
-- `/gps version` should report **1.7.8** and interface **16001**.
-- `/gps test` should report **55 passed, 0 failed**. The macro-journal tests skip
+- `/gps version` should report **1.7.9** and interface **16001**.
+- `/gps test` should report **59 passed, 0 failed**. The macro-journal tests skip
   themselves in the live client so they never touch your real macros; the journal is
   tested for real in the cold-restart pass below.
 - Run `/console scriptErrors 1` before testing.
@@ -23,10 +23,16 @@ scale, and any Lua error.
   a bug report.
 - The journal keeps up to 12 macros in one committed generation
   (`GPSA01`–`GPSA12` or `GPSB01`–`GPSB12`). A save briefly writes the other generation
-  before retiring it. Leave macro slots free, and do not rename
+  before retiring it, one macro per tick, so a full save can take a few seconds and
+  must never freeze the window. Leave macro slots free, and do not rename
   or delete those macros while testing. `/gps reset` removes them. A save written by
   1.6.3 or earlier lives in `GPSJ01`–`GPSJ24`; it is read once and retired by the next
   save.
+- **Loading is automatic but bounded.** A login reads the macro list at most four
+  times, a few seconds apart, then settles; the header shows `loading saved shop`
+  while it runs. Until it settles, the addon refuses to save over a journal it has not
+  read. **Settings → Auto-load** turns the login load off, and **Settings → Backup &
+  Restore → Load saved** (press twice) repeats one read on demand either way.
 
 ## 1. Cold-restart journal restore
 
@@ -35,10 +41,17 @@ scale, and any Lua error.
 3. Open **The Deed** and click **Checkpoint Now**. Expect a toast like
    `Journal saved: N chunks.` and a footer reading `Journal: N chunks · saved 0s ago`.
 4. `/reload` once; state should survive the soft reload.
-5. Quit the client completely, restart it, and log back in.
-6. Within a few seconds the chat should print
-   `Progress restored from the macro journal (...)`. Verify credits, stock, tier,
-   sales, campaign payments, museum, and Marta state.
+5. Quit the client completely, restart it, and log back in. Chat prints
+   `Loading your saved shop…`, the header reads **loading saved shop**, and within
+   about half a minute the journal loads on its own. Expect
+   `Progress restored from the macro journal (...)` — not `Your stall is open.` — and
+   then `Welcome back · … gc · … waiting · … stock.` with the restored numbers, plus a
+   clean header. Verify credits, stock, tier, sales, campaign payments, museum, and
+   Marta state. `/gps journal` should say `loaded this session (login)`.
+6. Repeat the cold restart with **Settings → Auto-load** off: nothing is read, chat
+   prints `Saved shop not loaded.`, the header reads **load progress**, and **Save
+   Now** refuses to write. Then open **Settings → Backup & Restore → Load saved**,
+   press it twice, and expect `Saved run loaded.` on the button row.
 
 Expected, not bugs: the ledger and live customer queue are intentionally omitted, very
 large stock can be trimmed (the footer says `inventory trimmed`), and the next customer

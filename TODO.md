@@ -1,5 +1,44 @@
 # TODO
 
+## Must do in-game for the bounded login load and staged saves (1.7.9)
+
+The 1.7.9 suite is 59 tests (the 55 from 1.7.8 plus the load gate, the staged-save
+ordering and the bounded login load). None of it has run in World of Warcraft; this
+block is the release gate for the load and save changes.
+
+- [ ] Fresh login with a saved macro journal: the header reads **loading saved shop**,
+      then the run loads on its own within about half a minute and the header moves to
+      `save pending`. Confirm credits, stock, tier, sales and the campaign match the
+      saved state, and that the macro list holds one generation.
+- [ ] `/gps journal` after that login reports `loaded this session (login)`.
+- [ ] Log in with no saved journal: the bounded reads must pass quietly, the header
+      ends on `save pending`, and chat does not claim a save was recovered.
+- [ ] Turn **Settings → Auto-load** off and relog with a saved journal: nothing is read,
+      the header stays **load progress**, chat prints `Saved shop not loaded.`, and
+      **Save Now** refuses to write. Confirm the macro list still holds the save.
+- [ ] With auto-load still off, press **Load saved** once; the label becomes
+      **Confirm load**. Click again and confirm the run loads, the badge clears, and
+      saving resumes. A press on a genuinely fresh install answers
+      `No saved run was found`.
+- [ ] `/reload` and relog twice with auto-load on: the saved run comes back each time
+      and no `save error` should appear.
+- [ ] Press **Reset all progress** twice: saving must turn on and the header must go
+      `save pending` → `saved … ago` with one fresh generation.
+- [ ] Break the journal on purpose (rename one `GPSA`/`GPSB` macro or edit a chunk in
+      the macro UI), then relog: the load must stop within four reads, report the
+      error, and let the next save replace the bad generation.
+- [ ] Fill the stockroom to the 12-chunk limit and let an autosave run with the shop
+      window closed: no visible freeze while it writes, the commit header lands last,
+      and the previous generation disappears afterwards. `/gps journal` reports one
+      generation.
+- [ ] Watch `/gps profile` across a save: the journal time must stay small per slice
+      instead of one multi-hundred-millisecond batch.
+- [ ] Start a save with the shop window open and a customer at the counter: nothing
+      writes, and the save lands once both are clear.
+- [ ] Mid-save, click **Save Now**: it must complete rather than report a half-written
+      save. Then close the client and confirm the run restores.
+- [ ] After a load, `/gps verify` reports matching credits, tier, sales and served.
+
 ## Must do in-game before calling 1.7.5 final
 
 The 1.7.5 mock suite has 53 tests (50 through 1.7.2, plus three save-path
