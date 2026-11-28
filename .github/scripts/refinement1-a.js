@@ -1,4 +1,5 @@
 // Refinement iteration 1, part A: gameplay data, shop, customers, encounters, schema.
+// Re-pushed once to trigger the delivery job after the workflow YAML fix.
 const fs = require('fs');
 
 function edit(path, pairs) {
