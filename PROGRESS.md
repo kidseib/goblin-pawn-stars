@@ -519,6 +519,92 @@ and tier 3 to 116 min, at the cost of the second note sliding to 145 min
 because the policy invests in the tier first. Tier 4 (32,000) stays above the
 final note and remains post-campaign content; tier 5 is endless mode only.
 
+### Iteration 5 — a patron worth having
+
+Iteration 4 built the order loop and left three things on the table: the order was only
+visible inside the Customers tab, its card was never checked at a non-default UI scale,
+and "patron" was a 2% offer lift. This pass closes all three, and the audit turned up a
+save bug underneath them.
+
+| Knob | Before | After | Why |
+| --- | --- | --- | --- |
+| patron budget | 2.6x tier | 3.2x tier | a relationship should buy bigger errands, not just a better price |
+| patron deadline | 2 days | 3 days | they trust the shop with the search; still bounded by the day clock |
+| patron premium | 1.35x market | 1.50x market | pays for the shelf space a patron order occupies, still inside the named budget |
+| patron reputation | +8 | +12 | the relationship is the reward; reputation is what the shop spends |
+| patron goodwill | +1 visit | +2 visits | a patron delivery counts double toward the next loyalty tier |
+| patron offer lift | 1.02 | 1.04 | small, permanent, applies to everything they buy |
+| patron arrival weight | 1.0 | 1.5 | the felt part: patrons come back more often than ordinary regulars |
+| patron ask rate | 0.50 | 0.75 | and they are likelier to have a request when they do |
+| promotion | history line | history line + toast + an immediate bigger order | the milestone hands the player something to do |
+
+Design decisions:
+
+- **The promotion places an order right away.** Without it, patron status could only be
+  felt on the *next* order cycle, which in a 30-minute session is nearly never. Handing
+  over a larger errand at the moment of promotion makes the milestone legible and gives
+  the premium somewhere to land. It is the same order system, capped the same way.
+- **Status is carried, not recomputed.** `patron` lives on the regular, `patron` also on
+  the order (so a deadline stays generous even if the flag changes), and both survive the
+  normalize rebuild. It is a boolean, not a new table.
+- **Awareness is one chip in the title bar, not a new surface.** The title bar is the only
+  strip that is on screen whichever tab is open, it already carries the shop-day bar and
+  the save health, and the chip is styled from the same palette. It names the shelf and
+  the days left, escalates to red on the last day, and carries a real tooltip; clicking it
+  is the existing `ShowTab("customers")` path. No new timers: the existing one-second
+  header refresh reads at most three orders.
+- **The card fails safe instead of growing.** The bar moved from a fixed offset to the
+  card's bottom edge; the text is a bounded box; `Widgets.FitLines` keeps the longest run
+  of lines from the end that fits the measured height, so the order line outranks the
+  daily buyer line at large fonts. `GetStringHeight` is used when the client has it and a
+  line-count estimate when it does not, so the mock and older clients behave predictably.
+- **Fixed while auditing:** `Persist.normalize` rebuilt every regular from a fixed field
+  list, which silently dropped `patron`, `fulfilled` and `souredDay` on every load. That
+  is why patron status would not have survived a relog, and it also meant iteration 4's
+  save test was passing without covering it. All three are now carried and clamped.
+
+Balance measurements (six seeds x 30 simulated minutes, same policy in every mode):
+
+| Mode | Orders placed / filled / lapsed | Order revenue | Gross earned | Order share | Reputation | Patrons |
+| --- | --- | --- | --- | --- | --- | --- |
+| on (sources the shelf) | 4.0 / 3.3 / 0.0 | 599 gc | 3,561 gc | 16.8% | 183 | 0.67 |
+| off (feature disabled) | 0 / 0 / 0 | 0 | 2,373 gc | 0% | 142 | 0 |
+| ignore (never sources) | 1.5 / 0.0 / 0.5 | 0 | 3,021 gc | 0% | 151 | 0 |
+| on, patron rewards disabled | 4.0 / 3.3 / 0.0 | 593 gc | 3,653 gc | 16.2% | 178 | 0.67 |
+
+The loop pays for attention and not for existing: sourcing orders beats ignoring them by
+about 18% gross and 32 reputation over half an hour, while ignoring still leaves a working
+shop. Order revenue is now ~17% of gross because the promotion order and patron budgets are
+bigger — that is the intended shape, one premium sale in five rather than in nine. Patron
+status itself adds a small measurable slice in a 30-minute window (+5 reputation, more
+deliveries) and a much larger one in play, because the patron's bigger errand is already
+open when the session continues. The `on`/`off` gap (3,561 vs 2,373) is larger than the
+order share because order arrivals also displace plain walk-ins with regulars, who pay the
+loyalty premium — the same effect iteration 3 introduced, amplified by a cast that now has
+something to come back for.
+
+Progression checks (same builds):
+
+- `sim_30min`: **1,222 gc, tier 2, 40 sales, reputation 166**, regulars 3, orders 2 placed /
+  1 filled / 0 lapsed, order sales 247 gc, 18,540 export characters / 2,759 compact.
+- `sim_campaign --hours 4 --seeds 4`: every milestone on **4/4 seeds** — first note 57:38,
+  second 114:04, final 180:19, tier 2 37:34, tier 3 88:19, museum 110:52, Marta 57:44.
+  No seed starves and no seed finishes early.
+
+Known issues from this pass:
+
+- **Nothing here was seen in the live client.** The chip lives in the title bar next to the
+  `?` button and the card layout is proven by anchors and measured text heights in the
+  mock, but no font, texture or frame has been looked at in game. A large font is the
+  specific case to try first.
+- `GetStringHeight` is the only real measurement path; on a client that lacks it the
+  fallback assumes one line per entry, so a *wrapped* long line could still overlap the
+  bar in that fallback. Names are elided to 16 characters to keep that from happening.
+- Patron arrival weight of 1.5 is tuned from the probe, not from a long session. If three
+  patrons exist, the shop becomes noticeably patron-heavy; the 0.30 ordinary ceiling is
+  unchanged, so strangers still arrive.
+- The patron greeting lines are new prose and unread in game.
+
 ### Iteration 2 — customers who read the room
 
 Iteration 1 fixed what the shop *rewarded*. This pass fixed what it *said*. Every
@@ -646,7 +732,8 @@ Known issues from this pass:
   want `orderPay` closer to 1.25.
 - The queue row, the counter meta and the wanted panel all gained text. They fit at 100%
   UI scale in the mock (`WANTED TODAY` now carries two lines above its bar), but a large
-  font or a small UI scale has not been checked.
+  font or a small UI scale has not been checked. *Addressed in iteration 5 (bottom-anchored
+  bar, bounded text box, `Widgets.FitLines`); still unseen in game.*
 - The order greeting and acceptance pools are new prose; nobody has read them on a live
   client.
 - The `ignore` probe buys no wanted shelf at all, which is a harsher player than reality;

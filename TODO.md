@@ -39,25 +39,43 @@
       average 3.2 placed and 2.8 delivered per 30 minutes, order revenue is ~11% of
       gross, and ignoring them shows up as lapses and lost reputation.
 
+### Iteration 5 — finishing the order loop
+
+- [x] **Order awareness outside the Customers tab.** One chip in the shop title bar names
+      the shelf and the days left, turns red on the last day, has a full tooltip and opens
+      the Customers tab. Same styling as the rest of the status strip, no new window.
+- [x] **`WANTED TODAY` survives non-100% scale and large fonts.** Bar anchored to the card
+      bottom, bounded text box, pure `Widgets.FitLines` decision that drops the daily
+      buyer line before the order line, and names elided past 16 characters.
+- [x] **Patron rewards with teeth.** Bigger budget (3.2x tier), +1 shop day, 1.5x market
+      value on their order, 12 reputation, two goodwill visits, 4% standing offer lift,
+      1.5x arrival weight, 75% ask rate, an order handed over at promotion, patron-only
+      greetings and a visible `Patron` badge.
+- [x] **Fixed a real save bug found while doing it:** the regulars rebuild in
+      `Persist.normalize` dropped `patron`, `fulfilled` and `souredDay`, so patron status
+      did not survive a reload.
+- [x] Three new headless tests (83 total), new UI smoke assertions, a six-seed
+      on/off/ignored/patron-disabled probe and both sims re-run (numbers in PROGRESS).
+
 ### Next up (planned order)
 
-Honest read after this pass: text is no longer the weak spot, so the biggest remaining
-gap is *shape*. The shop still has one screen of decisions per customer, the tabs are
-visually even (nothing leads the eye), and reputation buys perks but not relationships.
+Honest read after this pass: the order loop is complete and visible from every tab, and
+patron status is a real upgrade. What is left is mostly *presentation depth*: the shop's
+typography is still even everywhere, long-term relationship building has no counter, and
+the Customers tab is the only place the cast exists as people.
 
 - [ ] **UI pass on typography and spacing.** Audit every tab against a single scale for
       caption/value/label text, tighten the header, and give the negotiation window a
       clearer hierarchy between offer, odds and actions. Weakest area overall now.
-- [ ] **Make the order board visible when nobody is in the shop.** Requests currently
-      surface only in the Customers tab. A one-line ticker on the Dashboard header, or a
-      badge on the Customers tab button, would tell the player an order is about to go
-      cold while they are busy elsewhere.
-- [ ] **Patron rewards with teeth.** Patron status is a 2% offer lift; it should also
-      change what the shop can do — a patron who refers a new face, or one who will hold
-      stock for *you* for a day.
-- [ ] **Order history.** A delivered order leaves a history line and nothing else. A
-      small "regulars served" counter in the Deed/Campaign tab would make long-term
-      relationship building legible.
+- [ ] **Order and regulars history.** A delivered order leaves a history line and nothing
+      else. A small "regulars served / orders filled" counter in the Deed tab would make
+      long-term relationship building legible beyond the three remembered faces.
+- [ ] **A patron's standing request.** Patrons still order one shelf at a time. A patron
+      who keeps a permanent want ("always buying gems, top price") would give the shop a
+      passive, readable demand line and something to shop around.
+- [ ] **Encounter variety around the cast.** Events are still shop-wide. A regular-specific
+      event (a rival tries to poach a patron, a patron asks for a favour) would tie the
+      encounter system to the relationship system.
 - [ ] **Valuation depth.** `Market.Value` still produces one number per item; a piece's
       story (provenance, a collector's specific want) would give the haggling something
       to be *about* beyond a price band.

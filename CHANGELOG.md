@@ -51,8 +51,43 @@ below is released yet.
   haggling round, **Legendary** (800) +5% on every offer. Perks are cumulative, and the
   Dashboard reputation tile lists all four, unlocked or not, when you hover it.
 
+### Added
+
+- **Patron status is a relationship now, not a footnote.** Two delivered orders
+  still make a regular a patron, but what that buys has teeth: their orders carry a
+  23% larger implied budget (3.2x the tier budget instead of 2.6x), one extra shop day
+  to fill them, and they pay 1.5x live market value for the shelf they asked for
+  instead of 1.35x. Delivering to one is worth 12 reputation instead of 8 and two
+  remembered visits instead of one, and their standing offer lift went from 2% to 4%.
+  The part a player feels first is the door: a patron takes half again the arrival
+  weight of an ordinary regular and asks for something 75% of the time instead of 50%,
+  and the moment they are promoted they hand over a bigger order, so the milestone
+  immediately becomes something to do. Patrons also greet the shop in their own voice —
+  nine archetypes x 2 new lines — and read as `Patron order` in the wanted panel and as
+  a gold `Patron` badge in the queue. Still bounded: one order per regular, three open
+  at once, every credit from a completed sale.
+- **Special-order awareness outside the Customers tab.** A single chip in the shop's
+  title bar names the shelf and the days left, turns red on the last day, carries a
+  tooltip with who wants what for how much, and opens the Customers tab when clicked.
+  It is the one strip that is always on screen, so stocking, buying wholesale or
+  watching the day clock no longer hides a pending deadline. Hidden when nothing is
+  open, sized to its own text, refreshed by the existing header update.
+
 ### Fixed
 
+- **Patron status, deliveries and the sulk day were being wiped on every reload.** The
+  `Persist.normalize` rebuild of `db.shop.regulars` kept only identity and visits, so a
+  patron came back a stranger, finished deliveries reset to zero and a soured regular
+  forgot their cooling-off day — which also silently undid part of iteration 4's save
+  test. The rebuild now carries `patron`, `fulfilled` (clamped 0-99) and `souredDay`
+  additively, and `db.shop.orders` keeps each order's `patron` flag. A save that predates
+  the fields gains none of them.
+- **The `WANTED TODAY` card no longer pushes its own bar out at large fonts.** The bar
+  is anchored to the card's bottom edge instead of at a fixed offset from the top, the
+  text is a bounded box, and when the two lines do not fit at the current font the daily
+  buyer line is dropped first (the order line always survives), with long regular names
+  elided. `Widgets.FitLines` is the pure decision, so the behaviour is tested at normal,
+  large and impossible font sizes. Appearance at 100% scale is unchanged.
 - **The negotiation dialogue no longer jumps or slices words.** The window rewrote its
   font string every second, which re-wrapped the same sentence and could clip a long line
   mid-word; it is now written only when the text actually changes, wraps to at most three
@@ -72,6 +107,13 @@ below is released yet.
 
 ### Verified
 
+- 83 headless tests (three new for this pass: patron status and order history survive a
+  reload, a patron's order is bigger/longer/better paid with the premium reaching the
+  hidden ceiling, and the order card fits its own card at any font size), `npm run check`
+  at exit 0 (**64 files, 20,523 lines**), UI smoke green (including new assertions that
+  the title-bar chip names the shelf and escalates on the last day, and that the card's
+  text box clears its bottom-anchored bar), and a six-seed on/off/ignored/patron-disabled
+  probe plus both sims. **Not run in the live client.**
 - 80 headless tests (five new for this pass: special orders only come from proven
   regulars, a delivered order pays over market value and grows the relationship, two
   deliveries make a patron, a lapsed order costs a little goodwill and nothing
