@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/version-1.7.9-c9a24a?style=flat-square" alt="Version 1.7.9">
   <img src="https://img.shields.io/badge/interface-16001-3f7d4e?style=flat-square" alt="Interface 16001">
   <img src="https://img.shields.io/badge/Lua-5.1-2c2d72?style=flat-square&logo=lua&logoColor=white" alt="Lua 5.1">
-  <img src="https://img.shields.io/badge/tests-59%2F59-3f7d4e?style=flat-square" alt="59 of 59 tests passing">
+  <img src="https://img.shields.io/badge/tests-63%2F63-3f7d4e?style=flat-square" alt="63 of 63 tests passing">
   <img src="https://img.shields.io/badge/dependencies-none-6b4f2a?style=flat-square" alt="No runtime dependencies">
   <img src="https://img.shields.io/badge/license-MIT-3f7d4e?style=flat-square" alt="MIT License">
 </p>
@@ -38,7 +38,7 @@
 </p>
 
 > **Status — 1.7.9.** The addon is feature-complete and passes the
-> 59-test headless suite plus the UI smoke pass. Live-client validation is still in
+> 63-test headless suite plus the UI smoke pass. Live-client validation is still in
 > progress: see [TESTING.md](TESTING.md) for the in-game checklist and
 > [Testing status](#testing-status) for what is and is not verified.
 >
@@ -447,7 +447,7 @@ node tools/sim_30min.js  # optional: 30-minute progression probe + 10-minute idl
 ```
 
 The headless harness loads all 61 addon files in TOC order with mocked WoW APIs,
-runs the 59-test diagnostics suite (economy, negotiation invariants, wholesaler, salesperson auto-sales,
+runs the 63-test diagnostics suite (economy, negotiation invariants, wholesaler, salesperson auto-sales,
 throughput, encounters, serialization, achievements, expenses, macro-journal
 round-trip/corruption/immediate rebind/deferred franchise commits, the three payments,
 museum donations, Marta and franchise),
@@ -465,8 +465,8 @@ ticks. See `PROGRESS.md` for exactly what was and was not verified.
 
 ## Testing status
 
-* Lua 5.1 syntax check: **passing** (61 files, 17,498 lines).
-* Headless diagnostics suite: **59/59 passing** (the exact count is printed by
+* Lua 5.1 syntax check: **passing** (61 files, 17,839 lines).
+* Headless diagnostics suite: **63/63 passing** (the exact count is printed by
   `npm test`).
 * UI smoke (all tabs, splash modes, guided tour, goal card, options panel, negotiation,
   events, wholesaler window, slash commands) and a simulated hour of play: **passing

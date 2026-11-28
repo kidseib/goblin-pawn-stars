@@ -1029,6 +1029,222 @@ function D.Run()
     end)
 
     -----------------------------------------------------------------------
+    -- These four tests fill the client macro list on purpose. Each one cleans up
+    -- through pcall so a failure cannot leave the list full and cap the tests
+    -- that follow, which would hide the real cause behind five cascade failures.
+    test("a save at the macro cap rewrites the committed generation", function()
+        if type(__clearMacros) ~= "function" or type(__setMacroCap) ~= "function" then return end
+        __clearMacros()
+        __setMacroCap(18)
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+
+        local function journalMacros()
+            local count = 0
+            for _, macro in pairs(MACRO_STORE) do
+                if type(macro.name) == "string" and macro.name:match("^GPS[ABJ]%d%d$") then
+                    count = count + 1
+                end
+            end
+            return count
+        end
+
+        local ok, err = pcall(function()
+            local db = ns.DB.Scratch()
+            db.settings.macroJournal = true
+            db.credits = 700
+            db.tier = 2
+            db.stats.sales = 4
+            ns.db = db
+            ns.Journal.TryLoad()
+            expect(ns.Journal.SaveNow(), "seed save failed: " .. tostring(ns.Journal.status.error))
+            local chunks = ns.Journal.status.chunks
+            expect(chunks > 1, "the test needs a multi-chunk save")
+
+            -- A player whose macro list is already full: every slot the journal
+            -- does not own is taken, so a new chunk name cannot be created.
+            for index = 1, 18 - chunks do
+                CreateMacro("PLAYERSLOT" .. index, 134400, "/say goblin " .. index)
+            end
+            expectEqual(ns.Compat.MacroCount(), 18, "the macro list is not at its cap")
+
+            db.credits = 4242
+            db.stats.sales = 11
+            expect(ns.Journal.SaveNow(), "a save at the macro cap failed: " ..
+                tostring(ns.Journal.status.error))
+            expect(ns.Journal.status.error == nil, "a save at the macro cap reported an error")
+            expect(journalMacros() <= chunks,
+                "a save at the macro cap spent slots it did not have: " .. journalMacros())
+
+            local loaded = ns.DB.Scratch()
+            loaded.settings.macroJournal = true
+            ns.db = loaded
+            expect(ns.Journal.TryLoad(), "the save made at the macro cap did not load: " ..
+                tostring(ns.Journal.status.error))
+            expectEqual(ns.DB.Get().credits, 4242, "a save at the macro cap lost credits")
+            expectEqual(ns.DB.Get().stats.sales, 11, "a save at the macro cap lost sales")
+        end)
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __setMacroCap(36)
+        __clearMacros()
+        if not ok then error(err, 0) end
+    end)
+
+    -----------------------------------------------------------------------
+    test("an interrupted generation on a full list does not block the next save", function()
+        if type(__clearMacros) ~= "function" or type(__setMacroCap) ~= "function" then return end
+        __clearMacros()
+        __setMacroCap(24)
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+
+        local function journalMacros()
+            local count = 0
+            for _, macro in pairs(MACRO_STORE) do
+                if type(macro.name) == "string" and macro.name:match("^GPS[ABJ]%d%d$") then
+                    count = count + 1
+                end
+            end
+            return count
+        end
+
+        local ok, err = pcall(function()
+            local db = ns.DB.Scratch()
+            db.settings.macroJournal = true
+            db.credits = 500
+            db.tier = 1
+            ns.db = db
+            ns.Journal.TryLoad()
+            expect(ns.Journal.SaveNow(), "seed save failed: " .. tostring(ns.Journal.status.error))
+            local chunks = ns.Journal.status.chunks
+            local committed = ns.Journal.status.generation
+            local other = committed == "A" and "B" or "A"
+
+            -- Exactly what an interrupted save leaves behind: the pending header
+            -- and one payload chunk of the other generation, uncommitted.
+            CreateMacro(string.format("GPS%s01", other), 134400,
+                string.format("--GPSJ2:%s:1:01:%02d:1234:p:AAAA", other, chunks))
+            CreateMacro(string.format("GPS%s02", other), 134400,
+                string.format("--GPSJ2:%s:1:02:%02d:1234:c:BBBB", other, chunks))
+            for index = 1, 24 - chunks - 2 do
+                CreateMacro("PLAYERSLOT" .. index, 134400, "/say hi " .. index)
+            end
+            expectEqual(ns.Compat.MacroCount(), 24, "the macro list is not at its cap")
+
+            db.credits = 888
+            expect(ns.Journal.SaveNow(), "a save after a partial write failed: " ..
+                tostring(ns.Journal.status.error))
+            expect(journalMacros() <= chunks,
+                "the partial generation was left on the list: " .. journalMacros())
+
+            local loaded = ns.DB.Scratch()
+            loaded.settings.macroJournal = true
+            ns.db = loaded
+            expect(ns.Journal.TryLoad(), "the recovered save did not load: " ..
+                tostring(ns.Journal.status.error))
+            expectEqual(ns.DB.Get().credits, 888, "the recovered save did not restore progress")
+        end)
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __setMacroCap(36)
+        __clearMacros()
+        if not ok then error(err, 0) end
+    end)
+
+    -----------------------------------------------------------------------
+    test("a player macro on a journal name does not stop every save", function()
+        if type(__clearMacros) ~= "function" or type(__setMacroCap) ~= "function" then return end
+        __clearMacros()
+        __setMacroCap(36)
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+
+        local ok, err = pcall(function()
+            local db = ns.DB.Scratch()
+            db.settings.macroJournal = true
+            db.credits = 600
+            db.tier = 3
+            ns.db = db
+            ns.Journal.TryLoad()
+            expect(ns.Journal.SaveNow(), "seed save failed: " .. tostring(ns.Journal.status.error))
+            local committed = ns.Journal.status.generation
+            local other = committed == "A" and "B" or "A"
+
+            -- The player happens to own a macro called GPS<other>01. That name is
+            -- not the journal's to touch, so the save has to use the generation it
+            -- already owns instead of giving up for the character's life.
+            CreateMacro(string.format("GPS%s01", other), 134400, "/say this one is mine")
+            db.credits = 1350
+            expect(ns.Journal.SaveNow(), "a name collision blocked the save: " ..
+                tostring(ns.Journal.status.error))
+            local owned = ns.Compat.MacroIndexByName(string.format("GPS%s01", other))
+            local _, ownedBody = ns.Compat.MacroInfo(owned)
+            expectEqual(ownedBody, "/say this one is mine", "the save overwrote a player macro")
+
+            local loaded = ns.DB.Scratch()
+            loaded.settings.macroJournal = true
+            ns.db = loaded
+            expect(ns.Journal.TryLoad(), "the save after a collision did not load: " ..
+                tostring(ns.Journal.status.error))
+            expectEqual(ns.DB.Get().credits, 1350, "the save after a collision lost progress")
+        end)
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __setMacroCap(36)
+        __clearMacros()
+        if not ok then error(err, 0) end
+    end)
+
+    -----------------------------------------------------------------------
+    test("a snapshot too large for the journal still saves the economy", function()
+        if type(__clearMacros) ~= "function" or type(__setMacroCap) ~= "function" then return end
+        __clearMacros()
+        __setMacroCap(36)
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+
+        local ok, err = pcall(function()
+            local db = ns.DB.Scratch()
+            db.settings.macroJournal = true
+            db.credits = 900
+            db.tier = 2
+            db.stats.sales = 6
+            ns.db = db
+            ns.Journal.TryLoad()
+            expect(ns.Journal.SaveNow(), "seed save failed: " .. tostring(ns.Journal.status.error))
+
+            -- A museum filled far past what twelve macro bodies can hold. The
+            -- stock is already dropped by the trim, so only the optional blocks
+            -- can give way.
+            for index = 1, 400 do
+                db.museum.donated["stress" .. index] = { name = "Stress Artifact Number " .. index }
+            end
+            db.credits = 2600
+            db.stats.sales = 19
+            expect(ns.Journal.SaveNow(), "an oversized snapshot failed to save: " ..
+                tostring(ns.Journal.status.error))
+
+            local loaded = ns.DB.Scratch()
+            loaded.settings.macroJournal = true
+            ns.db = loaded
+            expect(ns.Journal.TryLoad(), "the degraded save did not load: " ..
+                tostring(ns.Journal.status.error))
+            expectEqual(ns.DB.Get().credits, 2600, "the degraded save lost credits")
+            expectEqual(ns.DB.Get().stats.sales, 19, "the degraded save lost sales")
+        end)
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __setMacroCap(36)
+        __clearMacros()
+        if not ok then error(err, 0) end
+    end)
+
+    -----------------------------------------------------------------------
     test("journal still reads a save written before 1.6.4", function()
         if type(__clearMacros) ~= "function" or type(MACRO_STORE) ~= "table" then return end
         __clearMacros()

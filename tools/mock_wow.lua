@@ -203,10 +203,19 @@ function GetMacroIndexByName(name)
     return 0
 end
 
+-- The client refuses a new macro once the list is full. The cap is a global so a
+-- test can lower it and prove the journal copes with a list smaller than the
+-- 36-slot list the mock models by default.
+MACRO_CAP = 36
+
+function __setMacroCap(cap)
+    MACRO_CAP = tonumber(cap) or 36
+end
+
 function CreateMacro(name, icon, body)
     local index = 1
     while MACRO_STORE[index] do index = index + 1 end
-    if index > 36 then return nil end
+    if index > MACRO_CAP then return nil end
     MACRO_STORE[index] = { name = name, icon = icon or 134400, body = body or "" }
     return index
 end

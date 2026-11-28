@@ -64,6 +64,7 @@ local auto = nil            -- { tries, nextAt } while a login load is pending
 local afterSettle = nil     -- one-shot listener for the first settled load
 local nextAttempt = 0
 local legacyScanned = false
+local dropPartial = nil     -- set below; abandons the half-written generation
 
 -- U.now() is whole seconds, so a save's duration is measured with GetTime.
 local function millis()
@@ -152,8 +153,12 @@ local function quietDetail(detail)
     return QUIET[detail] == true
 end
 
-local function abandonSave(detail)
+local function abandonSave(detail, job)
     saving = false
+    -- A half-written target generation must not be left on the list: its chunks
+    -- hold slots the next attempt needs, and on a full list that deadlock never
+    -- heals. The committed generation is never touched here.
+    if dropPartial then dropPartial(job) end
     J.status.attempts = (J.status.attempts or 0) + 1
     reportSaveFailure(detail)
     nextAttempt = U.now() + math.min(SAVE_THROTTLE, RETRY_DELAY * J.status.attempts)
@@ -348,6 +353,29 @@ local function trimSnapshot(snapshot, encoded)
         encoded = rebuilt(count)
     end
     return encoded, dropped > 0
+end
+
+-- Cuts the optional halves of a snapshot until its encoded form fits a name
+-- budget. Stock goes first because it is replaceable, then the museum list, then
+-- the cosmetic settings; credits, tier, stats and campaign are never dropped, so
+-- a shop that cannot fit still saves its economy and progression instead of
+-- reporting an error the player can never clear.
+local function shrinkSnapshot(snapshot, maxChunks)
+    local limit = math.max(1, maxChunks or MAX_CHUNKS) * CHUNK_SIZE
+    local encoded = encodedSnapshot(snapshot)
+    if #encoded <= limit then return encoded end
+    snapshot.inventory = {}
+    encoded = encodedSnapshot(snapshot)
+    if #encoded <= limit then return encoded end
+    if type(snapshot.museum) == "table" then
+        snapshot.museum.donated = {}
+        encoded = encodedSnapshot(snapshot)
+        if #encoded <= limit then return encoded end
+    end
+    snapshot.settings = nil
+    encoded = encodedSnapshot(snapshot)
+    if #encoded <= limit then return encoded end
+    return nil
 end
 
 ---------------------------------------------------------------------------
@@ -847,6 +875,48 @@ local function deleteLegacy()
     return removed
 end
 
+-- Hands the macro list back every journal name the committed save does not own:
+-- a generation left behind by an interrupted save and surplus chunks of a larger
+-- one. Only bodies that look like journal chunks are deleted, so a player macro
+-- is never touched. Returns how many names were freed.
+local function reclaimSlots(generation, keepCount)
+    local freed = 0
+    for _, candidate in ipairs(GENERATIONS) do
+        local first = 1
+        if candidate == generation then first = (keepCount or 0) + 1 end
+        for index = first, MAX_CHUNKS do
+            if deleteChunk(chunkName(candidate, index)) then freed = freed + 1 end
+        end
+    end
+    return freed
+end
+
+-- Deletes the chunks a failed save wrote into a generation that is not the
+-- committed one, so the next attempt starts from a list with room.
+function dropPartial(job)
+    if not job or not job.generation then return 0 end
+    if job.generation == J.status.generation then return 0 end
+    local freed = 0
+    for index = 1, MAX_CHUNKS do
+        if deleteChunk(chunkName(job.generation, index)) then freed = freed + 1 end
+    end
+    return freed
+end
+
+-- Reshapes a queued save so it fits the chunk names the committed generation
+-- already owns. Only reached when the list refuses a new name.
+local function fitPayload(job, maxChunks)
+    if not job.snapshot then return false end
+    local encoded = shrinkSnapshot(job.snapshot, maxChunks)
+    if not encoded then return false end
+    job.encoded = encoded
+    job.total = math.max(1, math.ceil(#encoded / CHUNK_SIZE))
+    job.stamp = checksum(encoded)
+    job.fingerprint = payloadFingerprint(encoded)
+    job.trimmed = true
+    return true
+end
+
 -- One chunk body for the new generation. The first chunk doubles as the
 -- header: "p" while the save is in flight, "c" after every payload chunk has
 -- been written and read back.
@@ -894,7 +964,11 @@ local function prepareJob(force)
     local trimmed
     encoded, trimmed = trimSnapshot(snapshot, encoded)
     if #encoded > BUDGET then
-        return nil, "journal is too large, even without stock"
+        -- The shop itself does not fit one generation: drop the optional blocks
+        -- and save the economy instead of refusing every save from now on.
+        local shrunk = shrinkSnapshot(snapshot, MAX_CHUNKS)
+        if not shrunk then return nil, "journal is too large, even without stock" end
+        encoded, trimmed = shrunk, true
     end
     local total = math.ceil(#encoded / CHUNK_SIZE)
     if total < 1 or total > MAX_CHUNKS then
@@ -912,6 +986,9 @@ local function prepareJob(force)
         total = total,
         fingerprint = fingerprint,
         trimmed = trimmed and true or false,
+        -- Kept for the refused-write path below: a save that cannot create a
+        -- name re-encodes this snapshot to fit the names it already owns.
+        snapshot = snapshot,
     }
 end
 
@@ -996,22 +1073,35 @@ local function stepJob(job)
         if deleteLegacy() > 0 then return true, false end
     end
 
-    if kind == "create" and current.previous and not job.rewrote
-        and (ns.Compat.MacroCount() or 0) >= 36
-        and current.total <= (J.status.chunks or 0) then
-        -- Completely full list: rewrite the committed generation in place.
-        -- This gives up the fallback, but a save that lands beats a dead
-        -- journal, and the new payload cannot be larger than the old one. The
-        -- failed partial generation is removed first so its chunks cannot
-        -- linger on the list.
-        job.rewrote = true
-        local failed = current.generation
-        current.generation = current.previous
-        current.previous = nil
-        for index = 1, MAX_CHUNKS do deleteChunk(chunkName(failed, index)) end
-        job.phase = "write"
-        buildSteps(job)
-        return true, false
+    -- The list refused a name and freeing legacy chunks did not help. Rewrite the
+    -- generation that is already on the list instead: those names are the
+    -- journal's own, so no create is needed and a player's macro cannot collide
+    -- with them. The payload is cut down to the chunk count already there, so a
+    -- full list degrades to a smaller save instead of an error that never clears.
+    -- This gives up the fallback generation, but a save that lands beats a dead
+    -- journal.
+    if not job.rewrote and (kind == "create" or kind == "collision") then
+        local committed = J.status.generation
+        local have = tonumber(J.status.chunks) or 0
+        if committed and committed ~= current.generation and have >= 1
+            and fitPayload(job, have) then
+            job.rewrote = true
+            -- The half-written target can never be committed now; its names go
+            -- back to the list before the rewrite starts.
+            for index = 1, MAX_CHUNKS do deleteChunk(chunkName(current.generation, index)) end
+            current.generation = committed
+            current.previous = nil
+            job.phase = "write"
+            buildSteps(job)
+            return true, false
+        end
+    end
+
+    -- A first save into a full list has no committed copy to fall back on, so the
+    -- only thing it may spend is the journal's own leftovers.
+    if kind == "create" and not job.reclaimed then
+        job.reclaimed = true
+        if reclaimSlots(J.status.generation, J.status.chunks) > 0 then return true, false end
     end
 
     return false, { detail = detail, kind = kind }
@@ -1069,11 +1159,11 @@ local function flushStaged()
     local called, ok, failure = pcall(advance, job, nil)
     if not called then
         saving = false
-        return abandonSave("the save errored: " .. tostring(ok))
+        return abandonSave("the save errored: " .. tostring(ok), job)
     end
     if ok ~= true then
         saving = false
-        return abandonSave(failure and failure.detail or "the staged save failed")
+        return abandonSave(failure and failure.detail or "the staged save failed", job)
     end
     return finishJob(job)
 end
@@ -1109,11 +1199,11 @@ function J.SaveNow(force)
     local called, ok, failure = pcall(advance, job, nil)
     saving = false
     if not called then
-        return abandonSave("the save errored: " .. tostring(ok))
+        return abandonSave("the save errored: " .. tostring(ok), job)
     end
     -- Never commit a generation the queue did not finish.
     if ok ~= true then
-        return abandonSave(failure and failure.detail or "the save did not finish")
+        return abandonSave(failure and failure.detail or "the save did not finish", job)
     end
     return finishJob(job)
 end
@@ -1151,11 +1241,11 @@ function J.Save()
     local called, ok, failure = pcall(advance, job, STEP_BUDGET_MS)
     if not called then
         staged = nil
-        return abandonSave("the save errored: " .. tostring(ok))
+        return abandonSave("the save errored: " .. tostring(ok), job)
     end
     if ok == false then
         staged = nil
-        return abandonSave(failure and failure.detail or "the save failed")
+        return abandonSave(failure and failure.detail or "the save failed", job)
     elseif ok == true then
         staged = nil
         return finishJob(job)
@@ -1175,11 +1265,11 @@ function J.Tick()
         local called, ok, failure = pcall(advance, job, STEP_BUDGET_MS)
         if not called then
             staged = nil
-            return abandonSave("the save errored: " .. tostring(ok))
+            return abandonSave("the save errored: " .. tostring(ok), job)
         end
         if ok == false then
             staged = nil
-            abandonSave(failure and failure.detail or "the save failed")
+            abandonSave(failure and failure.detail or "the save failed", job)
         elseif ok == true then
             staged = nil
             finishJob(job)

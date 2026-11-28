@@ -1,5 +1,38 @@
 # PROGRESS
 
+## Save path hardening — after v1.7.9
+
+Work on `main`. The player reported a `save error` in the header after a session that
+saved and relogged cleanly, so the write path was audited end to end and four ways it
+could dead-end were reproduced in the headless suite, then fixed:
+
+- **A full macro list at any cap.** The in-place fallback only ran when
+  `GetNumMacros()` reported **36** or more — a hardcoded guess at the client's limit. On
+  a list that refuses a create while reporting fewer (a smaller cap, or a full
+  *character* list, which is a separate limit from the account list), every save failed
+  with `could not create GPSB01 (macro slots may be full)` and never recovered: the
+  chunks the failed attempt had just written held the very slots the retry needed. The
+  fallback now triggers on the refusal itself rather than on a count, and an abandoned
+  save sweeps the generation it wrote.
+- **A name collision.** A player macro called `GPSB01` made every save fail with
+  `macro name collision on GPSB01` for the life of the character. A collision on the new
+  generation is now treated exactly like a full list: the save rewrites the generation
+  it already owns, whose names are provably the journal's, and the player's macro is
+  never touched.
+- **A payload too large for one generation.** `journal is too large, even without stock`
+  was terminal, so one oversized block (the museum list grows with play) stopped every
+  later save. The snapshot now sheds its optional blocks in a fixed order — stock, the
+  museum list, then cosmetic settings — and saves credits, tier, stats, campaign and
+  inventory essentials instead.
+- **A first save into a full list** had no committed copy to fall back on; it now
+  reclaims the journal's own leftovers (an interrupted generation, surplus chunks)
+  before giving up.
+
+The load/save split from `ca87258` stays: the header says `load error` or `save error`,
+never both. The suite is **63 tests**; each of the four new tests failed against the
+previous `Core/Journal.lua` with the exact messages above and passes now. No live client
+has run any of this.
+
 ## Current state — v1.7.9
 
 Phases 1–4 are implemented. Phase 5 (optional multiplayer) is deliberately not
@@ -17,7 +50,7 @@ from every failed attempt, which is what multiplied macro work until the client
 stalled. An autosave is a queue of single macro operations with an 8 ms budget per
 tick: one chunk per frame, cleanup only after the commit, and **Save Now**, logout,
 import and `/gps verify` flush a staged save synchronously. No gameplay or arrival
-timing changed. The headless suite is **59 tests**; UI smoke is green.
+timing changed. The headless suite is **63 tests**; UI smoke is green.
 
 **v1.7.8** was a presentation and responsiveness release: Settings has a one-click
 Performance mode, simultaneous arrivals aggregate on one card, the card pauses while
@@ -107,7 +140,7 @@ legacy `GPSJ` chunks) is queued the same way, one name per step, and only runs a
 the commit. `SaveNow`, logout, import and `/gps verify` flush a staged save
 synchronously, so a manual checkpoint never lands half-written. A journal that will
 not assemble settles the load so the next save can replace it, instead of leaving the
-session unable to write at all. The suite is **59 tests**. This work has not run in
+session unable to write at all. The suite is **63 tests**. This work has not run in
 the live client.
 
 ### v1.7.5 — five-minute, idle-only autosaves
@@ -194,14 +227,14 @@ Commands, run from the repository root:
 
 ```
 npm ci                     -> added 5 packages, exit 0
-npm run check              -> Lua 5.1 syntax OK: 61 files, 17,498 lines; TOC OK
-npm test                   -> 59 passed, 0 failed; UI smoke: all tabs and overlays
+npm run check              -> Lua 5.1 syntax OK: 61 files, 17,839 lines; TOC OK
+npm test                   -> 63 passed, 0 failed; UI smoke: all tabs and overlays
 node tools/sim_30min.js    -> FINAL 449 gc, tier 2, 40 sales; idle probe 17 auto-sales
 ```
 
 Those four commands were run inside a fresh `git clone` of `main` in a throwaway
 directory, not in the working tree, so the numbers above describe exactly what a
-clean checkout produces. The 1.7.9 journal tests are counted in the 59. Earlier
+clean checkout produces. The 1.7.9 journal tests are counted in the 63. Earlier
 release preps reported 58 files/15,696 lines (47 tests), 60 files/16,151 lines
 (50 tests) and 60 files/16,595 lines (53 tests); those numbers are historical and
 superseded.
@@ -323,7 +356,7 @@ The older unverified areas:
 ## In-game checklist (first pass)
 
 1. `/gps` opens the window; all ten tabs render without Lua errors; Esc closes it.
-2. `/gps test` prints 59 PASS lines in chat.
+2. `/gps test` prints 63 PASS lines in chat.
 3. Loot one item; it appears in Inventory. Re-looting does not duplicate stock.
 4. Make a sale, then open **The Deed** and pay the first note when affordable. Confirm
    1,500 credits leave the wallet and the museum/Marta unlock.

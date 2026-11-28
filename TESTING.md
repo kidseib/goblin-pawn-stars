@@ -11,8 +11,8 @@ scale, and any Lua error.
 ## What is proven, and what is not
 
 Proven, from a clean clone of `main` with `npm ci`, `npm run check`, `npm test` and
-`node tools/sim_30min.js` all exiting 0: the Lua 5.1 parse (61 files, 17,498 lines),
-the TOC, the **59-test headless suite** (including the four macro-journal tests), the
+`node tools/sim_30min.js` all exiting 0: the Lua 5.1 parse (61 files, 17,839 lines),
+the TOC, the **63-test headless suite** (including the four macro-journal tests), the
 UI smoke pass over every tab and overlay, and the scripted 30-minute plus 10-minute
 idle simulation. All of it runs in fengari against mocked WoW APIs.
 
@@ -28,7 +28,7 @@ keep saying so until someone reports back.
   The folder layout must be
   `Interface/AddOns/GoblinPawnStars/GoblinPawnStars.toc`.
 - `/gps version` should report **1.7.9** and interface **16001**.
-- `/gps test` should report **59 passed, 0 failed**. The macro-journal tests skip
+- `/gps test` should report **63 passed, 0 failed**. The macro-journal tests skip
   themselves in the live client so they never touch your real macros; the journal is
   tested for real in the cold-restart pass below.
 - Run `/console scriptErrors 1` before testing.
@@ -37,8 +37,10 @@ keep saying so until someone reports back.
 - The journal keeps up to 12 macros in one committed generation
   (`GPSA01`–`GPSA12` or `GPSB01`–`GPSB12`). A save briefly writes the other generation
   before retiring it, one macro per tick, so a full save can take a few seconds and
-  must never freeze the window. Leave macro slots free, and do not rename
-  or delete those macros while testing. `/gps reset` removes them. A save written by
+  must never freeze the window. The journal no longer needs free slots: when the macro
+  list refuses a new name it rewrites the generation it already owns and sheds stock,
+  then the museum list, to fit — the header stays clean and `/gps journal` shows
+  `trimmed`. Do not rename or delete the `GPSA`/`GPSB` macros while testing. `/gps reset` removes them. A save written by
   1.6.3 or earlier lives in `GPSJ01`–`GPSJ24`; it is read once and retired by the next
   save.
 - **Loading is automatic but bounded.** A login reads the macro list at most four
