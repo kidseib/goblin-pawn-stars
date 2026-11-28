@@ -2,6 +2,59 @@
 
 All notable changes to Goblin Pawn Stars. Format loosely follows Keep a Changelog.
 
+## [1.7.9] — 2026-11-27
+
+Loading the macro journal starts by itself after login again, but it is strictly
+bounded, and the autosave writes one macro at a time instead of a whole generation
+in one frame. Nothing in this pass changes gameplay, arrivals, stock or the economy.
+
+### Changed
+
+- **Loading is automatic but bounded.** A login arms one short load: at most four
+  reads of the macro list at 2, 5, 10 and 30 seconds, one counter, no chained
+  retries, and the last attempt always settles. While it runs the header reads
+  `loading saved shop` and no save is allowed, so a fresh session can never stamp
+  defaults over a run that has not been read. **Settings → Auto-load** turns it off,
+  and **Settings → Backup & Restore → Load saved** (press twice) stays as the
+  recovery path and the only way in when it is off. `/gps journal` says which path
+  loaded the run.
+
+### Fixed
+
+- A journal that would not assemble no longer starts a retry chain. Each failed read
+  used to schedule three more reads two, five and ten seconds later, and each of those
+  failed the same way, so a stuck journal multiplied macro reads until the client
+  stalled. A load is now a single read that reports its error and stops. A journal
+  that cannot be restored — an incomplete generation, an unreadable payload, bad
+  legacy chunks — settles the load, so the next save replaces it instead of leaving
+  the session with no save path at all. An empty macro list at login may be read
+  again, because the list can still be arriving, but never more than four times in
+  total.
+- The login summary no longer calls a returning player a new stall. It is printed
+  after the journal's first settled load instead of from the defaults that exist two
+  seconds before the saved run arrives, so a restored session says `Welcome back` with
+  its real credits, queue and stock.
+
+### Changed (save path)
+
+- The autosave no longer writes every chunk and deletes the retired generation in one
+  frame. A save is staged as a queue of single macro operations and the clock spends
+  at most **8 ms** a second on it, always performing one operation so it cannot stall.
+  The order is untouched: pending header first, every chunk read back, commit header
+  last, cleanup after. A save spread over several seconds reports the time it actually
+  spent working instead of the wall clock it spanned.
+
+### Tests
+
+- The suite is now **59 tests**. One covers an unloaded session refusing to write, the
+  manual load restoring the saved run and saving resuming; another proves an autosave
+  writes a single macro per tick, with the pending header first and the commit last; a
+  third proves a journal that cannot be assembled settles the load so saving can
+  replace it rather than staying blocked forever; a fourth proves the login load stops
+  at its read cap, settles on the last attempt, and does not arm when Auto-load is off.
+
+---
+
 ## [1.7.8] — 2026-11-27
 
 A presentation and responsiveness pass. Gameplay, arrival timing, stock and the
