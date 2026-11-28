@@ -4,10 +4,10 @@
 
 <p align="center">
   <a href="https://github.com/kidseib/goblin-pawn-stars/actions/workflows/ci.yml"><img src="https://github.com/kidseib/goblin-pawn-stars/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
-  <img src="https://img.shields.io/badge/version-1.7.8-c9a24a?style=flat-square" alt="Version 1.7.8">
+  <img src="https://img.shields.io/badge/version-1.7.9-c9a24a?style=flat-square" alt="Version 1.7.9">
   <img src="https://img.shields.io/badge/interface-16001-3f7d4e?style=flat-square" alt="Interface 16001">
   <img src="https://img.shields.io/badge/Lua-5.1-2c2d72?style=flat-square&logo=lua&logoColor=white" alt="Lua 5.1">
-  <img src="https://img.shields.io/badge/tests-55%2F55-3f7d4e?style=flat-square" alt="55 of 55 tests passing">
+  <img src="https://img.shields.io/badge/tests-59%2F59-3f7d4e?style=flat-square" alt="59 of 59 tests passing">
   <img src="https://img.shields.io/badge/dependencies-none-6b4f2a?style=flat-square" alt="No runtime dependencies">
   <img src="https://img.shields.io/badge/license-MIT-3f7d4e?style=flat-square" alt="MIT License">
 </p>
@@ -32,20 +32,22 @@
   <a href="#persistence-important-beta-note">Persistence</a> ·
   <a href="#compatibility-and-safety">Safety</a> ·
   <a href="#development">Development</a> ·
-  <a href="TESTING.md">Testing 1.7.8</a> ·
+  <a href="TESTING.md">Testing 1.7.9</a> ·
   <a href="#ai-disclosure">AI disclosure</a> ·
   <a href="#license">License</a>
 </p>
 
-> **Status — 1.7.8.** The addon is feature-complete and passes the
-> 55-test headless suite plus the UI smoke pass. Live-client validation is still in
+> **Status — 1.7.9.** The addon is feature-complete and passes the
+> 59-test headless suite plus the UI smoke pass. Live-client validation is still in
 > progress: see [TESTING.md](TESTING.md) for the in-game checklist and
 > [Testing status](#testing-status) for what is and is not verified.
 >
-> **1.7.8** adds a one-click **Performance mode**, groups simultaneous customers on
-> the arrival card, pauses its dismissal while hovered, adds a close control, and
-> extends `/gps profile` with rolling last/max timings. See the
-> [release notes](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.8)
+> **1.7.9** brings the saved-shop load back at login with a hard cap of four reads
+> and no retry chains, lets **Settings → Auto-load** turn it off, keeps **Settings →
+> Backup & Restore → Load saved** as the recovery path, and spreads every macro write
+> and delete across ticks so a save can never stall a frame. **1.7.8** added one-click **Performance mode**, arrival-card
+> aggregation and rolling `/gps profile` timings. See the
+> [release notes](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.9)
 > for the full patch notes.
 
 ---
@@ -90,7 +92,7 @@ customers are procedural, and no real item, bag slot or copper is ever touched.
 
 <p align="center">
   <a href="docs/screenshots/07-wholesaler.png"><img src="docs/screenshots/07-wholesaler.png" alt="Wholesaler window with three bulk lots priced in Goblin Credits" width="49%"></a>
-  <a href="docs/screenshots/08-settings.png"><img src="docs/screenshots/08-settings.png" alt="Settings tab with interface switches, backup tools and diagnostics" width="49%"></a>
+  <a href="docs/screenshots/08-settings.png"><img src="docs/screenshots/08-settings.png" alt="Settings tab with interface switches, auto-load, backup tools and diagnostics" width="49%"></a>
 </p>
 <p align="center"><sub><b>Wholesaler</b> — bulk lots bought with credits &nbsp;|&nbsp; <b>Settings</b> — interface, backup and diagnostics</sub></p>
 
@@ -103,8 +105,8 @@ customers are procedural, and no real item, bag slot or copper is ever touched.
 ## Install
 
 1. Download
-   [`GoblinPawnStars-1.7.8.zip`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.8/GoblinPawnStars-1.7.8.zip)
-   from the [v1.7.8 release](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.8),
+   [`GoblinPawnStars-1.7.9.zip`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.9/GoblinPawnStars-1.7.9.zip)
+   from the [v1.7.9 release](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.9),
    or build it with `npm run package`.
 2. Extract it so the folder layout is:
 
@@ -113,6 +115,10 @@ customers are procedural, and no real item, bag slot or copper is ever touched.
    ```
 
 3. Restart the client or type `/reload`, then `/gps` to open the shop.
+4. A saved shop loads by itself shortly after login (at most four reads, then it
+   settles). If you would rather load it by hand, turn **Settings → Auto-load** off
+   and use **Settings → Backup & Restore → Load saved** (press it twice). On a fresh
+   install the load finds nothing and saving begins from that moment.
 
 The addon declares `## Interface: 16001`, matching the Forever build documented by
 [forever-addon-kit](https://github.com/Thunderz96/forever-addon-kit).
@@ -125,18 +131,20 @@ Check it before extracting:
 
 ```powershell
 # Windows PowerShell
-Get-FileHash .\GoblinPawnStars-1.7.8.zip -Algorithm SHA256
+Get-FileHash .\GoblinPawnStars-1.7.9.zip -Algorithm SHA256
 ```
 
 ```bash
 # macOS / Linux
-shasum -a 256 GoblinPawnStars-1.7.8.zip
-# or: sha256sum GoblinPawnStars-1.7.8.zip
+shasum -a 256 GoblinPawnStars-1.7.9.zip
+# or: sha256sum GoblinPawnStars-1.7.9.zip
 ```
 
 Compare the result with the
-[`GoblinPawnStars-1.7.8.zip.sha256`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.8/GoblinPawnStars-1.7.8.zip.sha256)
-attached to the same release.
+[`GoblinPawnStars-1.7.9.zip.sha256`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.9/GoblinPawnStars-1.7.9.zip.sha256)
+attached to the same release. The local build of `GoblinPawnStars-1.7.9.zip` is
+3,335,096 bytes with SHA-256
+`4afff19964f94f182827001e94d25d5cfcb175c9308d725bf10616446fe81ba3`.
 
 ---
 
@@ -214,7 +222,7 @@ Ten tabs plus a movable negotiation window, a standalone wholesaler window and e
 | **Employees** | Six staff, hiring, promotion, wages and the salesperson's queue automation |
 | **Achievements** | 26 custom milestones with progress bars and fictional shop titles |
 | **Ledger** | Filterable transaction history and lifetime totals |
-| **Settings** | Performance mode, sound, minimap button, auto-collect, questing auto-sell, arrival pace, pause, window scale, backup/restore, diagnostics, reset |
+| **Settings** | Performance mode, sound, minimap button, auto-collect, questing auto-sell, arrival pace, pause, window scale, **Load saved**, backup/restore, rolling backups, diagnostics, reset |
 
 A standalone **Wholesaler** window (Dashboard → Wholesaler, or `/gps wholesale`) sells
 three rotating bulk lots for Goblin Credits. Each lot is one virtual stack; the price is
@@ -349,35 +357,47 @@ titles shown in the Achievements tab.
 ## Persistence (important beta note)
 
 The addon uses standard `## SavedVariables: GoblinPawnStarsDB`, saves on logout, and
-autosaves every 5 minutes of play.
+autosaves every 5 minutes of play while the shop window is closed and no customer is
+at the counter.
 
 **Known client issue:** on the current Forever beta, the client writes SavedVariables
 on exit but does not load them back at login (documented by forever-addon-kit, and
 independent of any addon). Blizzard may fix this. Until then, the addon has two paths:
 
-* **Automatic macro journal** — progress is checkpointed into alternating macro
-  generations (`GPSA01`–`GPSA12` and `GPSB01`–`GPSB12`, the same 24-macro footprint;
-  small shops need two or three per save). Each chunk is a short comment header plus
-  base64 data and a checksum. Every chunk is read back and compared as it is written,
-  and a generation only becomes current when its header is rewritten as committed at
-  the end, so an interrupted or rejected save always leaves the previous run intact.
-  Chunks are validated and reassembled at login. The snapshot keeps the shop, campaign, museum, Marta, prestige,
-  settings and achievements, drops every value that still matches its default, packs
-  stock as compact tuples, and deliberately omits the 250-entry ledger and the live
-  customer queue. If the compact snapshot is still too large, the lowest-value stock
-  is trimmed first; campaign state is never trimmed.
-  Macro bodies survive a cold client restart because they are server-side. The Deed
-  tab shows journal status and a **Checkpoint Now** button. If macro slots are full,
-  the UI reports it.
+* **Macro journal, loaded automatically but bounded** — progress is checkpointed into
+  alternating macro generations (`GPSA01`–`GPSA12` and `GPSB01`–`GPSB12`, the same
+  24-macro footprint; small shops need two or three per save). Each chunk is a short
+  comment header plus base64 data and a checksum. Login arms one short load: at most
+  four reads of the macro list, two to thirty seconds apart, one attempt counter and no
+  chained retries, and the last attempt always settles. While it runs the header reads
+  `loading saved shop` and every save is refused, so a fresh session can never stamp
+  defaults over a run it has not read. **Settings → Auto-load** turns the login load
+  off, and **Settings → Backup & Restore → Load saved** (press it twice) repeats one
+  read on demand. `/gps journal` reports which path loaded the run.
+  Each save is a queue of single macro operations with an 8 ms budget per tick, so a
+  save writes one chunk per frame instead of the whole generation at once. Every
+  chunk is read back and compared as it is written, and a generation only becomes
+  current when its header is rewritten as committed at the end, so an interrupted or
+  rejected save always leaves the previous run intact. Cleanup of the retired
+  generation happens after the commit, one macro per step. **Save Now**, logout,
+  import and `/gps verify` finish a staged save immediately. The snapshot keeps the
+  shop, campaign, museum, Marta, prestige, settings and achievements, drops every
+  value that still matches its default, packs stock as compact tuples, and
+  deliberately omits the 250-entry ledger and the live customer queue. If the compact
+  snapshot is still too large, the lowest-value stock is trimmed first; campaign
+  state is never trimmed. Macro bodies survive a cold client restart because they are
+  server-side. The Deed tab shows journal status and a **Checkpoint Now** button. If
+  macro slots are full, the UI reports it.
 * **Manual backup string** — **Settings → Backup & Restore → Export** generates a
   full, self-contained save string (no `loadstring`, custom codec). Paste it back and
   hit **Import** to restore everything, including history. This remains the
   belt-and-braces option and the only one that preserves the full ledger.
 
-No offline time is simulated. The journal restores the state at login; it does not
-simulate sales, arrivals or earnings while the client was closed. The code also works
-unchanged if/when the client restores SavedVariables normally; a newer SavedVariables
-snapshot wins over an older macro journal.
+No offline time is simulated. The journal restores whatever you load, whenever you
+load it; it does not simulate sales, arrivals or earnings while the client was closed.
+The code also works unchanged if/when the client restores SavedVariables normally; a
+newer SavedVariables snapshot wins over an older macro journal, and a normal
+SavedVariables load still needs no button.
 
 ---
 
@@ -427,7 +447,7 @@ node tools/sim_30min.js  # optional: 30-minute progression probe + 10-minute idl
 ```
 
 The headless harness loads all 61 addon files in TOC order with mocked WoW APIs,
-runs the 55-test diagnostics suite (economy, negotiation invariants, wholesaler, salesperson auto-sales,
+runs the 59-test diagnostics suite (economy, negotiation invariants, wholesaler, salesperson auto-sales,
 throughput, encounters, serialization, achievements, expenses, macro-journal
 round-trip/corruption/immediate rebind/deferred franchise commits, the three payments,
 museum donations, Marta and franchise),
@@ -445,19 +465,21 @@ ticks. See `PROGRESS.md` for exactly what was and was not verified.
 
 ## Testing status
 
-* Lua 5.1 syntax check: **passing** (61 files, 16,902 lines).
-* Headless diagnostics suite: **55/55 passing** (the exact count is printed by
+* Lua 5.1 syntax check: **passing** (61 files, 17,498 lines).
+* Headless diagnostics suite: **59/59 passing** (the exact count is printed by
   `npm test`).
 * UI smoke (all tabs, splash modes, guided tour, goal card, options panel, negotiation,
   events, wholesaler window, slash commands) and a simulated hour of play: **passing
   under mocks**.
-* 30-minute progression probe: reaches tier 2 around 15 minutes, hires the salesperson,
-  and shows 2.3–3.0 customers/min under the scripted policy. A 10-minute closed-window
-  probe records 33 auto-sales and an empty queue. These are simulation numbers, not a
-  live-client feel test.
+* 30-minute progression probe (a fixed scripted policy that never pays the cartel
+  debt): 40 sales and 2,472 gc earned, tier 2 reached at minute 25, 449 gc left and
+  1.0–1.3 customers/min. A 10-minute closed-window probe records 17 auto-sales, an
+  empty queue and 193 gc/min. These are simulation numbers, not a live-client feel
+  test.
 * **Not yet verified in the live client:** real item tooltips, texture appearance,
   font sizes and layout on different UI scales, the Deed tab and its five museum rows,
-  macro creation/edit permissions and journal restoration across a real cold restart,
+  macro creation/edit permissions, the bounded login load and the Settings load
+  button on a real macro list, and a staged save on a full stockroom,
   whether Marta appears at a sensible cadence, whether the payment amounts fit a real
   play session, the Wholesaler window and rate header, actual bag-based loot capture,
   SavedVariables behaviour once Blizzard fixes loading, and sound cue availability.
