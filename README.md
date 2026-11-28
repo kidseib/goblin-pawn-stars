@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/kidseib/goblin-pawn-stars/actions/workflows/ci.yml"><img src="https://github.com/kidseib/goblin-pawn-stars/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
-  <img src="https://img.shields.io/badge/version-1.7.9-c9a24a?style=flat-square" alt="Version 1.7.9">
+  <img src="https://img.shields.io/badge/version-1.7.10-c9a24a?style=flat-square" alt="Version 1.7.10">
   <img src="https://img.shields.io/badge/interface-16001-3f7d4e?style=flat-square" alt="Interface 16001">
   <img src="https://img.shields.io/badge/Lua-5.1-2c2d72?style=flat-square&logo=lua&logoColor=white" alt="Lua 5.1">
   <img src="https://img.shields.io/badge/tests-65%2F65-3f7d4e?style=flat-square" alt="65 of 65 tests passing">
@@ -32,22 +32,23 @@
   <a href="#persistence-important-beta-note">Persistence</a> ·
   <a href="#compatibility-and-safety">Safety</a> ·
   <a href="#development">Development</a> ·
-  <a href="TESTING.md">Testing 1.7.9</a> ·
+  <a href="TESTING.md">Testing 1.7.10</a> ·
   <a href="#ai-disclosure">AI disclosure</a> ·
   <a href="#license">License</a>
 </p>
 
-> **Status — 1.7.9.** The addon is feature-complete and passes the
+> **Status — 1.7.10.** The addon is feature-complete and passes the
 > 65-test headless suite plus the UI smoke pass. Live-client validation is still in
 > progress: see [TESTING.md](TESTING.md) for the in-game checklist and
 > [Testing status](#testing-status) for what is and is not verified.
 >
-> **1.7.9** brings the saved-shop load back at login with a hard cap of four reads
-> and no retry chains, lets **Settings → Auto-load** turn it off, keeps **Settings →
-> Backup & Restore → Load saved** as the recovery path, and spreads every macro write
-> and delete across ticks so a save can never stall a frame. **1.7.8** added one-click **Performance mode**, arrival-card
-> aggregation and rolling `/gps profile` timings. See the
-> [release notes](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.9)
+> **1.7.10** fixes the journal save failure reported after a few hours of play: the
+> payload now packs the stat and setting sections by position, so a played shop with a
+> full stockroom fits one macro generation again, and a save that meets a full macro
+> list, a name collision or an oversized payload degrades to a smaller save instead of
+> failing for good. **1.7.9** made the login load bounded and spread every macro write
+> across ticks. See the
+> [release notes](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.10)
 > for the full patch notes.
 
 ---
@@ -105,8 +106,8 @@ customers are procedural, and no real item, bag slot or copper is ever touched.
 ## Install
 
 1. Download
-   [`GoblinPawnStars-1.7.9.zip`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.9/GoblinPawnStars-1.7.9.zip)
-   from the [v1.7.9 release](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.9),
+   [`GoblinPawnStars-1.7.10.zip`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.10/GoblinPawnStars-1.7.10.zip)
+   from the [v1.7.10 release](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.10),
    or build it with `npm run package`.
 2. Extract it so the folder layout is:
 
@@ -131,20 +132,19 @@ Check it before extracting:
 
 ```powershell
 # Windows PowerShell
-Get-FileHash .\GoblinPawnStars-1.7.9.zip -Algorithm SHA256
+Get-FileHash .\GoblinPawnStars-1.7.10.zip -Algorithm SHA256
 ```
 
 ```bash
 # macOS / Linux
-shasum -a 256 GoblinPawnStars-1.7.9.zip
-# or: sha256sum GoblinPawnStars-1.7.9.zip
+shasum -a 256 GoblinPawnStars-1.7.10.zip
+# or: sha256sum GoblinPawnStars-1.7.10.zip
 ```
 
 Compare the result with the
-[`GoblinPawnStars-1.7.9.zip.sha256`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.9/GoblinPawnStars-1.7.9.zip.sha256)
-attached to the same release. The published `GoblinPawnStars-1.7.9.zip` is
-3,336,136 bytes with SHA-256
-`c116e68c371e6c6e1e221d02b69bbebc097e47ed3b3bd7a8aad8891e7bc2b006`.
+[`GoblinPawnStars-1.7.10.zip.sha256`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.10/GoblinPawnStars-1.7.10.zip.sha256)
+attached to the same release: it holds the exact size and SHA-256 of the published
+`GoblinPawnStars-1.7.10.zip`, and the release notes repeat them.
 
 ---
 

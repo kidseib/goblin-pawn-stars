@@ -2,6 +2,47 @@
 
 All notable changes to Goblin Pawn Stars. Format loosely follows Keep a Changelog.
 
+## [1.7.10] — 2026-11-28
+
+Saving to the macro journal works on a shop that has actually been played, and a save
+that hits a full macro list, a name collision or an oversized payload now lands instead
+of failing for the rest of the character's life. No gameplay, visual or economy changes.
+
+### Fixed
+
+- **The live `save error`.** `Could not save progress to the macro journal: journal is
+  too large, even without stock` refused every save on a small, early shop. One
+  generation holds 2,520 base64 characters and the trim could only shed stock, while a
+  played shop spent 91% of that budget on field names alone (2,292 characters with no
+  stock at all). The payload now packs the stat, settings and market-event sections as
+  ordered value arrays, so a played shop with a full stockroom fits: 2,580 -> 2,276
+  characters, with 244 to spare and nothing trimmed.
+- **A full macro list.** The in-place fallback only ran when `GetNumMacros()` reported
+  36 or more, a hardcoded guess at the client's limit. It now triggers on the refusal
+  itself, rewrites the generation the journal already owns, and never creates a new
+  name when none is free.
+- **A name collision.** A player macro called `GPSB01` used to fail every save with
+  `macro name collision on GPSB01`. A collision on the new generation is treated exactly
+  like a full list; the player's macro is never touched.
+- **An oversized payload.** `journal is too large, even without stock` was terminal.
+  The snapshot now sheds its optional halves in a fixed order - stock, the museum list,
+  then cosmetic settings - and still saves credits, tier, stats, campaign and inventory
+  essentials.
+- **A failed save left its chunks behind.** An abandoned save now sweeps the generation
+  it wrote, so a full list can always be retried.
+
+### Changed
+
+- The header and `/gps journal` say **`load error`** or **`save error`**, never both:
+  a refused read and a refused write need different fixes.
+- Journal payloads carry `format = 3`. Payloads written by earlier builds still load, and
+  missing positions keep their schema default.
+
+### Verified
+
+- 65 headless tests, `npm run check` and `npm test` at exit 0 from a clean clone. The new
+  tests each fail on the previous loader/encoder. **Not run in the live client.**
+
 ## [1.7.9] — 2026-11-27
 
 Loading the macro journal starts by itself after login again, but it is strictly

@@ -20,12 +20,13 @@ Goblin Pawn Stars turns the loot you already find into a shop with a big problem
 
 ***
 
-## WHAT'S NEW IN 1.7.9
+## WHAT'S NEW IN 1.7.10
 
-*   **Your save loads itself, four times at most.** A login reads the macro journal at most four times, two to thirty seconds apart, then settles — one counter, no retry chains. While it runs the header says `loading saved shop` and every save is refused, so a fresh session can never stamp a new shop over a run it has not read. **Settings → Auto-load** turns it off, and **Settings → Backup & Restore → Load saved** (press it twice) loads a run by hand at any time.
-*   **Saves no longer touch the frame.** A journal save is now written one macro at a time, a few milliseconds a second, instead of the whole generation in a single frame. A big stockroom used to hitch; now the save spreads invisibly over a few seconds. The commit header still goes last, so an interrupted save still leaves your previous run intact.
-*   **No more retry storm.** A journal that would not assemble used to schedule three more full macro reads from every failed attempt — enough macro work to stall the client. Every load is now one read that tells you what went wrong, and the login load stops after its fourth attempt.
-*   **Everything else stayed put.** No economy, arrival, stock or haggling changes.
+*   **The save error is fixed.** `Could not save progress to the macro journal: journal is too large, even without stock` could hit a small, early shop and then refused every later save. A played shop was spending 91% of the journal's 2,520-character budget on field names alone. The payload now packs the stats, settings and market events by position, so a shop with a full stockroom saves with room to spare — and nothing has to be thrown away to make it fit.
+*   **A save always finds a way to land.** If every macro slot is taken, if one of your own macros happens to sit on a journal name, or if the payload is larger than one generation, the save now rewrites the copy it already owns and keeps credits, tier, stats, campaign and stock instead of failing for the rest of the character's life.
+*   **Failing saves no longer leave debris.** A save that cannot finish clears the chunks it wrote, so the next attempt has room, and your own macros are never touched or overwritten.
+*   **Load and save errors are told apart.** The header and `/gps journal` now say `load error` or `save error`, so a refused read is no longer reported as a failed save.
+*   **Everything else stayed put.** No economy, arrival, stock, haggling or visual changes.
 
 ***
 
@@ -159,17 +160,17 @@ The first bag scan is a silent baseline. Click **Stock Bags Now** on the Dashboa
 
 ## VERIFY THE DOWNLOAD
 
-SHA-256 for **GoblinPawnStars-1.7.9.zip** (3,336,136 bytes):
+The exact size and SHA-256 of **GoblinPawnStars-1.7.10.zip** are in the file
+`GoblinPawnStars-1.7.10.zip.sha256`, attached to the release next to the ZIP, and
+repeated in its release notes.
 
-`c116e68c371e6c6e1e221d02b69bbebc097e47ed3b3bd7a8aad8891e7bc2b006`
-
-**VirusTotal:** the 1.4.0 build was scanned with no vendor detections. Newer scans are attached to their release notes when the repository's automated scan has its `VT_API_KEY` secret configured. Until then, compare the SHA-256 above with the [1.7.9 release notes](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.9), or read the source: the addon is plain Lua.
+**VirusTotal:** the 1.4.0 build was scanned with no vendor detections. Newer scans are attached to their release notes when the repository's automated scan has its `VT_API_KEY` secret configured. Until then, compare the SHA-256 with the [1.7.10 release notes](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.10), or read the source: the addon is plain Lua.
 
 The same hash is in the GitHub release notes.
 
 ***
 
-## STATUS — 1.7.9
+## STATUS — 1.7.10
 
 Feature-complete, with a **65-test headless simulation suite** and a full **UI smoke pass** behind it. The live-client visual and persistence checklist is still in progress — it now includes the bounded login load, loading a run from Settings, and a save on a full stockroom. Interface **16001** (World of Warcraft: Forever).
 
