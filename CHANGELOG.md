@@ -53,6 +53,16 @@ below is released yet.
 
 ### Added
 
+- **Double or nothing.** The Desperate Buyer can now bet their own purse on one flip. A
+  `Double or nothing` button appears beside the counteroffer (it states the odds and the
+  prize; the tooltip spells out both outcomes and the standing cost). Win and they pay the
+  most they would ever have paid; lose and they pay 80% of the offer on the table and the
+  shop's name takes a 2-point knock. The odds are honest and shaped so the wager is worth
+  about 94% of simply accepting — tempting, never the correct play — and the prize caps at
+  twice the safe offer so a big hidden ceiling cannot make it free money. One wager per
+  customer, remembered on the customer record the save already carries, so reloading cannot
+  reroll a lost flip. The sale itself is an ordinary completed sale: one virtual unit leaves
+  the shelves and the credits come from the customer.
 - **Counter streak — the clean deal.** Every counteroffer that lands now fills a small
   meter in the negotiation window's title bar (`STREAK 3/5`, gold from the first landed
   counter, then `CLEAN DEAL +10% next` when the perk arms). Five landed counters in a row arm one clean deal: the next

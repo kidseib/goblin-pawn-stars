@@ -863,6 +863,89 @@ is not part of `/gps export` by design, so a bug report about it will not reprod
 save. The perk's 10% was chosen against the existing reputation/regular-visit effects on
 paper, not against live player earnings; it is one constant in `Data/Streak.lua` to retune.
 
+### Iteration 7 — double or nothing
+
+Plan item #3. The negotiation loop had four verbs (accept, counter, reject, appraise); all
+of them are safe. This adds one that is genuinely risky, in the voice of the archetype most
+likely to offer it.
+
+**What it is.** The Desperate Buyer (`Data/Personalities.lua`, `gamble = true`) puts a flip
+on the table: win and they pay `min(ceiling, 2 x offer)`; lose and they pay `0.80 x offer`
+and lose 2 reputation. The button sits beside the counteroffer, its label states the odds
+and the prize, its tooltip states both outcomes, and the first time it appears the feedback
+line spells the whole deal out in one sentence. One wager per customer.
+
+**Why the math looks like that.** A gamble that beats accepting is not a decision, it is a
+formality, so the terms are solved backwards from a target: with
+`chance = (edge - lossShare) * offer / (prize - lossShare * offer)` the expected value is
+exactly `edge * offer` — 94% of taking the safe offer. Two guards keep it there when the
+gap between offer and ceiling is extreme:
+
+- the prize caps at twice the safe offer, so a customer whose hidden ceiling is far above
+their opening cannot hand out a lottery win;
+- the odds clamp to 12–55%, and clamping can only push the value further below the safe
+offer (0.938 x offer in the worst case), never above it.
+
+A property test sweeps 60 ceiling/offer pairs and asserts `EV <= offer` for every one, plus
+`EV > 0.90 x offer` so the wager stays tempting rather than pointless. The 6% edge is paid
+for by taking a real risk on a real sale, not by a hidden tax on the player's credits.
+
+**Why a reputation sting and not gold.** A lost flip already costs money — the difference
+between 0.8x and 1.0x the safe offer. Charging gold on top would make the wager a trap that
+can go negative, and the addon's economy rule is that credits only move through sales. Two
+reputation is recoverable, visible on the standing pips, and stings in a way the player can
+feel without being unable to play on.
+
+**Why once per customer, and why it survives a reload.** `customer.gambled` rides on the
+customer record that `shop.current` already persists. Rerolling a lost flip by reloading
+would have been the obvious exploit, so the flag is sanitized in the existing
+`cleanCustomer` pass (no schema change, no new shop field, old saves unaffected) and the
+negotiation window re-derives the terms from it. The `Persist` test exports and imports a
+used-up wager and asserts a reload offers nothing.
+
+**Why the button is free.** The window refreshes once a second while it is open and asks for
+the terms each time. A one-entry memo in `Modules/Negotiation.lua` keys on customer id,
+offer, ceiling and the wager flag, so repeats cost three comparisons and no allocation, and
+a raised offer or a new customer recomputes. No timer, no `OnUpdate`, no new frame work; the
+button is built once with the window and only its label changes when the terms change.
+
+**Measurement.** Temporary headless benchmark (deleted), previous head `7bb0b32` vs this
+build, four runs each under fengari:
+
+| path | previous head | iteration 7 |
+| --- | --- | --- |
+| negotiation refresh, 8,000 calls | 0.0106–0.0154 ms/call | 0.0121–0.0158 ms/call |
+| main-frame refresh, 800 calls | 0.93–1.08 ms/call | 0.90–1.01 ms/call |
+| same-process split | — | trader 0.0057–0.0073, desperate 0.0049–0.0089 ms/call |
+
+Ranges overlap; the same-process split (a customer who can gamble versus one who cannot)
+shows no difference at all, which is the honest test of whether the wager adds per-refresh
+work. Terms in isolation cost ~0.03 ms per computation in the harness, and that runs once
+per customer or offer change, not per refresh. VM CPU only — no GPU, no widget layout, no
+in-game FPS claim.
+
+**Tests.** Six new headless tests (95 total): honest odds and non-positive edge across 60
+offer/ceiling pairs; availability (only a gambler, only with a real gap, only once, never
+with a zero offer); a won wager sells exactly one unit out of a 200-stack shelf at the
+stated prize and cannot be repeated; a lost wager pays the stated discount, records exactly
+one negative reputation call and moves no other credits; a used wager survives
+`Export`/`Import` with no new save field; and the no-customer / missing-stock paths pay
+nothing. `tools/smoke_ui.lua` drives the real window: the button appears for a desperate
+buyer, its label carries the odds, clicking it pays the stated prize and the payout banner
+equals the credits added, and the button is hidden for a trader.
+
+**Economy.** `sim_30min` and the six-seed campaign are unchanged to the digit (1,222 gc /
+tier 2 / 40 sales / rep 166; medians 57:38, 114:04, 180:19, tier 2 37:34, tier 3 88:19,
+museum 110:52). Expected: the wager is player-driven, so it never fires in a simulation; its
+balance is argued by the property test above, not by the sims.
+
+**Known issues / not verified.** No WoW client here: the two-line button label at large font
+sizes or a non-100% UI scale, the tooltip layout and the exact wording of the new lines are
+harness-only claims. The wager is deliberately absent from the simulations, so its effect on
+a real player's earnings per hour has not been measured — only its expected value per flip.
+The 0.94 edge and 0.80 loss share are two constants in `Data/Gamble.lua` if the balance ever
+needs to move.
+
 ## Notes for the next agent
 
 - `Modules/Diagnostics.lua` is the shared test surface for both `/gps test` and the

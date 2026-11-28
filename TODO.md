@@ -80,10 +80,10 @@ Cross Gambling dice, All The Things completion sets, shared leaderboards).
        and one bounded reward. *Shipped in iteration 6.*
 2. [x] **Deed and tier ceremony** — milestones with a flourish and a permanent visual
        change. *Shipped in iteration 6.*
-3. [ ] **Desperate customer's double-or-nothing** — one archetype offers to gamble the
-       difference at stated odds (win: their ceiling; lose: a nominal discount and a small
-       reputation sting). Gambling is the biggest minigame category by downloads; bounded
-       to once per customer with slightly negative EV.
+3. [x] **Desperate customer's double-or-nothing** — the desperate archetype can put a flip
+       on the table: stated odds, win pays their ceiling, lose pays 80% of the safe offer
+       and costs 2 standing. Once per customer, priced at ~94% of accepting. *Shipped in
+       iteration 7.*
 4. [ ] **Daily specials board** — one advertised deal per shop day ("today: rings +15%")
        on the existing door/arrival card, so there is a reason to return and a plan for
        stock. Rides the existing day clock and market events.
@@ -107,6 +107,26 @@ Cross Gambling dice, All The Things completion sets, shared leaderboards).
 Not planned, on purpose: a literal match-3/Peggle clone (off-theme and the market is
 saturated), real player-to-player networking (an addon cannot), and any reward that pays
 credits outside a completed sale.
+
+### Iteration 7 — the wager (plan item #3)
+
+- [x] **Double or nothing.** `Data/Gamble.lua` (tuning + voice) and `Modules/Gamble.lua`
+      (terms, value, roll). The `desperate` archetype carries `gamble = true` in
+      `Data/Personalities.lua`, so who can gamble is data, not code.
+- [x] Terms: `prize = min(ceiling, 2 x offer)`, `loss = 0.80 x offer`,
+      `chance = 0.14 x offer / (prize - 0.8 x offer)` clamped to 12–55%, so the expected
+      value is ~94% of simply accepting and clamping can only make it worse, never better.
+- [x] `Negotiation.Wager()` completes a real sale through `completeSale` (a new ledger
+      label, `double or nothing · won/lost`), stings 2 reputation on a loss and never
+      touches gold that was not on the table.
+- [x] Once per customer via `customer.gambled`, sanitized in `Persist`'s existing
+      `cleanCustomer` so a reload cannot reroll a lost flip. No new save field.
+- [x] Negotiation window: a `Double or nothing` button beside the counteroffer (label
+      states the odds and the prize, tooltip states both outcomes), a one-time hint line
+      when it appears, and a won/lost feedback line that reuses the payout banner.
+- [x] Six new headless tests (95 total) and a UI-smoke attempt for the button, the stated
+      odds, the payout and the "not for everyone" case. Benchmark re-run against the
+      previous head: no measurable change on the refresh paths.
 
 ### Next up (planned order)
 
