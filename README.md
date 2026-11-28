@@ -465,16 +465,16 @@ ticks. See `PROGRESS.md` for exactly what was and was not verified.
 
 ## Testing status
 
-* Lua 5.1 syntax check: **passing** (69 files, 21,669 lines).
-* Headless diagnostics suite: **95/95 passing** (the exact count is printed by
+* Lua 5.1 syntax check: **passing** (71 files, 22,267 lines).
+* Headless diagnostics suite: **101/101 passing** (the exact count is printed by
   `npm test`).
 * UI smoke (all tabs, splash modes, guided tour, goal card, options panel, negotiation,
   events, wholesaler window, slash commands) and a simulated hour of play: **passing
   under mocks**.
 * 30-minute progression probe (a fixed scripted policy that never pays the cartel
-  debt): 41 sales and 3,450 gc earned, tier 2 reached early, 276 gc left, reputation
-  167 and 1.0–1.3 customers/min. A 10-minute closed-window probe records 17 auto-sales,
-  an empty queue and 186 gc/min. These are simulation numbers, not a live-client feel
+  debt): 40 sales and 4,547 gc earned, tier 2 reached, 1,222 credits left, reputation
+  166 and 1.0–1.3 customers/min. A 10-minute closed-window probe records 17 auto-sales,
+  an empty queue and 238 gc/min. These are simulation numbers, not a live-client feel
   test.
 * **Not yet verified in the live client:** real item tooltips, texture appearance,
   font sizes and layout on different UI scales, the Deed tab and its five museum rows,

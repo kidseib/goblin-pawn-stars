@@ -959,6 +959,89 @@ a real player's earnings per hour has not been measured — only its expected va
 The 0.94 edge and 0.80 loss share are two constants in `Data/Gamble.lua` if the balance ever
 needs to move.
 
+### Iteration 8 — the A-board (plan item #4)
+
+Plan item #4. The shop already had a daily *request* — a customer's want, rolled at dawn
+and paid once on the first matching sale. A "specials board" that advertised a category for
+a bonus would have been that same idea with different furniture, so the A-board became the
+other half of the exchange: the request is what buyers want from you, the board is what
+*you* tell the street.
+
+**What it is.** `Data/Board.lua` holds one placard per category — headline, one-line blurb
+and a lift band. Bulk lines get the biggest lift (cloth, herbs, ore, leather, potions:
+12–16%) because they need it to compete with the request; premium lines (gems, weapons,
+armour, companions) get 8–11% because they move on their own. Each shop day
+`Modules/Board.lua` offers **two** placards, drawn from the categories actually on the
+shelves, and the player chalks one. For the rest of the day every sale of that category
+pays the placard's lift, and the wait for the next customer is multiplied by 0.88. It
+clears when the day changes and can be chalked once per day.
+
+**Why a choice, and why footfall instead of assortment.** The request is luck; the board is
+the shop's own advertising, so it should be a decision — which of your lines do you push
+today — and it should be legible in play. The first implementation biased *which item a
+customer brings* toward the advertised category (weight 1.6x). A six-seed probe showed that
+is the wrong lever: it concentrates sales on whatever the advertised line happens to be,
+so advertising a cheap line drains it and earns **less** (−7.7% revenue across six seeds).
+Traffic is the honest lever for a sign: the arrival interval shrinks while the board is up
+(one multiplier inside `Shop.ArrivalInterval`, no second scheduler) and the lift pays on
+sales that were going to happen anyway. Re-measured the same way: **+3.6% revenue, +15%
+sales** across six seeds, and the pick is provably untouched (a diagnostics test samples the
+same trader 400 times with and without a board and requires the category mix to stay put).
+
+**Deterministic, so a reload cannot reroll it.** The lift and the day's pair are hashed from
+the date string and the category with `U.hash`, the same trick `Data.BaseValue` uses for item
+values. Nothing is rolled, so the saved state is only `{ day, key }`: the percentage is
+derived from the data every time it is read, so it can never drift from the save, and
+`Board.Active()` is one string compare — a board from an earlier day simply stops counting,
+with no timer and no cleanup pass. `Persist.normalize` keeps a table only when the key is a
+category the data knows, and rewrites it as `{ day, key }`; an old save gets the additive
+default `nil` and the morning's board has to be chalked again.
+
+**Where the money comes from.** `completeSale` adds the board lift after the daily request,
+before the wallet delta, so the payout banner still prints exactly the credits that were
+received. A flat settlement (the wager) ignores it and keeps the figure it quoted — the same
+rule the flat flag already applies to the request bonus. The negotiation window prints
+`A-board +N%` beside the category *before* the player names a price, so the lift is never a
+surprise, and the ledger's sale detail tags `A-board bonus` next to `daily request bonus`.
+
+**What it costs.** One table lookup per sale, one multiplier per arrival-interval
+computation, and one bounded inventory pass in the dashboard refresh (stops at 400 stacks)
+to count how much of the advertised line is on the shelves. No timer, no `OnUpdate`, no new
+frame: the two board buttons are built once with the tab and only their labels and
+visibility change. The TODAY card grew 38 px and the panels below moved down with it; the
+content pane still has ~8 px to spare under the goal card.
+
+**Measurement.**
+
+- Baseline unchanged: `sim_30min` FINAL 1,222 gc / tier 2 / 40 sales / rep 166 / best 290 and
+the four-seed campaign medians 57:38, 114:04, 180:19, tier 2 37:34, tier 3 88:19, museum
+110:52 — identical to the recorded baseline, because neither harness chalks a board. That is
+the expected result: the board is a player decision, and the harness policy does not make it.
+- Board probe (temporary, deleted): the same scripted policy and the same six seeds run
+twice, board on and board off — 18,553 vs 17,914 credits earned, 270 vs 235 sales (+3.6%
+revenue, +15% sales, median seed 2,834 vs 2,505). Individual seeds range from −23% to +128%,
+because extra footfall makes the fixed policy exhaust cheap stock and shifts when it buys
+the next tier; the aggregate is the honest read and the spread is the policy, not the board.
+- Export size fell 39 characters (18,694 → 18,655): the ledger's sale detail no longer
+carries a trailing space when no bonus applies. Every economic figure is identical.
+
+**Tests.** Six new headless tests (101 total): the catalogue (two distinct stocked lines,
+stable across reads on one day, lift inside its band, stated percent equals paid lift, no
+board for an empty shop); once-per-day chalk plus reload, stale-day expiry and junk-save
+sanitization; a featured sale paying exactly `offer * (1 + lift)` with one unit leaving stock
+and the ledger tagged; a flat wager still paying exactly its quoted prize; footfall (exact
+`BoardTraffic` multiplier, category mix unchanged over 800 samples); and an unchalked day
+paying exactly the plain offer. `tools/smoke_ui.lua` drives the real dashboard row: two
+buttons with the lift in the label, a click that chalks, the chalked line and shelf hint
+after the refresh, and a negotiation window that reports the lift and pays it.
+
+**Known issues / not verified.** No WoW client here: the two 162x24 buttons at 0.8–1.2 UI
+scale and large fonts, the multiline tooltip and the 38 px taller TODAY card are
+harness-only claims (the mock builds them and asserts the row exists, not that it looks
+right). The probe cannot play the board as well as a person choosing their best line, so
++3.6% is a floor-ish sanity number, not a balance proof. Knobs: `Data.BoardTraffic` and each
+placard's `low`/`high` in `Data/Board.lua`.
+
 ## Notes for the next agent
 
 - `Modules/Diagnostics.lua` is the shared test surface for both `/gps test` and the

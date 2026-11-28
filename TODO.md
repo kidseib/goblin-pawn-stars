@@ -84,9 +84,11 @@ Cross Gambling dice, All The Things completion sets, shared leaderboards).
        on the table: stated odds, win pays their ceiling, lose pays 80% of the safe offer
        and costs 2 standing. Once per customer, priced at ~94% of accepting. *Shipped in
        iteration 7.*
-4. [ ] **Daily specials board** — one advertised deal per shop day ("today: rings +15%")
+4. [x] **Daily specials board** — one advertised deal per shop day ("today: rings +15%")
        on the existing door/arrival card, so there is a reason to return and a plan for
-       stock. Rides the existing day clock and market events.
+       stock. Rides the existing day clock and market events. *Shipped in iteration 8 as
+       the A-board: the player chalks one of two offered lines, it pays on every sale of
+       that category and shortens the wait for the next customer.*
 5. [ ] **Weekly Curator's Request** — the museum asks for a themed three-item set;
        completing it pays a display and a small permanent perk. Bounded completion (3 of 3)
        is the stickiest collection pattern.
@@ -127,6 +129,36 @@ credits outside a completed sale.
 - [x] Six new headless tests (95 total) and a UI-smoke attempt for the button, the stated
       odds, the payout and the "not for everyone" case. Benchmark re-run against the
       previous head: no measurable change on the refresh paths.
+
+### Iteration 8 — the A-board (plan item #4)
+
+- [x] **Data/Board.lua**: a placard per category (headline, blurb, lift band 8–16%) and
+      the two tuning constants — `BoardTraffic` (arrival-interval multiplier) and
+      `BoardStep` (the half-percent the label can state). Bulk lines get the biggest lift
+      because they need it most; gems, weapons and companions get the smallest.
+- [x] **Modules/Board.lua**: the day's two candidates come from the categories actually in
+      stock, stepped by a hash of the date; the lift is hashed from day + category, so it
+      is deterministic and reloads cannot reroll it. Chalking is once per shop day, and a
+      board from an earlier day is ignored by one string compare instead of a timer.
+- [x] **The sale pays it**: `completeSale` adds the board lift after the daily request and
+      before the wallet delta, so the payout banner still equals the credits received. Flat
+      settlements (the wager) ignore it and keep their quoted figure.
+- [x] **The window states it**: the negotiation window's category line shows `A-board +N%`
+      before the player names a price.
+- [x] **Advertising is footfall, not assortment**: `Shop.ArrivalInterval()` is multiplied
+      while a line is chalked, so about 14% more customers walk in. It deliberately does
+      not change *which* item a customer brings — a cheap advertised line must not crowd
+      out the valuable stock.
+- [x] **Dashboard**: the TODAY card holds the board under the daily request: two chalkable
+      lines with a tooltip, or the chalked line with how much of it is on the shelves. The
+      card grew by 38 px and the panels below moved with it; nothing new is built on a
+      timer.
+- [x] **Save safety**: `db.shop.board` is `{ day, key }` only — additive default, sanitized
+      in `Persist.normalize` (unknown key or junk table dropped), and copied into the
+      compact journal snapshot by the existing loop.
+- [x] Six new headless tests (101 total) and a UI-smoke attempt for the dashboard row and
+      the in-window lift. Both harnesses and the campaign probe re-run: baseline numbers
+      unchanged, plus a board-on/board-off probe that measures what chalking does.
 
 ### Next up (planned order)
 

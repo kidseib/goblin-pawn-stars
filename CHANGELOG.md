@@ -9,6 +9,17 @@ below is released yet.
 
 ### Added
 
+- **The sidewalk A-board.** Each shop day the shop can chalk one advertised line. The
+  dashboard's TODAY card offers two lines drawn from what is actually on the shelves —
+  different every day and deterministic, so a reload or relog cannot reroll a bad pair —
+  and chalking one is the day's decision. Every sale of that category then pays the
+  placard's lift (8–16%, with bulk goods getting more than gems and weapons) and the wait
+  for the next customer drops by about 14%, because advertising is footfall. Nothing is
+  pre-paid: the lift rides on a completed sale, the negotiation window states it beside the
+  category before the player names a price, and a flat double-or-nothing wager still pays
+  exactly the figure it quoted. The board clears when the day changes; what is saved is
+  `{ day, key }` and the percentage is derived from `Data/Board.lua`, so no number can
+  drift and an old save needs nothing but an additive default.
 - **Special orders from regulars.** A remembered customer can now come back wanting
   something specific: one shelf of goods (gems, herbs, recipes...), a stated budget
   ("up to 1,684 credits") and a deadline of two shop days. The wanted shelf is chosen
