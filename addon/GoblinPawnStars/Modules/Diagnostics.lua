@@ -819,7 +819,7 @@ function D.Run()
         original.regular.unlocked = true
         ns.db = original
         -- A save only runs once the journal state is known, exactly as after login.
-        ns.Journal.TryLoad(true)
+        ns.Journal.TryLoad()
 
         local ok, status = ns.Journal.SaveNow()
         expect(ok, "journal save failed: " .. tostring(status))
@@ -832,7 +832,7 @@ function D.Run()
         local fresh = ns.DB.Scratch()
         fresh.settings.macroJournal = true
         ns.db = fresh
-        local loaded = ns.Journal.TryLoad(true)
+        local loaded = ns.Journal.TryLoad()
         expect(loaded, "journal did not load: " .. tostring(ns.Journal.status.error))
         expectEqual(ns.DB.Get().credits, 4321, "journal lost credits")
         expectEqual(ns.DB.Get().campaign.payments, 2, "journal lost campaign progress")
@@ -844,9 +844,60 @@ function D.Run()
         MACRO_STORE[1].body = corrupt:sub(1, #corrupt - 1) .. (corrupt:sub(-1) == "A" and "B" or "A")
         ns.db = ns.DB.Scratch()
         ns.db.settings.macroJournal = true
-        local corrupted = ns.Journal.TryLoad(true)
+        local corrupted = ns.Journal.TryLoad()
         expect(not corrupted, "corrupt journal was accepted")
         expect(ns.Journal.status.error ~= nil, "corrupt journal did not report an error")
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __clearMacros()
+    end)
+
+    -----------------------------------------------------------------------
+    test("login auto-load is bounded and settles", function()
+        if type(__clearMacros) ~= "function" or type(MACRO_STORE) ~= "table" then return end
+        __clearMacros()
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+        local realNow = ns.Util.now
+
+        local db = ns.DB.Scratch()
+        db.settings.macroJournal = true
+        db.settings.autoLoadJournal = true
+        ns.db = db
+
+        -- An empty macro list must not settle the gate before the last read: the
+        -- list may still be arriving, and a save there would overwrite a real run.
+        ns.Journal.status.loaded = false
+        expect(ns.Journal.AutoLoad(), "auto-load did not arm")
+        expect(ns.Journal.AutoPending(), "the login load was not pending")
+        expect(not ns.Journal.status.loaded, "arming auto-load settled the gate early")
+
+        -- The login summary waits on this: it must run once, after the load.
+        local summaries = 0
+        ns.Journal.AfterSettle(function() summaries = summaries + 1 end)
+
+        local clock = realNow()
+        ns.Util.now = function() return clock end
+        local reads = 0
+        for _ = 1, 12 do
+            clock = clock + 60
+            ns.Journal.Tick()
+            if ns.Journal.AutoPending() then reads = reads + 1 end
+        end
+        ns.Util.now = realNow
+
+        expect(not ns.Journal.AutoPending(), "auto-load kept retrying past its cap")
+        expect(reads < 4, "auto-load spent more attempts than the cap allows")
+        expect(ns.Journal.status.loaded, "the last auto-load attempt did not settle")
+        expectEqual(ns.Journal.status.loadedBy, "login", "auto-load did not record its path")
+        expectEqual(summaries, 1, "the login summary did not run exactly once after the load")
+
+        -- Off in Settings means the manual button is the only way in again.
+        db.settings.autoLoadJournal = false
+        ns.Journal.status.loaded = false
+        expect(not ns.Journal.AutoLoad(), "auto-load armed with the setting off")
+        expect(not ns.Journal.AutoPending(), "a disabled auto-load was left pending")
 
         ns.db = real
         _G.GoblinPawnStarsDB = realGlobal
@@ -872,7 +923,7 @@ function D.Run()
         db.tier = 2
         db.stats.sales = 3
         ns.db = db
-        ns.Journal.TryLoad(true)
+        ns.Journal.TryLoad()
         expect(ns.Journal.SaveNow(), "seed save failed: " .. tostring(ns.Journal.status.error))
 
         local first = ns.Journal.status.generation
@@ -924,7 +975,7 @@ function D.Run()
         local fresh = ns.DB.Scratch()
         fresh.settings.macroJournal = true
         ns.db = fresh
-        expect(ns.Journal.TryLoad(true), "the last good save did not load after a failed write: " ..
+        expect(ns.Journal.TryLoad(), "the last good save did not load after a failed write: " ..
             tostring(ns.Journal.status.error))
         expectEqual(ns.DB.Get().credits, 1111, "a half-written save replaced the last good one")
         expectEqual(ns.DB.Get().stats.sales, 3, "a half-written save lost stats")
@@ -941,7 +992,7 @@ function D.Run()
         local again = ns.DB.Scratch()
         again.settings.macroJournal = true
         ns.db = again
-        expect(ns.Journal.TryLoad(true), "the recovered save did not load")
+        expect(ns.Journal.TryLoad(), "the recovered save did not load")
         expectEqual(ns.DB.Get().credits, 2222, "the recovered save did not restore")
         expectEqual(ns.DB.Get().stats.sales, 7, "the recovered save lost stats")
 
@@ -968,7 +1019,7 @@ function D.Run()
         local check = ns.DB.Scratch()
         check.settings.macroJournal = true
         ns.db = check
-        expect(ns.Journal.TryLoad(true), "the previous save did not load after a failed commit")
+        expect(ns.Journal.TryLoad(), "the previous save did not load after a failed commit")
         expectEqual(ns.DB.Get().credits, 2222, "a failed commit destroyed the previous save")
 
         ns.db = real
@@ -988,7 +1039,7 @@ function D.Run()
         db.credits = 6789
         db.stats.sales = 5
         ns.db = db
-        ns.Journal.TryLoad(true)
+        ns.Journal.TryLoad()
         expect(ns.Journal.SaveNow(), "could not seed a save")
 
         -- Rewrite the committed generation as the 1.6.3 single-generation format.
@@ -1013,7 +1064,7 @@ function D.Run()
         local fresh = ns.DB.Scratch()
         fresh.settings.macroJournal = true
         ns.db = fresh
-        expect(ns.Journal.TryLoad(true), "a pre-1.6.4 journal did not load: " ..
+        expect(ns.Journal.TryLoad(), "a pre-1.6.4 journal did not load: " ..
             tostring(ns.Journal.status.error))
         expectEqual(ns.DB.Get().credits, 6789, "the old journal lost credits")
         expectEqual(ns.DB.Get().stats.sales, 5, "the old journal lost stats")
@@ -1085,7 +1136,7 @@ function D.Run()
         ns.db = session
         local originalCount = ns.Compat.MacroCount
         ns.Compat.MacroCount = function() return nil end
-        ns.Journal.TryLoad(true)
+        ns.Journal.TryLoad()
         local ok = ns.Journal.SaveNow()
         ns.Compat.MacroCount = originalCount
         expect(not ok, "a save replaced a journal the session could not read")
@@ -1094,7 +1145,7 @@ function D.Run()
         local fresh = ns.DB.Scratch()
         fresh.settings.macroJournal = true
         ns.db = fresh
-        expect(ns.Journal.TryLoad(true), "the last good journal was lost: " ..
+        expect(ns.Journal.TryLoad(), "the last good journal was lost: " ..
             tostring(ns.Journal.status.error))
         expectEqual(ns.DB.Get().credits, 777, "the refused save destroyed the last good journal")
 
@@ -1128,7 +1179,7 @@ function D.Run()
         local fresh = ns.DB.Scratch()
         fresh.settings.macroJournal = true
         ns.db = fresh
-        expect(ns.Journal.TryLoad(true), "the save could not be read back: " ..
+        expect(ns.Journal.TryLoad(), "the save could not be read back: " ..
             tostring(ns.Journal.status.error))
         expectEqual(ns.DB.Get().credits, 432, "the save lost credits")
 
@@ -1167,7 +1218,7 @@ function D.Run()
         local fresh = ns.DB.Scratch()
         fresh.settings.macroJournal = true
         ns.db = fresh
-        expect(ns.Journal.TryLoad(true), "normal shop journal did not load")
+        expect(ns.Journal.TryLoad(), "normal shop journal did not load")
         expectEqual(ns.DB.Get().credits, 777, "normal shop lost credits")
         expectEqual(ns.DB.Get().settings.welcomeVersion, "1.6.2",
             "the splash flag did not survive a login")
@@ -1184,7 +1235,7 @@ function D.Run()
         local empty = ns.DB.Scratch()
         empty.settings.macroJournal = true
         ns.db = empty
-        expect(ns.Journal.TryLoad(true), "edge-case journal did not load")
+        expect(ns.Journal.TryLoad(), "edge-case journal did not load")
         expectEqual(ns.DB.Get().credits, 0, "compaction resurrected default credits")
         expect(ns.DB.Get().settings.showWelcome == false, "compaction lost a false setting")
 
@@ -1223,7 +1274,7 @@ function D.Run()
         local fresh = ns.DB.Scratch()
         fresh.settings.macroJournal = true
         ns.db = fresh
-        expect(ns.Journal.TryLoad(true), "trimmed journal did not load")
+        expect(ns.Journal.TryLoad(), "trimmed journal did not load")
         local loaded = ns.DB.Get()
         expectEqual(loaded.campaign.payments, 2, "trimming lost campaign state")
         expectEqual(loaded.credits, 12345, "trimming lost credits")
@@ -1260,7 +1311,7 @@ function D.Run()
         local fresh = ns.DB.Scratch()
         fresh.settings.macroJournal = true
         ns.db = fresh
-        expect(ns.Journal.TryLoad(true), "huge trimmed journal did not load")
+        expect(ns.Journal.TryLoad(), "huge trimmed journal did not load")
         local loaded = ns.DB.Get().inventory
         local kept, cheapest, priciest = 0, math.huge, 0
         for _, record in pairs(loaded) do
@@ -1301,7 +1352,7 @@ function D.Run()
         local fresh = ns.DB.Scratch()
         fresh.settings.macroJournal = true
         ns.db = fresh
-        expect(ns.Journal.TryLoad(true), "journal did not load after the skipped save")
+        expect(ns.Journal.TryLoad(), "journal did not load after the skipped save")
         expectEqual(ns.DB.Get().credits, 8765, "the journal stopped writing after an unchanged save")
 
         ns.db = real
@@ -1329,7 +1380,7 @@ function D.Run()
         boot.settings.macroJournal = true
         ns.db = boot
         _G.GoblinPawnStarsDB = boot
-        expect(ns.Journal.TryLoad(true), "journal did not load: " .. tostring(ns.Journal.status.error))
+        expect(ns.Journal.TryLoad(), "journal did not load: " .. tostring(ns.Journal.status.error))
         expect(_G.GoblinPawnStarsDB == ns.DB.Get(),
             "journal restore left the active database unbound")
 
@@ -1343,7 +1394,7 @@ function D.Run()
         checkpoint.settings.macroJournal = true
         ns.db = checkpoint
         _G.GoblinPawnStarsDB = checkpoint
-        expect(ns.Journal.TryLoad(true), "payment journal did not load")
+        expect(ns.Journal.TryLoad(), "payment journal did not load")
         expectEqual(ns.DB.Get().campaign.payments, 1, "payment was not saved immediately")
         expectEqual(ns.DB.Get().credits, 500, "immediate payment save lost credits")
 
@@ -1359,7 +1410,7 @@ function D.Run()
         afterReset.settings.macroJournal = true
         ns.db = afterReset
         _G.GoblinPawnStarsDB = afterReset
-        expect(ns.Journal.TryLoad(true), "reset journal did not load")
+        expect(ns.Journal.TryLoad(), "reset journal did not load")
         expectEqual(ns.DB.Get().campaign.payments, 0, "reset journal restored the old campaign")
         expectEqual(ns.DB.Get().credits, resetCredits, "reset journal restored old credits")
 
@@ -1399,7 +1450,7 @@ function D.Run()
         checkpoint.settings.macroJournal = true
         ns.db = checkpoint
         _G.GoblinPawnStarsDB = checkpoint
-        expect(ns.Journal.TryLoad(true), "franchise journal did not load")
+        expect(ns.Journal.TryLoad(), "franchise journal did not load")
         local loaded = ns.DB.Get()
         expectEqual(loaded.prestige.level, 1, "franchise level was not journaled")
         expectEqual(loaded.campaign.payments, 0, "franchise journal restored the old debt")
@@ -1654,7 +1705,7 @@ function D.Run()
         ns.db.settings.macroJournal = true
         ns.db.credits = 999
         ns.db.stats.sales = 4
-        ns.Journal.TryLoad(true)
+        ns.Journal.TryLoad()
 
         local ok, detail = ns.Journal.Verify()
         expect(ok, "verify failed: " .. tostring(detail))
@@ -1689,14 +1740,14 @@ function D.Run()
         expect(ns.Customers.StartNegotiation(1), "session A could not start")
         expect(ns.Negotiation.Accept(), "session A sale failed")
         local credits = ns.DB.Get().credits
-        ns.Journal.TryLoad(true)
+        ns.Journal.TryLoad()
         expect(ns.Journal.SaveNow(true), "session A save failed")
 
         -- Session B: a brand new database, the journal is read, then the login
         -- event runs in the order the client runs it.
         ns.db = ns.DB.Scratch()
         ns.db.settings.macroJournal = true
-        ns.Journal.TryLoad(true)
+        ns.Journal.TryLoad()
         ns.Clock.events.handlers.PLAYER_LOGIN()
 
         local restored = ns.DB.Get()
@@ -1796,7 +1847,7 @@ function D.Run()
         db.credits = 4321
         db.stats.sales = 6
         ns.db = db
-        local settled = ns.Journal.TryLoad(true)
+        local settled = ns.Journal.TryLoad()
         expect(settled or ns.Journal.status.error ~= nil,
             "the full macro list crashed the loader")
 
@@ -1815,7 +1866,7 @@ function D.Run()
         local fresh = ns.DB.Scratch()
         fresh.settings.macroJournal = true
         ns.db = fresh
-        expect(ns.Journal.TryLoad(true), "the migrated save did not load")
+        expect(ns.Journal.TryLoad(), "the migrated save did not load")
         expectEqual(ns.DB.Get().credits, 4321, "the migrated save lost credits")
 
         ns.db = real
@@ -1835,7 +1886,7 @@ function D.Run()
         db.credits = 800
         db.stats.sales = 3
         ns.db = db
-        ns.Journal.TryLoad(true)
+        ns.Journal.TryLoad()
         expect(ns.Journal.SaveNow(), "seed save failed: " .. tostring(ns.Journal.status.error))
         local seeded = ns.Compat.MacroCount() or 0
 
@@ -1876,7 +1927,7 @@ function D.Run()
         db.credits = 600
         db.stats.sales = 1
         ns.db = db
-        ns.Journal.TryLoad(true)
+        ns.Journal.TryLoad()
         expect(ns.Journal.SaveNow(), "seed save failed: " .. tostring(ns.Journal.status.error))
 
         local originalCreate, originalEdit = ns.Compat.CreateMacro, ns.Compat.EditMacro
@@ -1900,8 +1951,162 @@ function D.Run()
         local fresh = ns.DB.Scratch()
         fresh.settings.macroJournal = true
         ns.db = fresh
-        expect(ns.Journal.TryLoad(true), "the failed save destroyed the last good save")
+        expect(ns.Journal.TryLoad(), "the failed save destroyed the last good save")
         expectEqual(ns.DB.Get().credits, 600, "the failed save changed the last good save")
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __clearMacros()
+    end)
+
+    -----------------------------------------------------------------------
+    test("saving waits for a manual load, and the load is one read only", function()
+        if type(__clearMacros) ~= "function" or type(MACRO_STORE) ~= "table" then return end
+        __clearMacros()
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+
+        -- Session A: a real save exists on the macro list.
+        local first = ns.DB.Scratch()
+        first.settings.macroJournal = true
+        first.credits = 1200
+        first.stats.sales = 4
+        ns.db = first
+        ns.Journal.TryLoad()
+        expect(ns.Journal.SaveNow(true), "seed save failed: " .. tostring(ns.Journal.status.error))
+        local seededChunks = ns.Compat.MacroCount() or 0
+        local seededMacros = 0
+        for _ in pairs(MACRO_STORE) do seededMacros = seededMacros + 1 end
+
+        -- A login: nothing is read, so the header asks for a load and a save
+        -- must refuse instead of stamping a fresh shop over the real one.
+        ns.db = ns.DB.Scratch()
+        ns.db.settings.macroJournal = true
+        ns.db.credits = 5000
+        ns.Journal.status.loaded = false
+        expect(not ns.Journal.Loaded(), "the journal reported itself loaded at login")
+        expect(not ns.Journal.SaveNow(true), "a save ran before the journal was loaded")
+        local afterChunks = 0
+        for _ in pairs(MACRO_STORE) do afterChunks = afterChunks + 1 end
+        expectEqual(afterChunks, seededMacros, "an unloaded session wrote macros")
+        expectEqual(ns.Compat.MacroCount() or 0, seededChunks,
+            "an unloaded session changed the macro list")
+
+        -- A manual load is one read: the saved run comes back, saving resumes.
+        local ok, detail = ns.Journal.Load()
+        expect(ok, "the manual load failed: " .. tostring(detail))
+        expect(ns.Journal.Loaded(), "the manual load did not settle")
+        expectEqual(ns.DB.Get().credits, 1200, "the manual load lost the saved credits")
+        expectEqual(ns.DB.Get().stats.sales, 4, "the manual load lost the sales")
+        ns.DB.Get().credits = 1201
+        expect(ns.Journal.SaveNow(true), "a save after the manual load failed: " ..
+            tostring(ns.Journal.status.error))
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __clearMacros()
+    end)
+
+    -----------------------------------------------------------------------
+    test("an autosave spends its macro writes across ticks, commit header last", function()
+        if type(__clearMacros) ~= "function" or type(MACRO_STORE) ~= "table" then return end
+        __clearMacros()
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+        local realGetTime = _G.GetTime
+        local realNow = ns.Util.now
+
+        local db = ns.DB.Scratch()
+        db.settings.macroJournal = true
+        db.credits = 900
+        db.stats.sales = 2
+        ns.db = db
+        ns.Journal.TryLoad()
+        expect(ns.Journal.SaveNow(true), "seed save failed: " .. tostring(ns.Journal.status.error))
+        local seeded = ns.Compat.MacroCount() or 0
+
+        -- A clock that costs 20 ms per read, so one slice of the budget covers
+        -- exactly one macro operation.
+        local fake = 0
+        _G.GetTime = function()
+            fake = fake + 0.02
+            return fake
+        end
+        -- Jump past the autosave throttle without waiting five minutes.
+        ns.Util.now = function() return realNow() + 400 end
+
+        ns.DB.Get().credits = 1500
+        ns.Journal.Save()
+
+        local staged = ns.Compat.MacroCount() or 0
+        expect(staged > seeded, "the autosave wrote nothing")
+        expect(staged <= seeded + 1,
+            "the autosave wrote the whole generation in one tick (" .. staged .. " macros)")
+
+        -- The first write is the pending header, so nothing can read this
+        -- generation as current while the rest of it is still missing.
+        local pendingHeader = false
+        local committed = false
+        for _, macro in pairs(MACRO_STORE) do
+            local body = tostring(macro.body or "")
+            if body:find(":p:", 1, true) then pendingHeader = true end
+            if body:find(":c:", 1, true) then committed = true end
+        end
+        expect(pendingHeader, "the staged save did not write a pending header first")
+        expect(committed, "the seeded generation should still be committed")
+
+        for _ = 1, 160 do ns.Journal.Tick() end
+
+        expect(ns.Journal.status.chunks > 0, "the staged save never committed")
+        expectEqual(ns.Compat.MacroCount() or 0, ns.Journal.status.chunks,
+            "the staged save left stale chunks behind")
+        expectEqual(ns.Journal.status.generation, "B",
+            "the staged save did not take the free generation")
+
+        _G.GetTime = realGetTime
+        ns.Util.now = realNow
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __clearMacros()
+    end)
+
+    -----------------------------------------------------------------------
+    test("an unreadable journal settles so a save can replace it", function()
+        if type(__clearMacros) ~= "function" or type(MACRO_STORE) ~= "table" then return end
+        __clearMacros()
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+
+        -- A save cut off before its commit header: the payload is on the list,
+        -- the generation never committed, and there is no previous generation.
+        MACRO_STORE[1] = { name = "GPSA01", icon = 134400,
+            body = "--GPSJ2:A:1:1:1:0:p:AAAA" }
+
+        local db = ns.DB.Scratch()
+        db.settings.macroJournal = true
+        db.credits = 640
+        db.stats.sales = 1
+        ns.db = db
+
+        local ok, detail = ns.Journal.Load()
+        expect(not ok, "an uncommitted journal must not report a restore")
+        expect(tostring(detail):find("incomplete", 1, true) ~= nil,
+            "the load did not name the incomplete journal: " .. tostring(detail))
+        expect(ns.Journal.Loaded(),
+            "an unreadable journal left the session unable to save")
+
+        db.credits = 641
+        expect(ns.Journal.SaveNow(true),
+            "a save could not replace the unreadable journal: " ..
+            tostring(ns.Journal.status.error))
+        expectEqual(ns.Compat.MacroCount() or 0, ns.Journal.status.chunks,
+            "the replacement save left stale chunks behind")
+
+        local fresh = ns.DB.Scratch()
+        fresh.settings.macroJournal = true
+        ns.db = fresh
+        expect(ns.Journal.TryLoad(), "the replacement journal did not load")
+        expectEqual(ns.DB.Get().credits, 641, "the replacement journal lost the credits")
 
         ns.db = real
         _G.GoblinPawnStarsDB = realGlobal
