@@ -196,6 +196,48 @@ local function buildTitleBar()
     end, "gold")
     guide:SetPoint("RIGHT", close, "LEFT", -6, 0)
 
+    -- Special-order awareness. The title bar is the one strip that is on screen
+    -- whichever tab is open (stock, wholesale, the day clock), so a single chip
+    -- here answers "is somebody waiting on stock, and how long have I got?"
+    -- without a second window or a new panel. Hidden when no order is open.
+    local chip = W.Create(bar, "Button")
+    chip:SetSize(150, 20)
+    chip:SetPoint("RIGHT", guide, "LEFT", -14, 0)
+    chip:RegisterForClicks("AnyUp")
+    local chipBg = chip:CreateTexture(nil, "BACKGROUND")
+    chipBg:SetAllPoints()
+    T.Fill(chipBg, 0.10, 0.08, 0.04, 0.55)
+    local chipHighlight = chip:CreateTexture(nil, "HIGHLIGHT")
+    chipHighlight:SetAllPoints()
+    T.Fill(chipHighlight, 0.9, 0.8, 0.45, 0.10)
+    chip.label = W.Text(chip, "", 10, T.colors.gold)
+    chip.label:SetPoint("LEFT", 7, 0)
+    chip:SetScript("OnClick", function()
+        ns.UI.ShowTab("customers")
+    end)
+    chip:SetScript("OnEnter", function(self)
+        if not GameTooltip then return end
+        local order = ns.Regulars and ns.Regulars.Next and ns.Regulars.Next()
+        if not order then return end
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:SetText(order.patron and "Patron order" or "Special order", 0.94, 0.78, 0.33)
+        GameTooltip:AddLine(string.format("%s wants %s.", order.name, order.label), 0.91, 0.85, 0.69)
+        local line, days = ns.Regulars.SummaryLine(order)
+        GameTooltip:AddLine(line or "", 1, 0.82, 0)
+        if days <= 1 then
+            GameTooltip:AddLine("The deadline is this shop day.", 1, 0.45, 0.35)
+        else
+            GameTooltip:AddLine("Hold that shelf and they will come back for it.", 0.62, 0.58, 0.47)
+        end
+        GameTooltip:AddLine("Click to open the Customers tab.", 0.62, 0.58, 0.47)
+        GameTooltip:Show()
+    end)
+    chip:SetScript("OnLeave", function()
+        if GameTooltip then GameTooltip:Hide() end
+    end)
+    chip:Hide()
+    header.orderChip = chip
+
     local line = T.GoldLine(frame, 1)
     line:SetPoint("TOPLEFT", 12, -50)
     line:SetPoint("TOPRIGHT", -12, -50)
@@ -351,6 +393,39 @@ local function refreshHeader()
     local traffic = ns.Customers.ArrivalBlocker() or U.clock(db.shop.nextArrival or 0)
     header.trafficValue:SetText(string.format("%s · %d waiting", traffic, waiting))
     header.dayBar:SetValue(ns.Shop.ShopDayProgress(), 1)
+
+    -- The chip is refreshed here with the rest of the status strip: one read of
+    -- the (at most three) orders, no timer of its own.
+    local chip = header.orderChip
+    if chip then
+        local order = ns.Regulars and ns.Regulars.Next and ns.Regulars.Next()
+        if order then
+            local days = ns.Regulars.DaysLeft(order)
+            local text = string.format("ORDER  %s · %s", order.label or "goods",
+                days <= 1 and "last day" or (days .. "d"))
+            if chip.lastText ~= text then
+                chip.lastText = text
+                chip.label:SetText(text)
+                -- Size to the text so a long shelf name is not clipped and a
+                -- short one is not a wide empty bar. GetStringWidth is missing
+                -- in some mock/older clients, so fall back to a sane width.
+                local width = 150
+                if type(chip.label.GetStringWidth) == "function" then
+                    local ok, value = pcall(chip.label.GetStringWidth, chip.label)
+                    if ok and tonumber(value) then width = math.floor(tonumber(value) + 16) end
+                end
+                chip:SetWidth(U.clamp(width, 90, 250))
+            end
+            local urgent = days <= 1
+            chip.label:SetTextColor(urgent and T.colors.red[1] or T.colors.gold[1],
+                urgent and T.colors.red[2] or T.colors.gold[2],
+                urgent and T.colors.red[3] or T.colors.gold[3])
+            chip:Show()
+        else
+            chip.lastText = nil
+            chip:Hide()
+        end
+    end
 
     local creditsPerMin, customersPerMin = ns.Throughput.Rates()
     header.rates:SetText(string.format("%s gc/min · %.1f customers/min",

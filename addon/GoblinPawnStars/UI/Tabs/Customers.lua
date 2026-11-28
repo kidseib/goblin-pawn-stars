@@ -125,9 +125,15 @@ ns.UI.Tabs.customers = {
         ui.requestText = W.Text(request, "", 11, T.colors.parchment)
         ui.requestText:SetPoint("TOPLEFT", 12, -26)
         ui.requestText:SetPoint("TOPRIGHT", -12, -26)
+        -- Bounded box: a wrapped line at a large font clips inside the card
+        -- instead of spilling over the bar (the bar is anchored to the bottom
+        -- edge, so it cannot be pushed out either).
+        ui.requestText:SetPoint("BOTTOMRIGHT", -12, 22)
         ui.requestText:SetWordWrap(true)
         ui.requestBar = W.Bar(request, 300, 6, T.colors.gold)
-        ui.requestBar:SetPoint("TOPLEFT", 12, -76)
+        -- Same place as the old -76 offset on the 96px card, but expressed from
+        -- the bottom so it stays put when the card content grows.
+        ui.requestBar:SetPoint("BOTTOMLEFT", 12, 14)
 
         local event = W.Panel(parent, "panel")
         event:SetPoint("TOPLEFT", 388, -104)
@@ -261,13 +267,35 @@ ns.UI.Tabs.customers = {
             if order then
                 local days = ns.Regulars.DaysLeft(order)
                 local others = #ns.Regulars.Orders() - 1
-                wanted[#wanted + 1] = string.format("|cffffd700Order|r %s: %s · %s · %s gc%s",
-                    order.name, order.label,
+                wanted[#wanted + 1] = string.format("|cffffd700%s|r %s: %s · %s · %s gc%s",
+                    order.patron and "Patron order" or "Order",
+                    -- Names are generated and can run long; a 40 character name
+                    -- would wrap the card on its own at a large font.
+                    W.Shorten(order.name, 16), order.label,
                     days <= 1 and "|cffff5555last day|r" or (days .. " days"),
                     U.comma(order.budget),
                     others > 0 and string.format(" |cff9c8a5a(+%d)|r", others) or "")
             end
-            ui.requestText:SetText(table.concat(wanted, "\n"))
+            -- Fit the card rather than letting it grow: measure the joined text
+            -- and keep the order line first if both do not fit. GetStringHeight
+            -- is the truth on a real client; the fallback assumes a line per
+            -- entry, which is what the mock and old clients can know.
+            local function measure(text)
+                local shown
+                pcall(function() ui.requestText:SetText(text) end)
+                if type(ui.requestText.GetStringHeight) == "function" then
+                    local ok, height = pcall(ui.requestText.GetStringHeight, ui.requestText)
+                    if ok and tonumber(height) and tonumber(height) > 0 then shown = tonumber(height) end
+                end
+                if not shown then
+                    local lines = 1
+                    for _ in tostring(text):gmatch("\n") do lines = lines + 1 end
+                    shown = lines * 15
+                end
+                return shown
+            end
+            local kept = W.FitLines(wanted, 46, measure)
+            ui.requestText:SetText(table.concat(kept, "\n"))
             if order then
                 -- The bar fills as the deadline approaches, so urgency is a shape
                 -- as well as a number.

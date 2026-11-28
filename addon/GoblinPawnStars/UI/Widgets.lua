@@ -34,6 +34,44 @@ function W.Text(parent, text, size, color, layer)
     return fs
 end
 
+--[[ Text that has to fit a fixed card --------------------------------------
+    The Customers card stacks a buyer line and a special-order line above a bar.
+    At a large font or a small UI scale those lines wrap and push the bar out of
+    the card. These helpers let the card drop its least important line and
+    shorten overlong names instead of growing. Pure functions so they can be
+    exercised without a client.
+--------------------------------------------------------------------------- ]]
+
+--- Cuts text to `limit` characters, marking the cut with an ellipsis.
+function W.Shorten(text, limit)
+    text = tostring(text or "")
+    limit = math.max(1, math.floor(tonumber(limit) or 40))
+    if #text <= limit then return text end
+    if limit <= 1 then return "\226\128\166" end
+    return text:sub(1, limit - 1) .. "\226\128\166"
+end
+
+--- Keeps the longest run of lines taken from the *end* (the last line is the
+--- important one) whose measured height fits `areaHeight`. Always returns at
+--- least one line. `measure` maps the joined text to a height, so this stays a
+--- pure function and the tests can pretend the font is any size.
+function W.FitLines(lines, areaHeight, measure)
+    if type(lines) ~= "table" or #lines == 0 then return {}, 0 end
+    areaHeight = math.max(1, tonumber(areaHeight) or 1)
+    for count = #lines, 1, -1 do
+        local kept = {}
+        for index = #lines - count + 1, #lines do kept[#kept + 1] = lines[index] end
+        local text = table.concat(kept, "\n")
+        local height = 0
+        if measure then
+            local ok, value = pcall(measure, text)
+            if ok then height = tonumber(value) or 0 end
+        end
+        if height <= areaHeight or count == 1 then return kept, height end
+    end
+    return { lines[#lines] }, 0
+end
+
 function W.Number(parent, text, size, color, layer)
     local fs = parent:CreateFontString(nil, layer or "OVERLAY")
     fs:SetFont(T.fontNumber, size or 12, "")
