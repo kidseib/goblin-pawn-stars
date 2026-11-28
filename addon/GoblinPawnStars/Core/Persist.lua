@@ -144,6 +144,7 @@ local function defaults()
             questAutoSell = false,
             paused = false,
             macroJournal = true,
+            autoLoadJournal = true,
             journalHintShown = false,
         },
         baseline = nil,
@@ -340,6 +341,9 @@ function DB.Scratch()
     -- Journal tests switch this back on explicitly.
     db.settings.macroJournal = false
     DB.scratch = true
+    -- A scratch database is not a player session: there is nothing to load, so
+    -- the load gate must not block the journal tests that opt in.
+    if ns.Journal and ns.Journal.status then ns.Journal.status.loaded = true end
     return db
 end
 
@@ -478,7 +482,7 @@ local function decodeValue(text, state)
         end
         return result
     end
-    error("unknown tag '" .. tostring(tag) .. "' at " .. tostring(state.pos - 1))
+    error("unknown tag '..  tostring(tag) .. "' at " .. tostring(state.pos - 1))
 end
 
 function S.Decode(text)
@@ -528,6 +532,10 @@ function DB.Import(text, skipSave)
     ns.db = normalize(data)
     _G.GoblinPawnStarsDB = ns.db
     DB.scratch = false
+    -- Importing a pasted backup is an explicit choice to replace the run, so it
+    -- also adopts the save path; otherwise the journal stays unloaded and the
+    -- next autosave would be refused.
+    if ns.Journal and ns.Journal.MarkLoaded then ns.Journal.MarkLoaded() end
     if not skipSave then
         DB.Save()
         if ns.Journal and ns.Journal.SaveNow then ns.Journal.SaveNow(true) end

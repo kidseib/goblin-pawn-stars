@@ -69,11 +69,25 @@ end
 
 C.frame = frame
 
+-- Describes the shop that is actually in memory. It runs straight after login,
+-- or — when a saved run is still coming out of the macro journal — on the
+-- journal's first settle, so a returning player never gets the fresh-stall line.
+local function announceSession()
+    local db = DB.Get()
+    if (db.stats.sales or 0) == 0 then
+        ns.Print("Your stall is open. A starter crate is on the counter; the wholesaler can keep it stocked. Type |cff7bd66b/gps|r to begin.")
+        return
+    end
+    -- Nothing is earned while the shop is closed, so the summary says what is
+    -- waiting rather than pretending the salesperson traded overnight.
+    ns.Print(string.format(
+        "|cff7bd66bWelcome back|r · %s gc · %d waiting · %d/%d stock.",
+        ns.Util.comma(db.credits or 0), #db.shop.waiting,
+        ns.Inventory.Count(), ns.Inventory.Capacity()))
+end
+
 C.events = ns.Compat.EventFrame({
     PLAYER_LOGIN = function()
-        -- Restore before the clock grants the starter crate or schedules the
-        -- first arrival, so a fresh client never overwrites a real journal run.
-        if ns.Journal then ns.Journal.TryLoad() end
         local db = DB.Get()
         db.lastSession = { login = ns.Util.now(), version = ns.VERSION }
         local firstVisit = (db.stats.sales or 0) == 0
@@ -82,19 +96,22 @@ C.events = ns.Compat.EventFrame({
         ns.Wholesaler.GrantStarter()
         ns.Shop.RefreshDailyRequest()
         ns.Achievements.Check()
-        if firstVisit then
-            ns.Print("Your stall is open. A starter crate is on the counter; the wholesaler can keep it stocked. Type |cff7bd66b/gps|r to begin.")
+
+        -- The journal arms a short automatic load at login. While it is pending the
+        -- summary waits for it: two seconds later the saved run replaces these
+        -- defaults, so announcing now would call a returning player a new stall.
+        local journal = ns.Journal
+        if journal and journal.AutoPending and journal.AutoPending() then
+            ns.Print("|cff9c8a5aLoading your saved shop…|r Settings → Backup & Restore can load it by hand.")
+            if journal.AfterSettle then journal.AfterSettle(announceSession) end
         else
-            -- Nothing is earned while the shop is closed, so the summary says what
-            -- is waiting rather than pretending the salesperson traded overnight.
-            local waiting = #db.shop.waiting
-            local stock = ns.Inventory.Count()
-            local capacity = ns.Inventory.Capacity()
-            local saved = ns.Journal and ns.Journal.status and (ns.Journal.status.savedAt or 0) or 0
-            local age = saved > 0 and ns.Util.clock(ns.Util.now() - saved) or "never"
-            ns.Print(string.format(
-                "|cff7bd66bWelcome back|r · %s gc · %d waiting · %d/%d stock · last save %s ago. Type |cff7bd66b/gps verify|r to check the save path.",
-                ns.Util.comma(db.credits or 0), waiting, stock, capacity, age))
+            announceSession()
+            if journal and journal.Active and journal.Active()
+                and not (journal.Loaded and journal.Loaded()) then
+                -- Nothing is going to load this session: point at the button.
+                ns.Print("|cff9c8a5aSaved shop not loaded.|r Settings → Backup & Restore → " ..
+                    "|cffffffffLoad saved|r resumes it. Nothing is overwritten until you choose.")
+            end
         end
         ns.Debug("simulation clock started")
     end,
