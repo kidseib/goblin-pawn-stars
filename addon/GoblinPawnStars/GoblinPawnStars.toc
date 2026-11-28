@@ -34,6 +34,7 @@ Data\Dialogue.lua
 Data\Regulars.lua
 Data\Streak.lua
 Data\Gamble.lua
+Data\Board.lua
 Data\Upgrades.lua
 Data\Employees.lua
 Data\Wholesale.lua
@@ -47,6 +48,7 @@ Modules\Market.lua
 Modules\Inventory.lua
 Modules\Loot.lua
 Modules\Shop.lua
+Modules\Board.lua
 Modules\Wholesaler.lua
 Modules\Staff.lua
 Modules\Customers.lua

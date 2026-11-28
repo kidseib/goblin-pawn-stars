@@ -3454,6 +3454,243 @@ function D.Run()
         end)
     end)
 
+    -----------------------------------------------------------------------
+    -- The A-board (plan item #4)
+    -----------------------------------------------------------------------
+
+    test("the a-board offers stocked lines with a lift inside its data band", function()
+        withScratch(nil, function(scratch)
+            scratch.tier = 2
+            scratch.inventory = {}
+            -- The sign cannot advertise an empty shelf.
+            expectEqual(#ns.Board.Candidates(), 0, "an empty shop was offered a board")
+
+            ns.Inventory.Add({ id = 9110, name = "Board Bolt", quality = 2, ilvl = 20,
+                classID = 7, subclassID = 5, category = "cloth", value = 40 })
+            ns.Inventory.Add({ id = 9111, name = "Board Gem", quality = 2, ilvl = 20,
+                classID = 3, subclassID = 0, category = "gem", value = 90 })
+
+            local first = ns.Board.Candidates()
+            expectEqual(#first, 2, "two stocked lines did not fill the board")
+            local second = ns.Board.Candidates()
+            expectEqual(second[1].key, first[1].key, "the board changed between reads on one day")
+            expectEqual(second[2].key, first[2].key, "the second line changed between reads")
+            expect(first[1].key ~= first[2].key, "the board offered the same line twice")
+            for _, placard in ipairs(first) do
+                local def = ns.Data.BoardByCategory[placard.key]
+                expect(def, "the board offered a category with no placard")
+                expect(placard.key == "cloth" or placard.key == "gem",
+                    "the board offered a line that is not on the shelf: " .. tostring(placard.key))
+                expect(placard.bonus >= def.low and placard.bonus <= def.high,
+                    "the lift left its data band: " .. tostring(placard.bonus))
+                expectEqual(placard.percent, math.floor(placard.bonus * 100 + 0.5),
+                    "the stated percent is not the lift that is paid")
+            end
+        end)
+    end)
+
+    test("the a-board is chalked once a day and survives a reload", function()
+        withScratch(nil, function(scratch)
+            scratch.tier = 2
+            scratch.inventory = {}
+            ns.Inventory.Add({ id = 9112, name = "Board Bolt II", quality = 2, ilvl = 20,
+                classID = 7, subclassID = 5, category = "cloth", value = 40 })
+            ns.Inventory.Add({ id = 9113, name = "Board Gem II", quality = 2, ilvl = 20,
+                classID = 3, subclassID = 0, category = "gem", value = 90 })
+
+            local candidates = ns.Board.Candidates()
+            expectEqual(#candidates, 2, "the board did not fill up")
+            local pick = candidates[1]
+            local ok, placard = ns.Board.Chalk(pick.key)
+            expect(ok and placard, "the first chalk of the day failed")
+            expectEqual(ns.Board.Active().key, pick.key, "the chalked line is not active")
+
+            local again, why = ns.Board.Chalk(candidates[2].key)
+            expectEqual(again, false, "a second chalk on the same day was allowed")
+            expect(type(why) == "string", "the refusal has no reason attached")
+            expectEqual(ns.Board.Chalk("nonsense"), false, "a line that was not offered was chalked")
+
+            local encoded = ns.DB.Export()
+            expect(ns.DB.Import(encoded, true), "the export did not import")
+            local restored = ns.DB.Get().shop.board
+            expect(restored, "the chalked board did not survive the save")
+            expectEqual(restored.key, pick.key, "the chalked line changed across the save")
+            expectEqual(restored.day, ns.Util.today(), "the saved board lost its day")
+            expectEqual(restored.bonus, nil, "the board saved a number it should derive")
+            expect(ns.Board.Active(), "the reloaded board is not active")
+
+            -- A board from an earlier day stops counting without writing anything.
+            ns.DB.Get().shop.board = { day = "1999-01-01", key = pick.key }
+            expectEqual(ns.Board.Active(), nil, "a stale board stayed active")
+            expectEqual(ns.Board.Bonus({ category = pick.key }), 0, "a stale board paid a lift")
+            expectEqual(ns.Board.Traffic(), 1, "a stale board still shortened the wait")
+
+            -- Edited saves: junk is dropped, never trusted, and a valid line is kept.
+            local junk = ns.DB.Normalize({ shop = { board = { day = "2026-01-01", key = "nonsense" } } })
+            expectEqual(junk.shop.board, nil, "a junk board survived normalization")
+            local good = ns.DB.Normalize({ shop = { board = { day = "2026-01-01", key = pick.key } } })
+            expectEqual(good.shop.board and good.shop.board.key, pick.key, "a valid board was dropped")
+            local old = ns.DB.Normalize({ shop = {} })
+            expectEqual(old.shop.board, nil, "an old save invented a board")
+        end)
+    end)
+
+    test("a featured sale pays the chalked lift and removes one unit", function()
+        withScratch(nil, function(scratch)
+            scratch.tier = 2
+            scratch.credits = 500
+            scratch.inventory = {}
+            -- A request for a different line, so the lift measured here is the board's.
+            scratch.shop.request = {
+                day = ns.Util.today(), category = "gem", bonus = 0.2, fulfilled = false,
+            }
+            local record = ns.Inventory.Add({ id = 9114, name = "Board Bolt III", quality = 2,
+                ilvl = 20, classID = 7, subclassID = 5, category = "cloth", value = 40 })
+            expect(record, "no stock for the board sale")
+            local candidates = ns.Board.Candidates()
+            expectEqual(#candidates, 1, "one stocked line did not make a one-line board")
+            expectEqual(candidates[1].key, "cloth", "the board did not offer the stocked line")
+            expect(ns.Board.Chalk(candidates[1].key), "the shop could not chalk its line")
+
+            expect(ns.Customers.TrySpawn({ personality = "trader" }), "no customer")
+            expect(ns.Customers.StartNegotiation(1), "the negotiation did not start")
+            local customer = ns.Negotiation.Active()
+            expectEqual(customer.itemUid, record.uid, "the customer did not take the stocked unit")
+            customer.offer = 100
+            local sales = scratch.stats.sales or 0
+            local before = scratch.credits
+
+            local ok, payload = ns.Negotiation.Accept()
+            expect(ok and payload, "the featured sale did not complete")
+            local expected = math.max(1, ns.Util.floor(100 * (1 + candidates[1].bonus)))
+            expectEqual(payload.price, expected, "the sale did not pay the chalked lift")
+            expect(payload.price > 100, "the board paid nothing at all")
+            expectEqual(before + payload.price, scratch.credits, "the wallet moved outside the sale")
+            expectEqual(scratch.stats.sales, sales + 1, "the featured sale was not counted")
+            expectEqual(scratch.inventory[record.uid], nil, "the featured unit stayed in stock")
+            -- Achievements can add their own line right after the sale, so look
+            -- at the last few sale rows rather than assuming the first one.
+            local said = false
+            for _, entry in ipairs(ns.History.List("sale", 3)) do
+                if entry.detail and entry.detail:find("A-board", 1, true) then said = true end
+            end
+            expect(said, "the ledger does not say the board paid")
+        end)
+    end)
+
+    test("the a-board never inflates a flat wager", function()
+        withScratch(nil, function(scratch)
+            scratch.tier = 3
+            scratch.credits = 1000
+            scratch.inventory = {}
+            scratch.shop.request = {
+                day = ns.Util.today(), category = "gem", bonus = 0.2, fulfilled = false,
+            }
+            ns.Inventory.Add({ id = 9115, name = "Board Relic", quality = 3, ilvl = 40,
+                classID = 4, subclassID = 0, category = "cloth", value = 300 })
+            local candidates = ns.Board.Candidates()
+            expect(candidates[1] and ns.Board.Chalk(candidates[1].key), "the board was not chalked")
+
+            expect(ns.Customers.TrySpawn({ personality = "desperate" }), "no customer")
+            expect(ns.Customers.StartNegotiation(1), "the negotiation did not start")
+            local customer = ns.Negotiation.Active()
+            customer.offer = 100
+            customer.maxPay = 400
+            local terms = ns.Gamble.Terms(customer)
+            expect(terms, "no wager on the table")
+
+            local previous = ns.Util.chance
+            ns.Util.chance = function() return true end
+            local ok, payload = ns.Negotiation.Wager()
+            ns.Util.chance = previous
+
+            expect(ok and payload and payload.won, "the winning wager did not resolve")
+            expectEqual(payload.price, terms.prize, "the board inflated the wager's quoted prize")
+        end)
+    end)
+
+    test("the a-board brings buyers in without changing what they bring", function()
+        withScratch(nil, function(scratch)
+            scratch.tier = 2
+            scratch.inventory = {}
+            ns.Inventory.Add({ id = 9116, name = "Steer Cloth", quality = 2, ilvl = 20,
+                classID = 7, subclassID = 5, category = "cloth", value = 40 })
+            ns.Inventory.Add({ id = 9117, name = "Steer Gem", quality = 2, ilvl = 20,
+                classID = 3, subclassID = 0, category = "gem", value = 90 })
+
+            local function sample()
+                local counts = { cloth = 0, gem = 0 }
+                for _ = 1, 400 do
+                    scratch.shop.waiting = {}
+                    scratch.shop.current = nil
+                    if ns.Customers.TrySpawn({ personality = "trader" }) then
+                        local customer = scratch.shop.waiting[1]
+                        local record = customer and scratch.inventory[customer.itemUid]
+                        if record then
+                            counts[record.category] = (counts[record.category] or 0) + 1
+                        end
+                    end
+                end
+                return counts
+            end
+
+            local normal = ns.Shop.ArrivalInterval()
+            expectEqual(ns.Board.Traffic(), 1, "an unchalked board changed the wait for a customer")
+            local plain = sample()
+            expect(plain.gem > 20, "the trader never looked at gems at all")
+
+            local gem = nil
+            for _, placard in ipairs(ns.Board.Candidates()) do
+                if placard.key == "gem" then gem = placard end
+            end
+            expect(gem, "the board did not offer gems")
+            expect(ns.Board.Chalk("gem"), "the gem line was not chalked")
+
+            -- Advertising is footfall: the wait shrinks by exactly the data value.
+            expectEqual(ns.Board.Traffic(), ns.Data.BoardTraffic,
+                "the chalked board does not state the traffic it applies")
+            local advertised = ns.Shop.ArrivalInterval()
+            expect(advertised < normal, "the chalked board did not shorten the wait for a customer")
+            expect(math.abs(advertised - normal * ns.Data.BoardTraffic) < 0.001,
+                "the wait was not scaled by the data value")
+
+            -- And the pick is untouched: the same trader brings the same mix.
+            local featured = sample()
+            expect(math.abs(featured.gem - plain.gem) < 30,
+                string.format("the board changed which item customers bring (gem %d before, %d after)",
+                    plain.gem, featured.gem))
+            scratch.shop.waiting = {}
+            scratch.shop.current = nil
+        end)
+    end)
+
+    test("an unchalked day pays the plain offer and steers nothing", function()
+        withScratch(nil, function(scratch)
+            scratch.tier = 2
+            scratch.credits = 500
+            scratch.inventory = {}
+            scratch.shop.request = {
+                day = ns.Util.today(), category = "gem", bonus = 0.2, fulfilled = false,
+            }
+            local record = ns.Inventory.Add({ id = 9118, name = "Plain Bolt", quality = 2,
+                ilvl = 20, classID = 7, subclassID = 5, category = "cloth", value = 40 })
+            expect(record, "no stock")
+            expectEqual(ns.Board.Active(), nil, "a board appeared without being chalked")
+            expectEqual(ns.Board.Bonus(record), 0, "an unchalked board paid a lift")
+            expectEqual(ns.Board.Traffic(), 1, "an unchalked board shortened the wait")
+            expect(#ns.Board.Candidates() > 0, "a stocked shop had no board to offer")
+
+            expect(ns.Customers.TrySpawn({ personality = "trader" }), "no customer")
+            expect(ns.Customers.StartNegotiation(1), "the negotiation did not start")
+            local customer = ns.Negotiation.Active()
+            customer.offer = 100
+            local ok, payload = ns.Negotiation.Accept()
+            expect(ok and payload, "the plain sale did not complete")
+            expectEqual(payload.price, 100, "an unchalked day did not pay the plain offer")
+            expectEqual(scratch.inventory[record.uid], nil, "the plain unit stayed in stock")
+        end)
+    end)
+
     return results
 end
 

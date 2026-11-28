@@ -100,7 +100,7 @@ ns.UI.Tabs.dashboard = {
         -- Today / latest
         -------------------------------------------------------------------
         local today = W.Panel(parent, "panel")
-        today:SetSize(360, 176)
+        today:SetSize(360, 214)
         today:SetPoint("TOPLEFT", 0, -162)
 
         local todayTitle = W.Text(today, "TODAY AT THE SHOP", 10, T.colors.goldDim)
@@ -110,24 +110,89 @@ ns.UI.Tabs.dashboard = {
         ui.requestLabel:SetPoint("TOPLEFT", 12, -28)
         ui.requestLabel:SetPoint("TOPRIGHT", -12, -28)
 
+        -------------------------------------------------------------------
+        -- The sidewalk A-board
+        -- Before the morning's decision it is two chalkable lines; after it, one
+        -- stated line and what is on the shelves to back it up. It lives in this
+        -- card because it is the same sentence as the request: what the shop is
+        -- telling people today.
+        -------------------------------------------------------------------
+        ui.boardCaption = W.Text(today, "THE A-BOARD", 9, T.colors.goldDim)
+        ui.boardCaption:SetPoint("TOPLEFT", 12, -50)
+
+        local function boardTip(owner, placard)
+            if not owner or not GameTooltip then return end
+            owner:EnableMouse(true)
+            owner:SetScript("OnEnter", function(self)
+                local current = self.placard
+                if not current then return end
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                GameTooltip:SetText(current.headline, 0.94, 0.78, 0.33)
+                GameTooltip:AddLine(current.blurb or "", 0.91, 0.85, 0.69, true)
+                GameTooltip:AddLine(string.format("Every %s sale today pays +%d%%.",
+                    string.lower(current.name or "stock"), current.percent or 0),
+                    0.85, 0.82, 0.7, true)
+                local traffic = tonumber(ns.Data.BoardTraffic) or 0.88
+                GameTooltip:AddLine(string.format("Buyers walk in about %d%% more often while it is chalked.",
+                    math.floor(((1 / traffic) - 1) * 100 + 0.5)),
+                    0.85, 0.82, 0.7, true)
+                GameTooltip:AddLine("The board is chalked once a shop day and clears at dawn.",
+                    0.62, 0.58, 0.47, true)
+                GameTooltip:Show()
+            end)
+            owner:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        end
+
+        ui.boardButtons = {}
+        for index = 1, 2 do
+            local placardSlot = index
+            local button
+            button = W.Button(today, "", 162, 24, function()
+                local placard = button.placard
+                if not placard then return end
+                local ok, info = ns.Board.Chalk(placard.key)
+                if ok then
+                    ns.UI.Toast("A-board chalked: " .. ns.Data.BoardLine(info))
+                    if ns.Anim then ns.Anim.Pulse(today) end
+                else
+                    ns.UI.Toast(tostring(info))
+                end
+                ns.UI.Refresh()
+            end, "gold")
+            button:SetPoint("TOPLEFT", 12 + (placardSlot - 1) * 170, -62)
+            boardTip(button)
+            ui.boardButtons[index] = button
+        end
+
+        ui.boardLine = W.Text(today, "", 11, T.colors.gold)
+        ui.boardLine:SetPoint("TOPLEFT", 12, -62)
+        ui.boardLine:SetPoint("TOPRIGHT", -12, -62)
+        ui.boardLine:Hide()
+        boardTip(ui.boardLine)
+
+        ui.boardHint = W.Text(today, "", 9, T.colors.muted)
+        ui.boardHint:SetPoint("TOPLEFT", 12, -78)
+        ui.boardHint:SetPoint("TOPRIGHT", -12, -78)
+        ui.boardHint:Hide()
+
         local dayCaption = W.Text(today, "SHOP DAY (RENT & WAGES)", 9, T.colors.muted)
-        dayCaption:SetPoint("TOPLEFT", 12, -56)
+        dayCaption:SetPoint("TOPLEFT", 12, -98)
         ui.dayBar = W.Bar(today, 336, 7, T.colors.goldDim)
-        ui.dayBar:SetPoint("TOPLEFT", 12, -70)
+        ui.dayBar:SetPoint("TOPLEFT", 12, -112)
         ui.dayText = W.Text(today, "", 9, T.colors.dim)
-        ui.dayText:SetPoint("TOPLEFT", 12, -80)
+        ui.dayText:SetPoint("TOPLEFT", 12, -122)
 
         local marketCaption = W.Text(today, "MARKET MOOD", 9, T.colors.muted)
-        marketCaption:SetPoint("TOPLEFT", 12, -100)
+        marketCaption:SetPoint("TOPLEFT", 12, -142)
         ui.marketText = W.Text(today, "", 11, T.colors.text)
-        ui.marketText:SetPoint("TOPLEFT", 12, -113)
-        ui.marketText:SetPoint("TOPRIGHT", -12, -113)
+        ui.marketText:SetPoint("TOPLEFT", 12, -155)
+        ui.marketText:SetPoint("TOPRIGHT", -12, -155)
         ui.marketText:SetWordWrap(true)
 
         local latest = W.Panel(parent, "panel")
         latest:SetPoint("TOPLEFT", 368, -162)
         latest:SetPoint("TOPRIGHT", 0, -162)
-        latest:SetHeight(176)
+        latest:SetHeight(214)
 
         local latestTitle = W.Text(latest, "LATEST NEWS", 10, T.colors.goldDim)
         latestTitle:SetPoint("TOPLEFT", 12, -10)
@@ -164,22 +229,22 @@ ns.UI.Tabs.dashboard = {
                 ns.UI.Toast("No customer is waiting. They will wander in soon.")
             end
         end, "primary")
-        counterButton:SetPoint("TOPLEFT", 0, -348)
+        counterButton:SetPoint("TOPLEFT", 0, -386)
 
         local inventoryButton = W.Button(parent, "Browse Inventory", 142, 32, function()
             ns.UI.ShowTab("inventory")
         end, "neutral")
-        inventoryButton:SetPoint("TOPLEFT", 180, -348)
+        inventoryButton:SetPoint("TOPLEFT", 180, -386)
 
         local marketButton = W.Button(parent, "Market Report", 138, 32, function()
             ns.UI.ShowTab("market")
         end, "neutral")
-        marketButton:SetPoint("TOPLEFT", 330, -348)
+        marketButton:SetPoint("TOPLEFT", 330, -386)
 
         local wholesaleButton = W.Button(parent, "Wholesaler", 128, 32, function()
             if ns.UI.Wholesaler then ns.UI.Wholesaler.Show() end
         end, "neutral")
-        wholesaleButton:SetPoint("TOPLEFT", 476, -348)
+        wholesaleButton:SetPoint("TOPLEFT", 476, -386)
 
         local testButton = W.Button(parent, "Stock Bags Now", 132, 32, function()
             local added, items, readable = ns.Loot.ImportCurrentBags()
@@ -193,14 +258,14 @@ ns.UI.Tabs.dashboard = {
             end
             ns.UI.Refresh()
         end, "gold")
-        testButton:SetPoint("TOPRIGHT", 0, -348)
+        testButton:SetPoint("TOPRIGHT", 0, -386)
 
         -------------------------------------------------------------------
         -- Next up
         -------------------------------------------------------------------
         ui.goalCard = W.Panel(parent, "inset")
-        ui.goalCard:SetPoint("TOPLEFT", 0, -392)
-        ui.goalCard:SetPoint("TOPRIGHT", 0, -392)
+        ui.goalCard:SetPoint("TOPLEFT", 0, -428)
+        ui.goalCard:SetPoint("TOPRIGHT", 0, -428)
         ui.goalCard:SetHeight(72)
 
         local goalCaption = W.Text(ui.goalCard, "NEXT UP", 9, T.colors.goldDim)
@@ -298,6 +363,50 @@ ns.UI.Tabs.dashboard = {
                     ui.requestLabel:SetText("|cff5fd64fDaily request complete.|r " ..
                         "Tomorrow brings a new obsession.")
                 end
+            end
+
+            -- The A-board row: two chalkable lines until the morning's decision,
+            -- then the line that was chalked. Board.Active() is one string
+            -- compare, and the stock count is one bounded pass (400 stacks).
+            local board = ns.Board and ns.Board.Active()
+            local candidates = {}
+            if ns.Board and not board then candidates = ns.Board.Candidates() end
+            ui.boardCaption:SetText(board and "THE A-BOARD" or "THE A-BOARD · CHALK ONE LINE")
+            for index, button in ipairs(ui.boardButtons) do
+                local placard = candidates[index]
+                button.placard = placard
+                if placard then
+                    button:SetLabel(string.format("%s +%d%%", placard.headline, placard.percent))
+                    button:SetState(true)
+                    button:Show()
+                else
+                    button:Hide()
+                end
+            end
+            if board then
+                ui.boardLine.placard = board
+                ui.boardLine:SetText(ns.Data.BoardLine(board))
+                ui.boardLine:Show()
+                local stocked, seen = 0, 0
+                for _, record in pairs(db.inventory or {}) do
+                    seen = seen + 1
+                    if record and record.category == board.key then
+                        stocked = stocked + (tonumber(record.count) or 1)
+                    end
+                    if seen >= 400 then break end
+                end
+                ui.boardHint:SetText(stocked > 0
+                    and string.format("%d %s in stock · every one of them pays the sign",
+                        stocked, string.lower(board.name))
+                    or "Nothing of that line in stock. The sign cannot sell an empty shelf.")
+                ui.boardHint:Show()
+            else
+                ui.boardLine:Hide()
+                ui.boardLine.placard = nil
+                ui.boardHint:SetText(#candidates > 0
+                    and "Chalk one line for the day: it pays on every sale and brings the buyers in."
+                    or "Stock something and the board writes itself.")
+                ui.boardHint:Show()
             end
 
             ui.dayBar:SetValue(ns.Shop.ShopDayProgress(), 1)

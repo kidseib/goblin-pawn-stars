@@ -198,7 +198,13 @@ local function completeSale(price, method, cleanDeal, label, flat)
         request.fulfilled = true
     end
 
-    local bonusAdjustedPrice = price * (1 + requestBonus + (tonumber(cleanDeal) or 0))
+    -- The sidewalk board: the shop advertised this category all day, so every
+    -- sale of it pays the placard's lift. A flat settlement (the wager) keeps the
+    -- figure it quoted and ignores the board like it ignores the request.
+    local boardBonus = 0
+    if not flat and ns.Board then boardBonus = ns.Board.Bonus(record) or 0 end
+
+    local bonusAdjustedPrice = price * (1 + requestBonus + boardBonus + (tonumber(cleanDeal) or 0))
     price = math.max(1, U.floor(method == "questsale" and bonusAdjustedPrice / 3 or bonusAdjustedPrice))
 
     ns.Inventory.Remove(customer.itemUid, 1)
@@ -264,14 +270,18 @@ local function completeSale(price, method, cleanDeal, label, flat)
         end
     end
 
+    local tags = {}
+    if requestBonus > 0 then tags[#tags + 1] = "daily request bonus" end
+    if boardBonus > 0 then tags[#tags + 1] = "A-board bonus" end
+
     ns.History.Add({
         kind = "sale",
         text = string.format("%s bought %s", customer.name, itemName),
         amount = price,
         icon = record.icon,
-        detail = string.format("Market value %s · %s %s",
+        detail = string.format("Market value %s · %s%s",
             U.comma(baseValue), how,
-            requestBonus > 0 and "(daily request bonus)" or ""),
+            #tags > 0 and (" (" .. table.concat(tags, ", ") .. ")") or ""),
     })
 
     if ns.Sound then ns.Sound.Play("coin") end
@@ -589,5 +599,8 @@ function N.Summary()
         -- nil when this customer has no wager to offer (wrong archetype, already
         -- used it, or there is no gap between their offer and their ceiling).
         wager = wagerFor(customer),
+        -- The fraction the A-board adds to a sale of this item today, or 0. The
+        -- window states it before the player agrees, so the sale cannot surprise.
+        board = (record and ns.Board and ns.Board.Bonus(record)) or 0,
     }
 end

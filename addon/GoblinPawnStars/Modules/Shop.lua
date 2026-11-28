@@ -92,6 +92,10 @@ end
 function S.ArrivalInterval()
     local tier = S.TierInfo()
     local interval = (tier.arrival or 110) - (S.Bonuses().arrival or 0)
+    -- The sidewalk A-board is advertising, so it shortens the wait for the next
+    -- customer. It is a multiplier on the interval the clock already uses, not a
+    -- second scheduler: no timer, no extra traffic event.
+    if ns.Board then interval = interval * (ns.Board.Traffic() or 1) end
     local _, speed = S.ArrivalPace()
     return U.clamp(interval, 8, 300) * speed
 end

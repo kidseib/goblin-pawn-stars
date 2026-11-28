@@ -140,8 +140,12 @@ local function refresh()
     end
 
     local damaged = item.counterfeit and customer.appraised
-    itemValue:SetText(string.format("Category: %s%s",
+    -- The board is stated with the category, before the player names a price, so
+    -- the lift on this sale is never a surprise at the payout banner.
+    local boardPercent = math.floor(((summary.board or 0) * 100) + 0.5)
+    itemValue:SetText(string.format("Category: %s%s%s",
         ns.Data.CategoryName(item.category),
+        boardPercent > 0 and (" |cffffd700· A-board +" .. boardPercent .. "%|r") or "",
         damaged and " |cffff5555· suspected forgery|r" or ""))
 
     for _, preset in ipairs(presets) do

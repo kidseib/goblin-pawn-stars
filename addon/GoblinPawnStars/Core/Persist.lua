@@ -94,6 +94,9 @@ local function defaults()
             lastArrivalAt = 0,
             request = nil,
             requestDay = nil,
+            -- The A-board: the line chalked today, `{ day, key }`. The lift is
+            -- derived from the data table, so no number is ever saved.
+            board = nil,
             shopDayProgress = 0,
             encounterRecent = {},
             recentLines = {},
@@ -309,6 +312,16 @@ local function normalize(db)
     -- celebrate once; it never celebrates a tier twice.
     local tierCount = (ns.Data and ns.Data.ReputationTiers and #ns.Data.ReputationTiers) or 0
     db.shop.celebratedTier = U.clamp(math.floor(tonumber(db.shop.celebratedTier) or 0), 0, tierCount)
+    -- The A-board is a day string and a category the data knows, nothing else.
+    -- A junk entry (an edited save, a removed category) is dropped, which costs
+    -- the player nothing but the day's board.
+    local board = db.shop.board
+    if type(board) ~= "table" or type(board.day) ~= "string" or type(board.key) ~= "string"
+        or not (ns.Data and ns.Data.BoardByCategory and ns.Data.BoardByCategory[board.key]) then
+        db.shop.board = nil
+    else
+        db.shop.board = { day = board.day:sub(1, 12), key = board.key }
+    end
     if type(db.shop.wholesale) ~= "table" then db.shop.wholesale = { lots = {}, nextRestock = 0, restocks = 0 } end
     if type(db.shop.wholesale.lots) ~= "table" then db.shop.wholesale.lots = {} end
     if type(db.stats) ~= "table" then db.stats = defaults().stats end

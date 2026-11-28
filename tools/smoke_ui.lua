@@ -691,6 +691,80 @@ function __smoke()
         UI.Refresh()
     end)
 
+    attempt("the a-board is chalked from the dashboard and pays in the window", function()
+        local UI = __NS.UI
+        local db = __NS.DB.Get()
+        db.shop.board = nil
+        db.shop.current = nil
+        db.shop.waiting = {}
+        db.shop.request = nil
+        db.inventory = {}
+        __NS.Inventory.Add({ id = 2630, name = "Board Bolt", quality = 2, ilvl = 12,
+            classID = 7, subclassID = 5, category = "cloth", value = 120 })
+        __NS.Inventory.Add({ id = 2631, name = "Board Gem", quality = 2, ilvl = 12,
+            classID = 3, subclassID = 0, category = "gem", value = 160 })
+
+        UI.Open()
+        UI.ShowTab("dashboard")
+        local def = UI.Tabs.dashboard
+        assert(def and def.api and def.api.Refresh, "the dashboard did not build")
+        def.api.Refresh()
+
+        local shown = 0
+        for _, button in ipairs(def.api.boardButtons or {}) do
+            if button:IsShown() then shown = shown + 1 end
+        end
+        assert(shown == 2, "the board did not offer two lines, offered " .. tostring(shown))
+
+        local button = def.api.boardButtons[1]
+        assert(type(button.placard) == "table", "the board button has no placard behind it")
+        -- The button forgets its placard once the line is chalked, so keep the key.
+        local pickedKey = button.placard.key
+        local label = button.label and button.label:GetText() or ""
+        assert(label:find("%+%d+%%"), "the board button does not state its lift: " .. label)
+        assert(button:GetScript("OnEnter") ~= nil, "the board line has no tooltip")
+
+        button:GetScript("OnClick")(button)
+        local board = __NS.Board.Active()
+        assert(board and board.key == pickedKey, "chalking the board did nothing")
+        def.api.Refresh()
+        assert(def.api.boardLine:IsShown(), "the chalked line is not shown on the dashboard")
+        assert((def.api.boardLine:GetText() or ""):find("%+"),
+            "the chalked line states no lift: " .. tostring(def.api.boardLine:GetText()))
+        assert(not def.api.boardButtons[2]:IsShown(),
+            "the board still offers a second line after being chalked")
+        assert(def.api.boardHint:IsShown(), "the board says nothing about the shelves")
+
+        -- The window states the lift before the player agrees, and the sale pays it.
+        assert(__NS.Customers.TrySpawn({ personality = "trader" }), "no customer")
+        assert(__NS.Customers.StartNegotiation(1), "the negotiation did not start")
+        local customer = __NS.Negotiation.Active()
+        local wanted
+        for _, record in pairs(db.inventory) do
+            if record.category == board.key then wanted = record end
+        end
+        assert(wanted, "the chalked line has no stock to sell")
+        customer.itemUid = wanted.uid
+        customer.offer = 100
+        db.shop.request = {
+            day = __NS.Util.today(),
+            category = board.key == "gem" and "cloth" or "gem",
+            bonus = 0.2, fulfilled = false,
+        }
+        UI.Negotiation.Show()
+        local summary = __NS.Negotiation.Summary()
+        assert(summary and summary.board > 0, "the window does not see the board lift")
+
+        local before = db.credits or 0
+        local ok, payload = __NS.Negotiation.Accept()
+        assert(ok and payload, "the featured sale did not complete")
+        local expected = math.max(1, __NS.Util.floor(100 * (1 + board.bonus)))
+        assert(payload.price == expected and (db.credits - before) == expected,
+            "the featured sale paid " .. tostring(db.credits - before)
+            .. " instead of " .. tostring(expected))
+        UI.Refresh()
+    end)
+
     attempt("title bar announces a pending special order", function()
         local db = __NS.DB.Get()
         local UI = __NS.UI
