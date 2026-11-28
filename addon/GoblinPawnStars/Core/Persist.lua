@@ -75,6 +75,10 @@ local function defaults()
             museumDonated = 0,
             regularVisits = 0,
             franchises = 0,
+            ordersPlaced = 0,
+            ordersFilled = 0,
+            ordersLapsed = 0,
+            orderRevenue = 0,
         },
         market = {
             idx = marketIndex,
@@ -253,6 +257,14 @@ local function normalize(db)
                         occupation = type(entry.occupation) == "string" and entry.occupation:sub(1, 32) or nil,
                         visits = U.clamp(math.floor(tonumber(entry.visits) or 1), 1, 99),
                         lastAt = math.max(0, math.floor(tonumber(entry.lastAt) or 0)),
+                        -- Relationship state has to survive the rebuild above,
+                        -- or a patron reverts to a stranger on the next login
+                        -- and a lapsed regular forgets their sulk. Additive and
+                        -- clamped: an old save simply has none of it.
+                        fulfilled = U.clamp(math.floor(tonumber(entry.fulfilled) or 0), 0, 99),
+                        patron = entry.patron and true or nil,
+                        souredDay = (tonumber(entry.souredDay) and
+                            math.max(0, math.floor(tonumber(entry.souredDay)))) or nil,
                     }
                 end
             end
@@ -281,6 +293,7 @@ local function normalize(db)
                     category = entry.category,
                     label = categoryNames[entry.category],
                     budget = U.clamp(math.floor(tonumber(entry.budget) or 0), 1, 10000000),
+                    patron = entry.patron and true or nil,
                     placedDay = placed,
                     dueDay = due,
                 }
