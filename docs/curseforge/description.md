@@ -159,9 +159,9 @@ The first bag scan is a silent baseline. Click **Stock Bags Now** on the Dashboa
 
 ## VERIFY THE DOWNLOAD
 
-SHA-256 for **GoblinPawnStars-1.7.9.zip** (3,335,096 bytes):
+SHA-256 for **GoblinPawnStars-1.7.9.zip** (3,336,136 bytes):
 
-`4afff19964f94f182827001e94d25d5cfcb175c9308d725bf10616446fe81ba3`
+`c116e68c371e6c6e1e221d02b69bbebc097e47ed3b3bd7a8aad8891e7bc2b006`
 
 **VirusTotal:** the 1.4.0 build was scanned with no vendor detections. Newer scans are attached to their release notes when the repository's automated scan has its `VT_API_KEY` secret configured. Until then, compare the SHA-256 above with the [1.7.9 release notes](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.9), or read the source: the addon is plain Lua.
 
