@@ -1,16 +1,28 @@
 # PROGRESS
 
-## Current state — v1.7.8
+## Current state — v1.7.9
 
 Phases 1–4 are implemented. Phase 5 (optional multiplayer) is deliberately not
 started. The addon is feature-complete for a single-player shop simulation and is
 packaged as an installable ZIP. Created by **ErrorSeib & Buffy (Codebuff)**.
 
-**v1.7.8** is a presentation and responsiveness release: Settings has a one-click
+**v1.7.9** changes how the macro journal is read and written. Loading runs by itself
+shortly after login, but never more than four reads: one counter, no chained retries,
+and the last attempt always settles. While an attempt is pending the header reads
+`loading saved shop` and every save is refused, so a fresh session cannot stamp
+defaults over a run it has not read. **Settings → Auto-load** turns the login load off,
+and **Settings → Backup & Restore → Load saved** (confirmed twice) repeats one read on
+demand as the recovery path. The old loader scheduled three more full macro-list reads
+from every failed attempt, which is what multiplied macro work until the client
+stalled. An autosave is a queue of single macro operations with an 8 ms budget per
+tick: one chunk per frame, cleanup only after the commit, and **Save Now**, logout,
+import and `/gps verify` flush a staged save synchronously. No gameplay or arrival
+timing changed. The headless suite is **59 tests**; UI smoke is green.
+
+**v1.7.8** was a presentation and responsiveness release: Settings has a one-click
 Performance mode, simultaneous arrivals aggregate on one card, the card pauses while
 hovered and has its own close control, `/gps profile` keeps rolling operation timings,
-and the Inventory tab reuses sort-time market values. No gameplay or arrival timing
-changed. The headless suite is **55 tests**; UI smoke is green.
+and the Inventory tab reuses sort-time market values. The suite was 55 tests.
 
 v1.1.0 added the welcome window, Settings category, Addon Compartment entry and an
 item-parsing correctness pass. v1.1.1 fixed the sidebar/tab hit area. v1.2.0 added the
@@ -68,6 +80,35 @@ checkpoint remains `ef03caf`, and 1.7.2 is the release that ships the 1.7.1 fixe
 the backups together. The suite is **50 tests** (47 plus three backup tests) and the
 UI smoke builds and captures from the backup window. This work has not run in the
 live client.
+
+### v1.7.9 — a bounded login load and a save that never holds the frame
+
+The old loader scheduled three more reads from every failed attempt, so a journal
+that would not assemble multiplied macro reads until the client stalled. Loading is
+back at login, but bounded: `J.AutoLoad` arms at `PLAYER_LOGIN` and the clock performs
+at most `LOGIN_ATTEMPTS` (four) reads at 2, 5, 10 and 30 seconds — one counter, no
+chained timers, and the last attempt settles either way. An empty macro list does not
+settle early, because it can still be arriving, so `J.TryLoad(origin, hold)` reports a
+third "waiting" result that only the automatic path uses. `J.Load` is the Settings
+button (one read, press twice), `J.status.autoLoadJournal` (default on) can turn the
+login load off, and `J.status.loadedBy` records which path settled the run for
+`/gps journal`. Every write is still refused until a load settles (`J.status.loaded`),
+so a fresh session cannot stamp defaults over a real save. Importing a paste or
+resetting progress adopts the save path. The login summary is now printed from
+`announceSession` on the journal's first settle (`J.AfterSettle`, drained from the
+tick), so a restored run is announced with its own credits, queue and stock instead
+of the fresh-stall line the defaults produce two seconds earlier.
+
+An autosave is now a queue of single macro operations. `prepareJob` still builds the
+snapshot, `buildSteps` lays out pending header, payload and commit header, and the
+clock gives `advance` an 8 ms budget a tick, always allowing one operation so slow
+client calls still make progress. Cleanup (retired generation, leftover chunks,
+legacy `GPSJ` chunks) is queued the same way, one name per step, and only runs after
+the commit. `SaveNow`, logout, import and `/gps verify` flush a staged save
+synchronously, so a manual checkpoint never lands half-written. A journal that will
+not assemble settles the load so the next save can replace it, instead of leaving the
+session unable to write at all. The suite is **59 tests**. This work has not run in
+the live client.
 
 ### v1.7.5 — five-minute, idle-only autosaves
 
@@ -133,7 +174,7 @@ The new pacing and toggle still need a live-client pass.
 
 ## What exists
 
-* 61 Lua files, 16,902 lines, loaded by a single TOC at Interface 16001.
+* 61 Lua files, 17,498 lines, loaded by a single TOC at Interface 16001.
 * Ten-tab main window, movable negotiation window, wholesaler window, encounter popup,
   minimap coin, toasts, tooltips, optional sound.
 * The Deed: three payments, an ending choice, endless mode, franchise prestige, one
@@ -152,15 +193,22 @@ The new pacing and toggle still need a live-client pass.
 Commands, run from the repository root:
 
 ```
-npm run check              -> Lua 5.1 syntax OK: 58 files, 15,696 lines; TOC OK
-npm run verify             -> 47 passed, 0 failed; UI smoke: all tabs and overlays
-node tools/sim_30min.js    -> scripted 30-minute progression + 10-minute idle probe
+npm ci                     -> added 5 packages, exit 0
+npm run check              -> Lua 5.1 syntax OK: 61 files, 17,498 lines; TOC OK
+npm test                   -> 59 passed, 0 failed; UI smoke: all tabs and overlays
+node tools/sim_30min.js    -> FINAL 449 gc, tier 2, 40 sales; idle probe 17 auto-sales
 ```
 
-The 1.7.2 release prep reran `npm run check` (60 files, 16,151 lines) and
-`npm run verify` (50 passed, 0 failed; UI smoke green). The 1.7.3 prep ran
-`npm run check` (60 files, 16,595 lines) and `npm run verify` (53 passed, 0 failed;
-UI smoke green). The 30-minute simulation was not rerun for these save-path changes.
+Those four commands were run inside a fresh `git clone` of `main` in a throwaway
+directory, not in the working tree, so the numbers above describe exactly what a
+clean checkout produces. The 1.7.9 journal tests are counted in the 59. Earlier
+release preps reported 58 files/15,696 lines (47 tests), 60 files/16,151 lines
+(50 tests) and 60 files/16,595 lines (53 tests); those numbers are historical and
+superseded.
+
+No part of the addon has been executed inside World of Warcraft. Every result on
+this page comes from the fengari harness with mocked WoW APIs, the UI smoke script
+and the Node simulations.
 
 The headless suite executes the real addon code in fengari with mocked WoW APIs. It
 covers:
@@ -250,11 +298,11 @@ is the remaining release gate; the older list after it is still open.
 
 The older unverified areas:
 
-- **Macro journal:** whether `CreateMacro`/`EditMacro` are usable at login on Forever,
-  whether macro bodies survive a full client restart as expected, the real account
-  macro slot limit, and whether the macro list is populated before the first autosave.
-  The code retries at `PLAYER_LOGIN`, 2/5/10 seconds and `PLAYER_ENTERING_WORLD`, but
-  only a live cold restart can prove the path.
+- **Macro journal:** whether `CreateMacro`/`EditMacro` are usable on Forever, whether
+  macro bodies survive a full client restart as expected, the real account macro slot
+  limit, and how long a staged save takes on a real client. Nothing is read at login
+  any more, so the only load path to prove is **Settings → Backup & Restore → Load
+  saved**.
 - **Deed layout:** the campaign panel, five museum rows, Marta panel and footer at
   960×640 and at 0.8/1.0/1.2 scale. No visual pass was performed.
 - **Campaign feel:** payment pacing, whether 25,000 gc is reachable in a reasonable
@@ -273,7 +321,7 @@ The older unverified areas:
 ## In-game checklist (first pass)
 
 1. `/gps` opens the window; all ten tabs render without Lua errors; Esc closes it.
-2. `/gps test` prints 27 PASS lines in chat.
+2. `/gps test` prints 59 PASS lines in chat.
 3. Loot one item; it appears in Inventory. Re-looting does not duplicate stock.
 4. Make a sale, then open **The Deed** and pay the first note when affordable. Confirm
    1,500 credits leave the wallet and the museum/Marta unlock.
@@ -284,9 +332,12 @@ The older unverified areas:
 7. Pay the second and third notes. Confirm the ending card appears; choose endless mode,
    then open a franchise. Confirm credits/stock/tier reset, the museum/Marta remain and
    the franchise level adds +5% offers.
-8. Cold-logout and restart the client. Confirm the journal status in the Deed tab and
-   that campaign/museum/Marta/prestige progress return. If macro slots are full, confirm
-   the UI reports the error instead of silently losing progress.
+8. Cold-logout and restart the client. The header reads `loading saved shop` while the
+   bounded login load runs, then the run comes back on its own. Confirm the journal
+   status in the Deed tab and that campaign/museum/Marta/prestige progress return. Then
+   turn **Auto-load** off, relog, and confirm the header stays `load progress` until
+   **Load saved** is pressed twice. If macro slots are full, confirm the UI reports the
+   error instead of silently losing progress.
 9. Use **Checkpoint Now**, then `/reload`, and confirm no duplicate stocks, credits or
    campaign payments are replayed.
 10. Let a shop day pass (15 minutes), confirm rent/wages appear in the Ledger.
