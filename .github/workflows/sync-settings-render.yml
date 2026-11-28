@@ -1,0 +1,69 @@
+name: Sync 1.7.9 settings render
+
+# Temporary delivery job: GitHub's file API needs the whole 1.7.9 render in one
+# request, so the bytes are pulled from a first-party URL here and committed with
+# the runner's token. The job verifies size and SHA-256 before it writes anything.
+# Delete this file once docs/screenshots/08-settings.png has landed.
+
+on:
+  push:
+    paths:
+      - '.github/workflows/sync-settings-render.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-settings-render
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Report the blob currently on main
+        run: |
+          git rev-parse HEAD:docs/screenshots/08-settings.png
+          echo "size on main: $(git cat-file -s HEAD:docs/screenshots/08-settings.png)"
+
+      - name: Download and verify the 1.7.9 master render
+        run: |
+          set -eu
+          curl -fsSL --retry 5 --retry-delay 3 \
+            -o /tmp/08-settings.png \
+            'https://www.codebuff.com/api/v1/generate-image/5369664d-9871-46d7-983f-3fc88f4a944c.jpg'
+          size=$(stat -c%s /tmp/08-settings.png)
+          sha=$(sha256sum /tmp/08-settings.png | cut -d' ' -f1)
+          echo "downloaded size: $size"
+          echo "downloaded sha256: $sha"
+          echo "git blob: $(git hash-object /tmp/08-settings.png)"
+          test "$size" = "587727"
+          test "$sha" = "e7720ac7a3b30e55204c89ac07ceb5a365dd58d51d559d23e15f732fb3298dc6"
+          test "$(git hash-object /tmp/08-settings.png)" = "e0399383ab571817f7e2529cfa4f7799d2ae8400"
+
+      - name: Commit the render to main
+        run: |
+          set -eu
+          cp /tmp/08-settings.png docs/screenshots/08-settings.png
+          if [ -z "$(git status --porcelain docs/screenshots/08-settings.png)" ]; then
+            echo 'main already carries the 1.7.9 render; nothing to commit'
+            exit 0
+          fi
+          git config user.name 'Error.Seib'
+          git config user.email 'kidseib@gmail.com'
+          git add docs/screenshots/08-settings.png
+          git commit -m 'docs: 1.7.9 settings render'
+          git log --oneline -1
+          git rev-parse HEAD:docs/screenshots/08-settings.png
+          for i in 1 2 3; do
+            if git push origin HEAD:main; then exit 0; fi
+            sleep 5
+            git pull --rebase -q origin main
+          done
+          exit 1
