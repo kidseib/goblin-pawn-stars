@@ -32,7 +32,7 @@ local SLOTS_PER_SCOPE = 16
     patient customer's ordinary refusal.
 --------------------------------------------------------------------------- ]]
 D.Variants = {
-    greet = { "order", "orderAsk", "return", "prefer", "fine" },
+    greet = { "order", "orderAsk", "patron", "return", "prefer", "fine" },
     offer = { "rich", "cheap" },
     accept = { "order", "counter", "rich" },
     refuse = { "insult", "over", "furious" },
@@ -71,6 +71,7 @@ function D.Context(customer, personality, item, flags)
         returning = false,
         order = false,
         orderAsk = false,
+        patron = false,
         furious = false,
         mood = "calm",
         band = "fair",
@@ -85,6 +86,9 @@ function D.Context(customer, personality, item, flags)
     -- otherwise let a customer say "I want a {category}" while buying it.
     ctx.order = customer.order == true
     ctx.orderAsk = (not ctx.order) and customer.orderCategory ~= nil
+    -- A patron is a standing relationship, so they get their own greeting: the
+    -- shop should feel like it knows them, not like they are a lucky roll.
+    ctx.patron = customer.patron == true
 
     local max = tonumber(customer.patienceMax) or 0
     local left = tonumber(customer.patience) or 0
@@ -710,6 +714,75 @@ local ORDER_POOLS = {
 }
 
 for key, pools in pairs(ORDER_POOLS) do
+    local target = D.Lines[key]
+    if not target then
+        target = {}
+        D.Lines[key] = target
+    end
+    for name, lines in pairs(pools) do target[name] = lines end
+end
+
+-- Patron greetings: the regulars who have delivered enough to become fixtures of
+-- the shop. Only used once, on the arrival of a patron, so the tone has to carry
+-- "we know each other" without reading as a new character.
+local PATRON_POOLS = {
+    cheap = {
+        greetPatron = {
+            "Your best shelf, same as always. I trust you to have it.",
+            "I told my sister about this place. Don't make me a liar.",
+        },
+    },
+    collector = {
+        greetPatron = {
+            "I keep the pieces I buy here on one shelf. It's getting crowded.",
+            "Your stock has better taste than most of my acquaintances.",
+        },
+    },
+    trader = {
+        greetPatron = {
+            "My partner sends his regards. And his list.",
+            "You and I have an understanding. Let's keep it profitable.",
+        },
+    },
+    gullible = {
+        greetPatron = {
+            "I tell everyone you're the honest one. You are, aren't you?",
+            "I brought a friend's coin this time. Be gentle with it.",
+        },
+    },
+    desperate = {
+        greetPatron = {
+            "You've never let me down. I'm counting on that again.",
+            "I came straight here. I always come straight here now.",
+        },
+    },
+    suspicious = {
+        greetPatron = {
+            "I've decided to trust you. Don't make me reconsider.",
+            "You've been fair twice. I'm keeping count, but kindly.",
+        },
+    },
+    impatient = {
+        greetPatron = {
+            "Skip the small talk. You know what I like.",
+            "I'm in a hurry, but I made time for you. Be flattered.",
+        },
+    },
+    merchant = {
+        greetPatron = {
+            "Still the best counter in the district. Show me something.",
+            "I've started recommending you. That's worth something.",
+        },
+    },
+    rare_hunter = {
+        greetPatron = {
+            "I came back for the shelf, not the coin. You understand that.",
+            "Your back room has ruined my collection. Keep ruining it.",
+        },
+    },
+}
+
+for key, pools in pairs(PATRON_POOLS) do
     local target = D.Lines[key]
     if not target then
         target = {}

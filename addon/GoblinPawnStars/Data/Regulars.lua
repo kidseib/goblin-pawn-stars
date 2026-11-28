@@ -31,7 +31,18 @@ local R = {
     orderRep = 8,        -- reputation for delivering
     orderVisitBonus = 1, -- extra remembered visits on top of the sale itself
     patronAt = 2,        -- delivered orders before they become a patron
-    patronOffer = 1.02,  -- permanent offer lift once they are a patron
+    patronOffer = 1.04,  -- permanent offer lift on everything once a patron
+    -- A patron is a relationship, not a badge: their orders are larger, they
+    -- give the shop one more day to source them, they pay more for the shelf
+    -- they asked for, and delivering to them is worth more standing. All of it
+    -- runs through a completed sale, so none of it mints credits.
+    patronPay = 1.50,    -- what a patron pays over live market value for an order
+    patronBudget = 3.2,  -- their implied budget, as a multiple of the tier budget
+    patronDays = 1,      -- extra shop days on a patron's order
+    patronRep = 12,      -- reputation for delivering to a patron
+    patronVisitBonus = 2, -- extra remembered visits for a patron delivery
+    patronWeight = 1.5,  -- a patron takes more of the arrivals than a regular
+    patronOrderChance = 0.75, -- and is likelier to bring a request when they do
     lapseRep = -4,       -- cost of letting an order go cold
     orderArrivalBoost = 0.15, -- extra arrival weight while the shop can fill it
     orderReturnChance = 0.55, -- chance a fillable order claims the next arrival

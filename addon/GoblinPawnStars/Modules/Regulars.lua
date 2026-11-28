@@ -76,6 +76,24 @@ function R.DaysLeft(order)
     return math.max(0, math.floor((tonumber(order.dueDay) or 0) - (tonumber(db.stats.shopDays) or 0)))
 end
 
+--- One line of plain text for a compact status surface (the title-bar chip and
+--- the Customers card share it, so the same order never reads two ways).
+--- Returns the text and the days left, so callers can colour urgency.
+function R.SummaryLine(order)
+    if type(order) ~= "table" then return nil, 0 end
+    local days = R.DaysLeft(order)
+    local left
+    if days <= 0 then
+        left = "last day"
+    elseif days == 1 then
+        left = "1 day left"
+    else
+        left = string.format("%d days left", days)
+    end
+    return string.format("%s · %s · up to %s gc",
+        order.label or "goods", left, U.comma(tonumber(order.budget) or 0)), days
+end
+
 --- The order closest to its deadline, for the one-line summary in the UI.
 function R.Next()
     local soonest, soonestDue = nil, math.huge
@@ -173,16 +191,22 @@ function R.PlaceOrder(entry, category)
     end
 
     local tier = ns.Data.Tier(db.tier)
+    local patron = entry.patron and true or nil
+    local budgetScale = patron and (data.patronBudget or 3.2) or (data.orderBudget or 2.6)
+    local days = (data.orderDays or 2) + (patron and (data.patronDays or 1) or 0)
     local order = {
         name = entry.name,
         personality = entry.personality,
         category = category,
         label = label,
         -- Implied budget: the most they will put on the counter, scaled by the
-        -- shop's own tier so early shops cannot be handed late-game sums.
-        budget = math.floor((tonumber(tier.budget) or 280) * (data.orderBudget or 2.6)),
+        -- shop's own tier so early shops cannot be handed late-game sums. A
+        -- patron brings a bigger purse and gives one more day, which is what
+        -- makes delivering to them worth the shelf space.
+        budget = math.floor((tonumber(tier.budget) or 280) * budgetScale),
+        patron = patron,
         placedDay = day,
-        dueDay = day + (data.orderDays or 3),
+        dueDay = day + days,
     }
     list[#list + 1] = order
     db.stats.ordersPlaced = (db.stats.ordersPlaced or 0) + 1
@@ -191,8 +215,8 @@ function R.PlaceOrder(entry, category)
         kind = "order",
         text = string.format("%s wants %s", entry.name, label),
         amount = 0,
-        detail = string.format("back within %d shop days · up to %s credits",
-            data.orderDays or 3, U.comma(order.budget)),
+        detail = string.format("back within %d shop days · up to %s credits%s",
+            days, U.comma(order.budget), patron and " · patron" or ""),
     })
     return order
 end
@@ -209,10 +233,12 @@ function R.Fulfil(customer, price)
     local data = def()
     table.remove(orders(), index)
 
+    local patron = order.patron and true or nil
     local entry = entryFor(customer.name, customer.personality)
     if entry then
         entry.fulfilled = math.min(99, (tonumber(entry.fulfilled) or 0) + 1)
-        entry.visits = math.min(99, (tonumber(entry.visits) or 1) + (data.orderVisitBonus or 1))
+        entry.visits = math.min(99, (tonumber(entry.visits) or 1)
+            + (patron and (data.patronVisitBonus or 2) or (data.orderVisitBonus or 1)))
         entry.lastAt = U.now()
         entry.souredDay = nil
         if not entry.patron and (tonumber(entry.fulfilled) or 0) >= (data.patronAt or 2) then
@@ -222,6 +248,13 @@ function R.Fulfil(customer, price)
                 text = string.format("%s became a patron of the shop", entry.name),
                 detail = "delivered special orders",
             })
+            -- A brand-new patron immediately trusts the shop with a bigger
+            -- errand, so the promotion hands the player something to do and a
+            -- payoff they can see, instead of only a number in a tooltip.
+            pcall(R.PlaceOrder, entry)
+            if ns.UI and ns.UI.Toast then
+                pcall(ns.UI.Toast, string.format("%s is now a patron: bigger orders, one extra day.", entry.name))
+            end
         end
     end
 
@@ -229,7 +262,7 @@ function R.Fulfil(customer, price)
     db.stats.ordersFilled = (db.stats.ordersFilled or 0) + 1
     db.stats.orderRevenue = (db.stats.orderRevenue or 0) + (tonumber(price) or 0)
 
-    ns.Shop.AddReputation(data.orderRep or 8)
+    ns.Shop.AddReputation(patron and (data.patronRep or 12) or (data.orderRep or 8))
     ns.History.Add({
         kind = "order",
         text = string.format("%s collected the %s they asked for", order.name, order.label),
@@ -355,11 +388,21 @@ function R.SpawnOptions()
 
     -- Weight grows with visits but sub-linearly, so one very familiar face
     -- cannot take most of the arrivals away from the other two.
+    -- A patron is a relationship the player invested in, so they show up more
+    -- often than an ordinary regular: that is the part of the reward that is
+    -- felt in a single session rather than only in the numbers.
+    local function weightOf(entry)
+        local visits = math.max(1, tonumber(entry.visits) or 1)
+        local weight = 1 + (visits - 1) * 0.5
+        if entry.patron then weight = weight * (data.patronWeight or 1.5) end
+        return weight
+    end
+
     local best, total = 0, 0
     for _, entry in ipairs(list) do
         local visits = math.max(1, tonumber(entry.visits) or 1)
         best = math.max(best, visits)
-        total = total + 1 + (visits - 1) * 0.5
+        total = total + weightOf(entry)
     end
 
     -- A regular with an order the shelves can now fill is far likelier to come
@@ -401,8 +444,7 @@ function R.SpawnOptions()
     local roll = U.randomBetween(1, total)
     local pick = list[#list]
     for _, entry in ipairs(list) do
-        local visits = math.max(1, tonumber(entry.visits) or 1)
-        roll = roll - (1 + (visits - 1) * 0.5)
+        roll = roll - weightOf(entry)
         if roll <= 0 then
             pick = entry
             break
@@ -429,7 +471,9 @@ function R.SpawnOptions()
     else
         -- Nothing on that shelf yet: they may ask for it, then browse.
         local placed = nil
-        if U.chance(data.orderChance or 0.34) then placed = R.PlaceOrder(pick) end
+        local askChance = pick.patron and (data.patronOrderChance or 0.75)
+            or (data.orderChance or 0.34)
+        if U.chance(askChance) then placed = R.PlaceOrder(pick) end
         if placed then
             options.orderAsk = placed
         end

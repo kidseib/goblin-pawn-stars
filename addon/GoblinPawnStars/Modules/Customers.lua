@@ -104,7 +104,8 @@ local function buildCustomer(options)
     local order = options.order
     local orderData = ns.Data.Regulars
     if order then
-        willingness = math.max(willingness, orderData.orderPay or 1.35)
+        willingness = math.max(willingness,
+            order.patron and (orderData.patronPay or 1.5) or (orderData.orderPay or 1.35))
         local named = tonumber(options.orderBudget) or 0
         if named > 0 then budget = math.max(budget, named) end
     end
@@ -176,6 +177,7 @@ local function buildCustomer(options)
         regular = options.regular and true or false,
         regularVisit = options.regularVisit,
         returning = returning > 0 and returning or nil,
+        patron = options.patron and true or nil,
         -- Collecting an order, or having just asked for one (orderCategory).
         order = order and true or nil,
         orderCategory = order and order.category
