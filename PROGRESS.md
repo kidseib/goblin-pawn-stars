@@ -267,11 +267,13 @@ preset floor for a high-opening customer. The UI smoke clicks the real accept an
 counter buttons and compares the banner and auto-sale header with the wallet delta.
 These are mock tests only.
 
-The separate `tools/sim_30min.js` probe still describes the **1.3 economy baseline**:
-tier 2 around minute 15, salesperson hired at tier 2, 2.3–3.0 customers/min, and roughly
-3,400–4,100 credits left at minute 30. Its policy does not pay the debt, so those
-numbers are not a campaign pacing test. The debt amounts (1,500 / 6,000 / 25,000) are
-unchanged from the outlined design and need a real play pass.
+The separate `tools/sim_30min.js` probe runs a fixed policy that never pays the debt:
+40 sales and 2,472 gc earned by minute 30, tier 2 at minute 25, 449 gc left,
+1.0–1.3 customers/min, and a 10-minute closed-window probe with 17 auto-sales, an
+empty queue and 193 gc/min. That policy never hires the salesperson, so its auto-sale
+column stays at 0 inside the 30 minutes. The numbers describe a scripted probe, not
+campaign pacing or live feel. The debt amounts (1,500 / 6,000 / 25,000) are unchanged
+from the outlined design and need a real play pass.
 
 ## Not verified — needs an in-game pass (1.7.3)
 
