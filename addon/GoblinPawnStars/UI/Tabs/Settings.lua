@@ -173,7 +173,7 @@ ns.UI.Tabs.settings = {
         local backup = W.Panel(parent, "panel")
         backup:SetPoint("TOPLEFT", 388, 0)
         backup:SetPoint("TOPRIGHT", 0, 0)
-        backup:SetHeight(330)
+        backup:SetHeight(400)
 
         local backupTitle = W.Text(backup, "BACKUP & RESTORE", 10, T.colors.goldDim)
         backupTitle:SetPoint("TOPLEFT", 12, -10)
@@ -189,26 +189,53 @@ ns.UI.Tabs.settings = {
             end
             if ns.UI.Refresh then ns.UI.Refresh() end
         end, "primary")
-        saveNowButton:SetPoint("TOPRIGHT", -126, -4)
+        saveNowButton:SetPoint("TOPRIGHT", -126, -26)
 
         local rollingButton = W.Button(backup, "Rolling backups", 110, 20, function()
             if ns.UI.BackupFrame then ns.UI.BackupFrame.Show() end
         end, "neutral")
-        rollingButton:SetPoint("TOPRIGHT", -12, -4)
+        rollingButton:SetPoint("TOPRIGHT", -12, -26)
+
+        -- Loading is automatic but bounded: a short login load reads the macro
+        -- journal at most four times and then settles. This button repeats one
+        -- read on demand, and asks twice because it replaces the run in memory.
+        local loadArmed = false
+        local loadButton = W.Button(backup, "Load saved", 90, 20, function(_, self)
+            if not loadArmed then
+                loadArmed = true
+                self:SetLabel("Confirm load")
+                self:SetTone("danger")
+                ns.Compat.After(8, function()
+                    loadArmed = false
+                    self:SetLabel("Load saved")
+                    self:SetTone("neutral")
+                end)
+                ui.status:SetText("|cffffcc55Load the saved shop? This replaces the run in memory.|r")
+                return
+            end
+            loadArmed = false
+            self:SetLabel("Load saved")
+            self:SetTone("neutral")
+            if not ns.Journal or not ns.Journal.Load then return end
+            local ok, detail = ns.Journal.Load()
+            ui.status:SetText((ok and "|cff5fd64f" or "|cffff6b5e") .. tostring(detail) .. "|r")
+            if ns.UI.Refresh then ns.UI.Refresh(true) end
+        end, "neutral")
+        loadButton:SetPoint("TOPRIGHT", -220, -26)
 
         local backupNote = W.Text(backup,
             "Copy this string somewhere safe, or paste an old one and restore.\n" ..
-            "|cffffcc55Beta workaround:|r Forever writes SavedVariables but does not load them at login. The Deed tab now checkpoints a compact snapshot into macro bodies automatically; manual export remains the belt-and-braces backup.",
+            "|cffffcc55Beta workaround:|r Forever does not load SavedVariables. Progress checkpoints into macro bodies; a load runs shortly after login unless auto-load is off.",
             9, T.colors.muted)
-        backupNote:SetPoint("TOPLEFT", 12, -26)
-        backupNote:SetPoint("TOPRIGHT", -12, -26)
-        backupNote:SetHeight(54)
+        backupNote:SetPoint("TOPLEFT", 12, -52)
+        backupNote:SetPoint("TOPRIGHT", -12, -52)
+        backupNote:SetHeight(52)
         backupNote:SetWordWrap(true)
         backupNote:SetSpacing(2)
 
-        local box = W.MultiLine(backup, 320, 130, 120000)
-        box:SetPoint("TOPLEFT", 12, -88)
-        box:SetPoint("TOPRIGHT", -12, -88)
+        local box = W.MultiLine(backup, 320, 112, 120000)
+        box:SetPoint("TOPLEFT", 12, -110)
+        box:SetPoint("TOPRIGHT", -12, -110)
         box:SetText("")
 
         local exportButton = W.Button(backup, "Export", 96, 26, function()
@@ -217,7 +244,7 @@ ns.UI.Tabs.settings = {
             box:HighlightText()
             ui.status:SetText("|cff5fd64fBackup generated. Copy it somewhere safe.|r")
         end, "gold")
-        exportButton:SetPoint("TOPLEFT", 12, -226)
+        exportButton:SetPoint("TOPLEFT", 12, -236)
 
         local importButton = W.Button(backup, "Import", 96, 26, function()
             local text = box:GetText() or ""
@@ -229,18 +256,27 @@ ns.UI.Tabs.settings = {
             ui.status:SetText("|cff5fd64fBackup restored.|r")
             if ns.UI.Refresh then ns.UI.Refresh() end
         end, "primary")
-        importButton:SetPoint("TOPLEFT", 116, -226)
+        importButton:SetPoint("TOPLEFT", 116, -236)
 
         local clearButton = W.Button(backup, "Clear box", 96, 26, function()
             box:SetText("")
         end, "neutral")
-        clearButton:SetPoint("TOPLEFT", 220, -226)
+        clearButton:SetPoint("TOPLEFT", 220, -236)
 
         ui.status = W.Text(backup, "", 9, T.colors.muted)
-        ui.status:SetPoint("TOPLEFT", 12, -258)
-        ui.status:SetPoint("TOPRIGHT", -12, -258)
+        ui.status:SetPoint("TOPLEFT", 12, -268)
+        ui.status:SetPoint("TOPRIGHT", -12, -268)
         ui.status:SetHeight(24)
         ui.status:SetWordWrap(true)
+
+        -- Auto-load is the one read that happens without being asked. Turning it
+        -- off leaves Load saved as the only way in; nothing else changes.
+        local autoToggle = W.Button(backup, "Auto-load: On", 132, 22, function()
+            local db = ns.DB.Get()
+            db.settings.autoLoadJournal = db.settings.autoLoadJournal == false
+            if ns.UI.Refresh then ns.UI.Refresh() end
+        end, "primary")
+        autoToggle:SetPoint("TOPLEFT", 12, -296)
 
         local resetButton = W.Button(backup, "Reset all progress", 170, 28, function(_, self)
             if not resetArmed then
@@ -263,7 +299,8 @@ ns.UI.Tabs.settings = {
         end, "danger")
         resetButton:SetPoint("BOTTOMLEFT", 12, 16)
 
-        local version = W.Text(backup, string.format("Goblin Pawn Stars v%s · by ErrorSeib & Buffy · schema %d",
+        -- Short enough to sit beside the reset button instead of under it.
+        local version = W.Text(backup, string.format("v%s · schema %d",
             ns.VERSION, ns.DB.SchemaVersion()), 9, T.colors.dim)
         version:SetPoint("BOTTOMRIGHT", -12, 18)
         version:SetJustifyH("RIGHT")
@@ -290,6 +327,9 @@ ns.UI.Tabs.settings = {
             local performance = ns.DB.Get().settings.performance == true
             performanceButton:SetLabel("Performance: " .. (performance and "On" or "Off"))
             performanceButton:SetTone(performance and "primary" or "neutral")
+            local autoLoad = ns.DB.Get().settings.autoLoadJournal ~= false
+            autoToggle:SetLabel("Auto-load: " .. (autoLoad and "On" or "Off"))
+            autoToggle:SetTone(autoLoad and "primary" or "neutral")
         end
 
         return ui

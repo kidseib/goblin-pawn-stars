@@ -482,7 +482,7 @@ local function decodeValue(text, state)
         end
         return result
     end
-    error("unknown tag '..  tostring(tag) .. "' at " .. tostring(state.pos - 1))
+    error("unknown tag '" .. tostring(tag) .. "' at " .. tostring(state.pos - 1))
 end
 
 function S.Decode(text)
