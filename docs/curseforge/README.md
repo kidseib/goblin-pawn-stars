@@ -3,7 +3,7 @@
 Everything needed to publish the Goblin Pawn Stars project page, without pretending
 the current UI renders are live-client screenshots.
 
-**Current version:** 1.6.1.
+**Current version:** 1.7.9.
 
 ## Files
 
@@ -41,7 +41,7 @@ flattened images, and keep those PNGs out of the repository.
 **Tags:** pawnshop, economy, minigame, simulation, goblin, single-player, trading,
 roleplay.
 
-**Version:** 1.6.1.
+**Version:** 1.7.9.
 
 **License:** MIT.
 
@@ -103,16 +103,17 @@ the gallery contains real screenshots.
 - **Forever is not a standard CurseForge game version.** Upload under the closest
   available World of Warcraft addon version and state **Interface 16001** in the
   description and file metadata.
-- **Live-client pass still in progress.** The 30-diagnostic suite and the UI smoke
-  pass are green; the in-game checklist is open. The description says so on purpose.
+- **Live-client pass still in progress.** The 59-test suite and the UI smoke pass are
+  green; the in-game checklist is open. The description says so on purpose.
 - **The repository is public.** The description links to the source at the bottom;
   keep that link when you paste the Markdown.
-- **VirusTotal:** the 1.4.0 ZIP has a public report with no vendor detections. The
-  1.6.1 scan is still pending — the release workflow needs a repository secret named
-  `VT_API_KEY` — and future scans are appended to their release notes automatically.
-- **Checksums:** `description.html`, `description.md` and `description-long.md` carry
-  the SHA-256 of `GoblinPawnStars-1.6.1.zip`. Rebuild the ZIP and all three need the
-  new hash.
+- **VirusTotal:** the 1.4.0 ZIP has a public report with no vendor detections. Newer
+  scans are appended to their release notes when a repository secret named `VT_API_KEY`
+  is configured.
+- **Checksums:** `description.md` carries the SHA-256 of
+  `GoblinPawnStars-1.7.9.zip`. `description-long.md` and `description.html` are still
+  on the 1.6.x copy; update them before use. Rebuild the ZIP and every description
+  needs the new hash.
 - **No runtime downloads.** The addon has no libraries, external services, network
   calls or telemetry, and it never touches real gold, items, bags or game actions.
 - **Free distribution.** Keep the project free; the MIT license is included in the

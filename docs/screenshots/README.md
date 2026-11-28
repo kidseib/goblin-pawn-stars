@@ -16,5 +16,12 @@ is still pending. Every image carries a "not a live-client capture" label.
 | `07-wholesaler.png` | Wholesaler window |
 | `08-settings.png` | Settings tab |
 
+`08-settings.html` is the editable source for the Settings render: an HTML/CSS mock
+built from the coordinates and labels in `UI/Tabs/Settings.lua` at the addon's
+960×640 window size, scaled to 1440×900. Regenerate the PNG after a Settings layout
+change by rendering that file at 1440×900 and screenshotting the viewport, then check
+it against the tab labels. The other seven renders predate it and have no source in
+this repository.
+
 Delete or replace these images once real in-game screenshots are available; update
 the README gallery and this note at the same time.
