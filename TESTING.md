@@ -8,6 +8,19 @@ If something fails, [open an issue](../../issues) with the exact chat/toast text
 you clicked, whether it happened after `/reload` or a full client restart, your UI
 scale, and any Lua error.
 
+## What is proven, and what is not
+
+Proven, from a clean clone of `main` with `npm ci`, `npm run check`, `npm test` and
+`node tools/sim_30min.js` all exiting 0: the Lua 5.1 parse (61 files, 17,498 lines),
+the TOC, the **59-test headless suite** (including the four macro-journal tests), the
+UI smoke pass over every tab and overlay, and the scripted 30-minute plus 10-minute
+idle simulation. All of it runs in fengari against mocked WoW APIs.
+
+Not proven: **no part of this addon has ever been executed inside a World of Warcraft
+client.** There is no live frame rate, frame time, memory, texture, font, macro
+permission or SavedVariables result yet. Every step below is unrun, and this file will
+keep saying so until someone reports back.
+
 ## Before you start
 
 - Install `GoblinPawnStars-1.7.9.zip` from the
@@ -146,6 +159,28 @@ Unlocked after the first payment.
    persist (this exercises the deferred-reset journal path).
 5. Open a second franchise later; the offer bonus should become +10% and the museum and
    Marta should still carry over.
+
+## 8. Corrupted journal (safe replacement)
+
+1. Save once so a committed generation exists (**Checkpoint Now**), then quit the
+   client completely.
+2. In the macro window, edit one of those macros — `GPSA01`–`GPSA12` or
+   `GPSB01`–`GPSB12` — by deleting a few characters from the payload, or by replacing
+   the whole body. Keep the macro name.
+3. Start the client and log in. The header reads **loading saved shop** during the
+   bounded load. Expect the warning
+   `Saved shop could not be loaded (journal payload is corrupt)` (or
+   `journal is incomplete`), and within the four attempts the load settles.
+4. Check that the load actually settled: the header leaves **loading saved shop**,
+   `/gps journal` reports no error, and the shop is one coherent state — either the
+   restored run or the fresh 250 gc stall, never a mix of both.
+5. Make one sale, then `/gps verify`. It must succeed and name the generation it wrote,
+   which proves the corrupt save was replaced instead of blocking writing for the rest
+   of the session.
+6. Restart the client once more and confirm the replacement save loads.
+
+The corrupt journal itself is lost; **Settings → Backup & Restore → Export** is the
+way back. Report the exact warning text and what `/gps journal` printed.
 
 ## 9. Save state, motion and layout (1.7.0)
 
