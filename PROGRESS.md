@@ -70,7 +70,14 @@ never both. The suite is **65 tests**; each of the four new tests failed against
 previous `Core/Journal.lua` with the exact messages above and passes now. No live client
 has run any of this.
 
-## Current state — v1.7.9
+## Current state — v1.8.0
+
+**v1.8.0** ships the journal payload format described below: the stat, settings and
+market-event sections travel as ordered value arrays, so a played shop with a full
+stockroom fits one generation (2,580 -> 2,276 base64 characters, nothing trimmed) and
+the live `save error` stops. Version numbering jumped to 1.8.0 because the payload
+format changes; `main`, the tag and every document carry the same number.
+
 
 Phases 1–4 are implemented. Phase 5 (optional multiplayer) is deliberately not
 started. The addon is feature-complete for a single-player shop simulation and is

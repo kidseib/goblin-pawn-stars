@@ -2,7 +2,7 @@
 
 All notable changes to Goblin Pawn Stars. Format loosely follows Keep a Changelog.
 
-## [1.7.10] — 2026-11-28
+## [1.8.0] — 2026-11-28
 
 Saving to the macro journal works on a shop that has actually been played, and a save
 that hits a full macro list, a name collision or an oversized payload now lands instead

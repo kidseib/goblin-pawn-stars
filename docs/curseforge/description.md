@@ -20,7 +20,7 @@ Goblin Pawn Stars turns the loot you already find into a shop with a big problem
 
 ***
 
-## WHAT'S NEW IN 1.7.10
+## WHAT'S NEW IN 1.8.0
 
 *   **The save error is fixed.** `Could not save progress to the macro journal: journal is too large, even without stock` could hit a small, early shop and then refused every later save. A played shop was spending 91% of the journal's 2,520-character budget on field names alone. The payload now packs the stats, settings and market events by position, so a shop with a full stockroom saves with room to spare — and nothing has to be thrown away to make it fit.
 *   **A save always finds a way to land.** If every macro slot is taken, if one of your own macros happens to sit on a journal name, or if the payload is larger than one generation, the save now rewrites the copy it already owns and keeps credits, tier, stats, campaign and stock instead of failing for the rest of the character's life.
@@ -160,17 +160,17 @@ The first bag scan is a silent baseline. Click **Stock Bags Now** on the Dashboa
 
 ## VERIFY THE DOWNLOAD
 
-The exact size and SHA-256 of **GoblinPawnStars-1.7.10.zip** are in the file
-`GoblinPawnStars-1.7.10.zip.sha256`, attached to the release next to the ZIP, and
+The exact size and SHA-256 of **GoblinPawnStars-1.8.0.zip** are in the file
+`GoblinPawnStars-1.8.0.zip.sha256`, attached to the release next to the ZIP, and
 repeated in its release notes.
 
-**VirusTotal:** the 1.4.0 build was scanned with no vendor detections. Newer scans are attached to their release notes when the repository's automated scan has its `VT_API_KEY` secret configured. Until then, compare the SHA-256 with the [1.7.10 release notes](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.7.10), or read the source: the addon is plain Lua.
+**VirusTotal:** the 1.4.0 build was scanned with no vendor detections. Newer scans are attached to their release notes when the repository's automated scan has its `VT_API_KEY` secret configured. Until then, compare the SHA-256 with the [1.8.0 release notes](https://github.com/kidseib/goblin-pawn-stars/releases/tag/v1.8.0), or read the source: the addon is plain Lua.
 
 The same hash is in the GitHub release notes.
 
 ***
 
-## STATUS — 1.7.10
+## STATUS — 1.8.0
 
 Feature-complete, with a **65-test headless simulation suite** and a full **UI smoke pass** behind it. The live-client visual and persistence checklist is still in progress — it now includes the bounded login load, loading a run from Settings, and a save on a full stockroom. Interface **16001** (World of Warcraft: Forever).
 
