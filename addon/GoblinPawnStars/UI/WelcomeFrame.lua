@@ -12,7 +12,6 @@ local DB = ns.DB
 
 local frame
 local title, subtitle, intro, note
-local waitAttempts = 0
 local firstPanel, updatePanel, updateTitle
 local tourButton, loginButton, watermark
 local currentMode = "first"
@@ -365,16 +364,9 @@ ns.UI.Welcome = {
         local db = DB.Get()
         if db.settings.showWelcome == false then return end
         if db.settings.welcomeVersion == ns.VERSION then return end
-        -- The macro journal can settle a few seconds after login. Deciding before
-        -- it does is what re-showed the splash on every login.
-        if ns.Journal and ns.Journal.Loaded and not ns.Journal.Loaded() and waitAttempts < 12 then
-            waitAttempts = waitAttempts + 1
-            ns.Compat.After(1, function()
-                if ns.UI.Welcome then ns.UI.Welcome.MaybeShow() end
-            end)
-            return
-        end
-        waitAttempts = 0
+        -- The journal loads shortly after login on its own, so the splash never
+        -- waits for it:
+        -- the splash can decide immediately instead of polling for a load.
         ns.UI.Welcome.Show(db.settings.welcomeVersion and "update" or "first")
     end,
     IsShown = function()
