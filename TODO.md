@@ -21,6 +21,13 @@
       quotes, greeting follows the customer and item.
 - [x] Four new headless tests (71 total): archetype sweep, contextual selection and
       fallbacks, anti-repeat plus save round trip, old and broken saves.
+- [x] Return-visit memory: a sale near the customer's own ceiling remembers them, they
+      can take an ordinary arrival with their own name and archetype, earn one extra
+      haggling round from visit two and a 5% loyalty premium from visit four. Three
+      faces, bounded, sale-backed, with a `greetReturn` pool per personality so a
+      familiar customer greets you like one.
+- [x] Four more headless tests (75 total) and a 30-minute probe showing three regulars
+      formed with 2/2/1 visits.
 
 ### Next up (planned order)
 
@@ -31,10 +38,9 @@ visually even (nothing leads the eye), and reputation buys perks but not relatio
 - [ ] **UI pass on typography and spacing.** Audit every tab against a single scale for
       caption/value/label text, tighten the header, and give the negotiation window a
       clearer hierarchy between offer, odds and actions. Weakest area overall now.
-- [ ] **Return-visit memory.** Customers recognise a shop that treated them well, feeding
-      reputation and the regular-visit path instead of disappearing completely. This is
-      what makes the new dialogue pay off: the same archetype coming back because of how
-      the last visit went.
+- [ ] **Give regulars a request.** They already remember the shop; the next step is
+      asking after something specific ("bring me anything with a gem in it"), which turns
+      the relationship into a small standing goal. Cheap to build on `Data/Regulars.lua`.
 - [ ] **Valuation depth.** `Market.Value` still produces one number per item; a piece's
       story (provenance, a collector's specific want) would give the haggling something
       to be *about* beyond a price band.

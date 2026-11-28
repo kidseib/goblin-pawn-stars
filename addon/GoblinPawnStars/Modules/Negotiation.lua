@@ -177,6 +177,8 @@ local function completeSale(price, method)
     local beforeCredits = db.credits or 0
     db.credits = beforeCredits + price
     price = db.credits - beforeCredits
+    -- The one place a regular is born: a completed sale near their own ceiling.
+    if ns.Regulars then ns.Regulars.Remember(customer, price) end
     db.stats.earned = (db.stats.earned or 0) + price
     db.stats.revenue = (db.stats.revenue or 0) + price
     db.stats.sales = (db.stats.sales or 0) + 1

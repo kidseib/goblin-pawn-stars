@@ -74,7 +74,7 @@ has run any of this.
 
 The polish mission runs on `refinement-polish`, branched from `main` at `41a4da7`
 (1.8.0). `main` is not modified by this work; only the owner decides when it merges.
-`npm run check` reports 62 files and 19,010 lines on this branch.
+`npm run check` reports 64 files and 19,365 lines on this branch.
 
 ### Iteration 1 — reputation milestones and event freshness
 
@@ -583,6 +583,52 @@ Known issues:
   draw count. That fragility is in the sim's fixed policy, not in the addon.
 - Nothing here has run inside World of Warcraft; the dialogue panel, the three-line cap
   and the fonts are unverified in the live client.
+
+### Iteration 3 — regulars
+
+Iteration 2 gave the shop nine voices; this pass gave it a cast. Every customer was
+still a stranger, so the dialogue could be as specific as it liked and nobody ever came
+back to hear it. Three faces can now be remembered.
+
+| Knob | Value | Why |
+| --- | --- | --- |
+| remembered faces | 3 | enough to feel like a neighbourhood, small enough to read at a glance |
+| chance an arrival is a regular | 0.10 + 0.03 per repeat visit, max 0.30 | the roof never becomes a private club, and a shop that treated people well sees them more |
+| good sale | 80% of the customer's own hidden ceiling | rewards pushing a counter near the limit, not dumping stock |
+| extra haggling round | from visit 2 | makes a familiar customer feel easier without changing the odds maths |
+| loyalty premium | 5% from visit 4 | small, sale-backed, and only after a real relationship |
+
+Design decisions:
+
+- **Only a completed sale creates a regular.** `Remember` is called from
+  `Negotiation.completeSale` with the credited price, so there is no path to goodwill
+  through a timeout, a button or a failed haggling round.
+- **Identity is the memory.** Name, race, class, occupation and archetype are stored, and
+  the spawn path reuses them, so the same person walks in with their own greeting pool
+  (`greetReturn` on every archetype) rather than a new stranger's name on a familiar line.
+- **The journal still fits.** Regulars are identity strings, so `DB.Snapshot` empties
+  them before the macro-journal fallback is encoded; SavedVariables keeps them and the
+  next normal save restores them. Documented rather than paid for in the character budget.
+- **Selection is sub-linear.** Weight grows with visits at half rate, so the face you
+  have seen most cannot take most of the arrivals away from the other two.
+- **No new timers or polling.** `SpawnOptions` runs only when the shop was already going
+  to spawn an arrival, and loyalty is two number reads.
+
+Verification on this branch: `npm run check` exit 0 (**64 files, 19,365 lines**, TOC OK),
+`npm test` exit 0 with **75 passed, 0 failed**, UI smoke green, `node tools/sim_30min.js`
+at 42 sales / tier 2 / reputation 152, and `node tools/sim_campaign.js --hours 4 --seeds 4`
+still reaching all three deed notes on 4/4 seeds (final note median 166:42). A 30-minute
+probe printed the remembered faces: `Theric Bloodfeather:2, Wren Boltfizz:2, Wren
+Mekkatorque:1` — regulars form in ordinary play, not just in tests.
+
+Known issues:
+
+- The loyalty premium is deliberately small, so its economic effect is inside simulation
+  noise; the tuning is defensible but not proven to be the *best* number in a live shop.
+- A regular whose name collides with another generated identity would merge visits during
+  normalization; with generated names this is vanishingly rare and harmless.
+- Nothing here has run inside World of Warcraft: the "Returning visitor (N)" line in the
+  Customers tab, the new greeting pool and the whole loop are mock-only.
 
 ## Notes for the next agent
 

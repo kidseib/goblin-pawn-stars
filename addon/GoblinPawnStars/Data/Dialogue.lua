@@ -32,7 +32,7 @@ local SLOTS_PER_SCOPE = 16
     patient customer's ordinary refusal.
 --------------------------------------------------------------------------- ]]
 D.Variants = {
-    greet = { "prefer", "fine" },
+    greet = { "return", "prefer", "fine" },
     offer = { "rich", "cheap" },
     accept = { "counter", "rich" },
     refuse = { "insult", "over", "furious" },
@@ -68,6 +68,7 @@ function D.Context(customer, personality, item, flags)
         counter = flags.counter == true,
         insult = flags.insult == true,
         over = flags.over == true,
+        returning = false,
         furious = false,
         mood = "calm",
         band = "fair",
@@ -77,6 +78,7 @@ function D.Context(customer, personality, item, flags)
     }
 
     if not customer then return ctx end
+    ctx.returning = (tonumber(customer.returning) or 0) > 0
 
     local max = tonumber(customer.patienceMax) or 0
     local left = tonumber(customer.patience) or 0
@@ -203,6 +205,10 @@ end
 --------------------------------------------------------------------------- ]]
 D.Lines = {
     cheap = {
+        greetReturn = {
+            "Back again. The prices still haven't improved, I see.",
+            "You remember what I paid last time. So do I.",
+        },
         greetPrefer = {
             "Oh, {category}. Fine, show me. I still won't pay much.",
             "I know what {item} goes for. Go on, then.",
@@ -229,6 +235,10 @@ D.Lines = {
         },
     },
     collector = {
+        greetReturn = {
+            "I came back for the rest of your collection.",
+            "Last visit I left with something good. Show me more.",
+        },
         greetPrefer = {
             "Ah. A {category} piece. You have my attention at last.",
             "{item}, is it? My hall has a gap exactly that shape.",
@@ -255,6 +265,10 @@ D.Lines = {
         },
     },
     trader = {
+        greetReturn = {
+            "We've done business before. Let's do it properly.",
+            "You know me, I know the shelves. Let's talk numbers.",
+        },
         greetPrefer = {
             "{category}? Now we can talk like professionals.",
             "That's the sort of thing that actually moves. Show me.",
@@ -281,6 +295,10 @@ D.Lines = {
         },
     },
     gullible = {
+        greetReturn = {
+            "It's you! I told everyone about this shop!",
+            "Hello again! I brought a bigger purse this time.",
+        },
         greetPrefer = {
             "You have {category} things?! That's my favourite kind!",
             "Oh, {item}! Is it magic? It looks magic.",
@@ -307,6 +325,10 @@ D.Lines = {
         },
     },
     desperate = {
+        greetReturn = {
+            "I'm back. I still need what I needed last time.",
+            "You helped me before. Please. Again.",
+        },
         greetPrefer = {
             "You have {category}? Tell me you have {category}.",
             "That's it. That's exactly what I need. How much?",
@@ -333,6 +355,10 @@ D.Lines = {
         },
     },
     suspicious = {
+        greetReturn = {
+            "You again. I have been watching this place.",
+            "I came back, which should tell you something.",
+        },
         greetPrefer = {
             "{category}? Always {category}. What's the catch?",
             "That one's been sitting there. Why? What's wrong with it?",
@@ -359,6 +385,10 @@ D.Lines = {
         },
     },
     impatient = {
+        greetReturn = {
+            "I know the way here. Skip the small talk.",
+            "Back. Don't make me wait this time.",
+        },
         greetPrefer = {
             "{category}. Good. Price. Now.",
             "That one. How much. Quickly.",
@@ -385,6 +415,10 @@ D.Lines = {
         },
     },
     merchant = {
+        greetReturn = {
+            "A familiar counter. Familiar prices, I hope.",
+            "We have an understanding, you and I. Show me the stock.",
+        },
         greetPrefer = {
             "{category} in bulk? Now that's a caravan load.",
             "That's the sort of crate I can move. Price it.",
@@ -411,6 +445,10 @@ D.Lines = {
         },
     },
     rare_hunter = {
+        greetReturn = {
+            "Back for another look. Anything new in the back?",
+            "I returned. That is the highest praise I offer.",
+        },
         greetPrefer = {
             "{category}. You keep the odd things out of sight. Wise.",
             "That piece. It hums, does it not? Name a price.",

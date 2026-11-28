@@ -93,6 +93,7 @@ local function defaults()
             shopDayProgress = 0,
             encounterRecent = {},
             recentLines = {},
+            regulars = {},
             wholesale = {
                 lots = {},
                 nextRestock = 0,
@@ -232,6 +233,31 @@ local function normalize(db)
         end
     end
     db.shop.recentLines = cleanLines
+
+    local regulars = db.shop.regulars
+    local cleanRegulars = {}
+    if type(regulars) == "table" then
+        local cap = (ns.Data and ns.Data.Regulars and ns.Data.Regulars.max) or 3
+        local byKey = (ns.Data and ns.Data.PersonalityByKey) or {}
+        for _, entry in ipairs(regulars) do
+            if #cleanRegulars >= cap then break end
+            if type(entry) == "table" and type(entry.name) == "string" and entry.name ~= "" then
+                local personality = byKey[entry.personality]
+                if personality then
+                    cleanRegulars[#cleanRegulars + 1] = {
+                        name = entry.name:sub(1, 40),
+                        personality = personality.key,
+                        race = type(entry.race) == "string" and entry.race:sub(1, 24) or nil,
+                        class = type(entry.class) == "string" and entry.class:sub(1, 24) or nil,
+                        occupation = type(entry.occupation) == "string" and entry.occupation:sub(1, 32) or nil,
+                        visits = U.clamp(math.floor(tonumber(entry.visits) or 1), 1, 99),
+                        lastAt = math.max(0, math.floor(tonumber(entry.lastAt) or 0)),
+                    }
+                end
+            end
+        end
+    end
+    db.shop.regulars = cleanRegulars
     if type(db.shop.wholesale) ~= "table" then db.shop.wholesale = { lots = {}, nextRestock = 0, restocks = 0 } end
     if type(db.shop.wholesale.lots) ~= "table" then db.shop.wholesale.lots = {} end
     if type(db.stats) ~= "table" then db.stats = defaults().stats end
@@ -609,6 +635,10 @@ function DB.Snapshot()
     for key, value in pairs(db.shop or {}) do shop[key] = value end
     shop.waiting = {}
     shop.current = nil
+    -- Names are identity strings and the journal is measured in characters, so
+    -- the fallback journal keeps the shop and the regulars come back with the
+    -- next ordinary SavedVariables save.
+    shop.regulars = {}
     shop.encounter = nil
     shop.encounterResult = nil
     shop.wholesale = {

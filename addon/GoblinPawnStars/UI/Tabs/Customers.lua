@@ -179,8 +179,10 @@ ns.UI.Tabs.customers = {
                 ui.currentPortrait:Show()
                 ui.currentPortrait:SetCustomer(currentCustomer)
                 ui.currentName:SetText(currentCustomer.name)
-                ui.currentMeta:SetText(string.format("%s%s · wants %s · offering %s",
+                ui.currentMeta:SetText(string.format("%s%s%s · wants %s · offering %s",
                     currentCustomer.regular and "|cffffd700Named regular|r · " or "",
+                    currentCustomer.returning and string.format("|cff7fd0ffReturning visitor (%d)|r · ",
+                        currentCustomer.returning) or "",
                     personality and personality.name or "Customer",
                     item and item.name or "something sold",
                     U.comma(currentCustomer.offer or 0) .. " gc"))
@@ -208,8 +210,10 @@ ns.UI.Tabs.customers = {
                     row.customerIndex = index
                     row.portrait:SetCustomer(customer)
                     row.name:SetText(customer.name)
-                    row.meta:SetText(string.format("%s%s · %s",
+                    row.meta:SetText(string.format("%s%s%s · %s",
                         customer.regular and "|cffffd700Named regular|r · " or "",
+                        customer.returning and string.format("|cff7fd0ffReturning (%d)|r · ",
+                            customer.returning) or "",
                         personality and personality.name or "Customer",
                         item and item.name or "item gone"))
                     row.patience:SetValue(ns.Customers.PatienceRatio(customer), 1)

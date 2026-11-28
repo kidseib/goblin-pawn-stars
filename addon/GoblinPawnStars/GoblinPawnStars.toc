@@ -31,6 +31,7 @@ Data\Items.lua
 Data\Names.lua
 Data\Personalities.lua
 Data\Dialogue.lua
+Data\Regulars.lua
 Data\Upgrades.lua
 Data\Employees.lua
 Data\Wholesale.lua
@@ -55,6 +56,7 @@ Modules\Throughput.lua
 Modules\Goals.lua
 Modules\Museum.lua
 Modules\Regular.lua
+Modules\Regulars.lua
 Modules\Campaign.lua
 Modules\Sound.lua
 Modules\Report.lua

@@ -9,6 +9,15 @@ below is released yet.
 
 ### Added
 
+- **Regulars: customers who remember the shop.** A sale that met the customer's own
+  hidden ceiling is remembered — name, archetype, race and visit count — in
+  `db.shop.regulars`, and that person can walk back in later instead of a stranger.
+  Returning visitors keep their identity and say so in their own voice ("You again. I
+  have been watching this place."), get one extra haggling round from their second
+  visit, and pay a 5% loyalty premium from their fourth. The list is capped at three
+  faces, weighting favours the people who come most often, and the doorway never turns
+  into a private club (30% ceiling). Every credit still comes from a sale — the premium
+  only raises what a returning customer will pay for stock.
 - **Customers who read the room.** Every archetype used to talk from one pool per
   moment, so the third visit from the same personality sounded like the first. Greetings,
   haggling pushback, refusals and walk-aways now come from contextual pools that know the
@@ -49,6 +58,10 @@ below is released yet.
 
 ### Verified
 
+- 75 headless tests (four new: only a done deal makes a regular, the list stays bounded,
+  returning customers keep their identity and earn loyalty, and regulars survive a save
+  while the journal fallback deliberately omits their names) — plus the four from the
+  dialogue pass and the full suite below.
 - 71 headless tests (four new for this pass: every archetype x every situation, pool
   selection and fallbacks, anti-repeat determinism with the memory round-tripped through
   a save, and old/broken saves), `npm run check` and `npm test` at exit 0, UI smoke

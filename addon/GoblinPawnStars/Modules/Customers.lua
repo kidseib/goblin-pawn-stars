@@ -92,6 +92,12 @@ local function buildCustomer(options)
     if rare then willingness = willingness * 1.12 end
     -- The scripted first buyer is keen, so the counter the window suggests lands.
     if options.firstDeal then willingness = math.max(willingness, 1.45) end
+    -- A remembered customer pays the loyalty premium, if they have earned it.
+    local returning = math.max(0, math.floor(tonumber(options.returning) or 0))
+    if returning > 0 then
+        local _, loyaltyOffer = ns.Regulars.Loyalty(returning)
+        willingness = willingness * loyaltyOffer
+    end
 
     -- Hidden ceiling: what this customer would actually pay for this item.
     local maxPay = math.floor(math.min(
@@ -116,6 +122,10 @@ local function buildCustomer(options)
         + math.floor((bonuses.patience or 0) + (repPerks.patience or 0))
     if rare then patience = patience + 1 end
     if options.celebrity then patience = patience + 1 end
+    if returning > 0 then
+        local loyaltyPatience = ns.Regulars.Loyalty(returning)
+        patience = patience + loyaltyPatience
+    end
     patience = math.max(1, patience)
 
     db.shop.nextCustomerId = (db.shop.nextCustomerId or 0) + 1
@@ -147,6 +157,7 @@ local function buildCustomer(options)
         seller = options.seller and true or false,
         regular = options.regular and true or false,
         regularVisit = options.regularVisit,
+        returning = returning > 0 and returning or nil,
     }
 
     return customer, record, personality
@@ -210,6 +221,11 @@ function C.TrySpawn(options)
     -- normal customer with a normal budget; her sale consumes normal stock.
     if not options and ns.Regular then
         options = ns.Regular.SpawnOptions(false)
+    end
+
+    -- A face the shop remembers can take an ordinary arrival instead.
+    if not options and ns.Regulars then
+        options = ns.Regulars.SpawnOptions()
     end
 
     local customer, record = buildCustomer(options)

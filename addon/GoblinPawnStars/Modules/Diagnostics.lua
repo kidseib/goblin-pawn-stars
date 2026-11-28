@@ -2682,6 +2682,107 @@ function D.Run()
         end)
     end)
 
+    -----------------------------------------------------------------------
+    test("only a done deal makes a regular", function()
+        withScratch(nil, function(scratch)
+            scratch.tier = 2
+            ns.Inventory.Add({
+                id = 9100, name = "Regular Test Blade", quality = 3, ilvl = 30,
+                classID = 2, subclassID = 7, category = "weapon", value = 300,
+            })
+            local customer = ns.Customers.TrySpawn({ personality = "trader", rare = false })
+            expect(customer, "no customer was generated")
+            customer.maxPay = 100
+            expectEqual(ns.Regulars.Remember(customer, 40), nil,
+                "a haggled-down sale created a regular")
+            expectEqual(#scratch.shop.regulars, 0, "a haggled-down sale was remembered")
+            local entry = ns.Regulars.Remember(customer, 95)
+            expect(entry, "a full-price sale did not create a regular")
+            expectEqual(#scratch.shop.regulars, 1, "the regular was not stored")
+            expectEqual(entry.visits, 1, "the first visit counted wrong")
+            ns.Regulars.Remember(customer, 95)
+            expectEqual(#scratch.shop.regulars, 1, "the same customer was stored twice")
+            expectEqual(scratch.shop.regulars[1].visits, 2, "a repeat visit did not count")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("the regular list stays bounded", function()
+        withScratch(nil, function(scratch)
+            for index = 1, 6 do
+                ns.Regulars.Remember({
+                    name = "Shopper " .. index, personality = "trader", maxPay = 100,
+                }, 100)
+            end
+            expectEqual(#scratch.shop.regulars, ns.Data.Regulars.max,
+                "the regular list grew past its cap")
+            expect(#scratch.shop.regulars <= 3, "the cap is not small enough for the save")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("returning customers keep their identity and earn loyalty", function()
+        local firstPatience, firstOffer = ns.Regulars.Loyalty(1)
+        expectEqual(firstPatience, 0, "a first visit already earned patience")
+        expectEqual(firstOffer, 1, "a first visit already earned the offer premium")
+        expectEqual(ns.Regulars.Loyalty(2), 1, "the second visit did not earn a round")
+        local _, third = ns.Regulars.Loyalty(3)
+        expectEqual(third, 1, "the offer premium came before the relationship was earned")
+        local _, fourth = ns.Regulars.Loyalty(4)
+        expect(fourth > 1, "the fourth visit did not earn the offer premium")
+
+        withScratch(nil, function(scratch)
+            scratch.tier = 2
+            ns.Inventory.Add({
+                id = 9200, name = "Regular Test Ring", quality = 4, ilvl = 40,
+                classID = 4, subclassID = 0, category = "misc", value = 400,
+            })
+            local control = ns.Customers.TrySpawn({ personality = "collector", rare = false })
+            expect(control, "no control customer")
+            local back = ns.Customers.TrySpawn({
+                personality = "collector", rare = false,
+                name = "Old Friend", returning = 3,
+            })
+            expect(back, "no returning customer")
+            expectEqual(back.name, "Old Friend", "the returning customer lost their name")
+            expectEqual(back.returning, 3, "the visit count was not carried")
+            expectEqual(back.patienceMax, control.patienceMax + 1,
+                "a regular did not get their extra haggling round")
+            expectEqual(ns.Regulars.Remember(back, back.maxPay).visits, 1,
+                "the memory started a second entry for a new face")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("regulars survive saves, junk is dropped and the journal omits them", function()
+        local repaired = ns.DB.Normalize({
+            shop = {
+                regulars = {
+                    { name = "Ghost", personality = "no_such_archetype" },
+                    "junk",
+                    { name = "", personality = "trader" },
+                },
+            },
+        })
+        expectEqual(#repaired.shop.regulars, 0, "invalid regulars survived normalization")
+
+        withScratch(nil, function(scratch)
+            scratch.tier = 1
+            ns.Regulars.Remember({
+                name = "Keeper", personality = "collector", maxPay = 50, race = "Orc",
+            }, 50)
+            expectEqual(#scratch.shop.regulars, 1, "the regular was not stored")
+            local encoded = ns.DB.Export()
+            expect(ns.DB.Import(encoded, true), "the export did not import")
+            local list = ns.DB.Get().shop.regulars
+            expectEqual(#list, 1, "the regular did not survive a save round trip")
+            expectEqual(list[1].name, "Keeper", "the regular's name did not survive")
+            local snapshot = ns.DB.Snapshot()
+            expectEqual(#snapshot.shop.regulars, 0,
+                "the journal snapshot carries the regular names")
+        end)
+    end)
+
     return results
 end
 
