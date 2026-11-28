@@ -1,0 +1,91 @@
+name: Apply save-path hardening
+
+# Temporary delivery job. The change touches files too large to send through the
+# contents API, so a checked-in script applies it, the job requires the exact blob
+# hashes the change was verified against, runs the full gate, and commits.
+# This workflow and the script are deleted in the commit it makes.
+
+on:
+  push:
+    paths:
+      - '.github/scripts/harden-save-path.js'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Nothing to do once the edit has landed
+        id: guard
+        run: |
+          if [ -f .github/scripts/harden-save-path.js ]; then
+            echo "skip=0" >> "$GITHUB_OUTPUT"
+          else
+            echo "already applied"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.guard.outputs.skip == '0'
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Apply the edits
+        if: steps.guard.outputs.skip == '0'
+        run: node .github/scripts/harden-save-path.js
+
+      - name: Require the exact bytes this change was verified against
+        if: steps.guard.outputs.skip == '0'
+        run: |
+          set -eu
+          fail=0
+          check() {
+            got=$(git hash-object "$1")
+            if [ "$got" != "$2" ]; then
+              echo "MISMATCH $1: got $got want $2"
+              fail=1
+            fi
+          }
+          check addon/GoblinPawnStars/Core/Journal.lua d3ad6e6600f3e4a20168d71f97bad97845edb3b7
+          check addon/GoblinPawnStars/Modules/Diagnostics.lua 9b42cc2abe5c900b0f7acba08f85c722b8ac84b5
+          check tools/mock_wow.lua e4f5ec0ef1e57ac37b304b6ccde9b7a4ca3bacee
+          check README.md debbd79ac5eac3cb6190b31b0e0bae51939d1c8f
+          check PROGRESS.md 048b7a902f130f50b41a3974194378076b7a5849
+          check TESTING.md 56bcb13ff0dbf111ee5c74d5c89f99f22e4240fe
+          check docs/curseforge/description.md d0678254d2f830d1c448d11c165c922478577085
+          exit "$fail"
+
+      - name: Verify before committing
+        if: steps.guard.outputs.skip == '0'
+        run: |
+          set -eu
+          npm ci
+          npm run verify
+
+      - name: Commit and push
+        if: steps.guard.outputs.skip == '0'
+        run: |
+          set -eu
+          git config user.name 'Error.Seib'
+          git config user.email 'kidseib@gmail.com'
+          git rm -q .github/scripts/harden-save-path.js \
+                     .github/workflows/apply-save-hardening.yml
+          git add -A
+          git commit -m 'journal: save at a full macro list, on a name collision and when oversized'
+          git log --oneline -1
+          git diff --stat HEAD~1 HEAD
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then exit 0; fi
+            sleep 5
+            git pull --rebase -q origin main
+          done
+          exit 1
