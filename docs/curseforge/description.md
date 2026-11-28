@@ -171,7 +171,7 @@ The same hash is in the GitHub release notes.
 
 ## STATUS — 1.7.9
 
-Feature-complete, with a **63-test headless simulation suite** and a full **UI smoke pass** behind it. The live-client visual and persistence checklist is still in progress — it now includes the bounded login load, loading a run from Settings, and a save on a full stockroom. Interface **16001** (World of Warcraft: Forever).
+Feature-complete, with a **65-test headless simulation suite** and a full **UI smoke pass** behind it. The live-client visual and persistence checklist is still in progress — it now includes the bounded login load, loading a run from Settings, and a save on a full stockroom. Interface **16001** (World of Warcraft: Forever).
 
 If something looks off in the real client, report it in the comments with your UI scale and what you were doing. That is exactly the feedback this release needs.
 

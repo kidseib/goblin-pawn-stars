@@ -1,5 +1,42 @@
 # PROGRESS
 
+## Journal payload format 3 — the live `save error`
+
+The player's 1.7.9 client reported `Could not save progress to the macro journal:
+journal is too large, even without stock` on a 489-credit tier 1 shop with 10 stock
+stacks, while `/gps journal` showed `Chunks: 0/12 · generation none`. The write path
+showed the cause was capacity, not corruption: `prepareJob` refuses a snapshot that
+does not fit one generation (12 chunks x 210 base64 characters = 2,520), and
+`trimSnapshot` can only shed stock. A played shop spends that budget on field names.
+Measured on the real addon under the mock, a 50-minute profile (all 37 counters
+non-default, 23 settings, two market events, one museum entry, a daily request)
+encoded to **2,292 base64 characters with no stock at all** — 91% of the budget — so
+any stock pushed it over and the trim then had nothing left to drop.
+
+Format 3 carries the stat, settings and market-event sections as ordered value arrays
+instead of name/value maps, so the names cost nothing. On the same profile the fixed
+part drops **2,292 -> 1,288** base64, and a save with twelve full stacks drops
+**2,580 -> 2,276**, which fits one generation with 244 characters to spare and no
+stock trimmed at all. The loader reads both formats: a payload without `format = 3` is
+expanded exactly as before, and `inventoryFormat` still travels so packed stock keeps
+unpacking. The field order is part of the format — append, never reorder — and missing
+positions keep their schema default, so older payloads expand cleanly.
+
+The player also confirmed that a full exit-and-login restores credits, tier and stock
+while the journal has written zero chunks, so SavedVariables carry the run and the
+journal is a fallback rather than the only save path. `GetNumMacros()` returned 33
+general + 3 character macros on that character, and `GPSA01`/`GPSB01` were found at
+indices 8 and 20: leftovers from builds that tried to write before the size refusal,
+which the next save reuses rather than creating new names.
+
+### Evidence that could not be obtained
+
+The analysis machine has no WoW installation, no `WTF` folder, no `SavedVariables`, no
+`Logs` or `Errors` folder and no addon debug dump (searched `/`, `/opt`, `/usr/share`,
+`/home`, `/root`, `/mnt`, `/srv`, the workspace). The chunk bodies on the player's disk
+were therefore never read; this diagnosis rests on the client's own chat output and on
+payloads measured headlessly. No live in-game result is claimed for format 3.
+
 ## Save path hardening — after v1.7.9
 
 Work on `main`. The player reported a `save error` in the header after a session that
@@ -29,7 +66,7 @@ could dead-end were reproduced in the headless suite, then fixed:
   before giving up.
 
 The load/save split from `ca87258` stays: the header says `load error` or `save error`,
-never both. The suite is **63 tests**; each of the four new tests failed against the
+never both. The suite is **65 tests**; each of the four new tests failed against the
 previous `Core/Journal.lua` with the exact messages above and passes now. No live client
 has run any of this.
 
@@ -50,7 +87,7 @@ from every failed attempt, which is what multiplied macro work until the client
 stalled. An autosave is a queue of single macro operations with an 8 ms budget per
 tick: one chunk per frame, cleanup only after the commit, and **Save Now**, logout,
 import and `/gps verify` flush a staged save synchronously. No gameplay or arrival
-timing changed. The headless suite is **63 tests**; UI smoke is green.
+timing changed. The headless suite is **65 tests**; UI smoke is green.
 
 **v1.7.8** was a presentation and responsiveness release: Settings has a one-click
 Performance mode, simultaneous arrivals aggregate on one card, the card pauses while
@@ -140,7 +177,7 @@ legacy `GPSJ` chunks) is queued the same way, one name per step, and only runs a
 the commit. `SaveNow`, logout, import and `/gps verify` flush a staged save
 synchronously, so a manual checkpoint never lands half-written. A journal that will
 not assemble settles the load so the next save can replace it, instead of leaving the
-session unable to write at all. The suite is **63 tests**. This work has not run in
+session unable to write at all. The suite is **65 tests**. This work has not run in
 the live client.
 
 ### v1.7.5 — five-minute, idle-only autosaves
@@ -227,14 +264,14 @@ Commands, run from the repository root:
 
 ```
 npm ci                     -> added 5 packages, exit 0
-npm run check              -> Lua 5.1 syntax OK: 61 files, 17,839 lines; TOC OK
-npm test                   -> 63 passed, 0 failed; UI smoke: all tabs and overlays
+npm run check              -> Lua 5.1 syntax OK: 61 files, 18,073 lines; TOC OK
+npm test                   -> 65 passed, 0 failed; UI smoke: all tabs and overlays
 node tools/sim_30min.js    -> FINAL 449 gc, tier 2, 40 sales; idle probe 17 auto-sales
 ```
 
 Those four commands were run inside a fresh `git clone` of `main` in a throwaway
 directory, not in the working tree, so the numbers above describe exactly what a
-clean checkout produces. The 1.7.9 journal tests are counted in the 63. Earlier
+clean checkout produces. The 1.7.9 journal tests are counted in the 65. Earlier
 release preps reported 58 files/15,696 lines (47 tests), 60 files/16,151 lines
 (50 tests) and 60 files/16,595 lines (53 tests); those numbers are historical and
 superseded.
@@ -356,7 +393,7 @@ The older unverified areas:
 ## In-game checklist (first pass)
 
 1. `/gps` opens the window; all ten tabs render without Lua errors; Esc closes it.
-2. `/gps test` prints 63 PASS lines in chat.
+2. `/gps test` prints 65 PASS lines in chat.
 3. Loot one item; it appears in Inventory. Re-looting does not duplicate stock.
 4. Make a sale, then open **The Deed** and pay the first note when affordable. Confirm
    1,500 credits leave the wallet and the museum/Marta unlock.

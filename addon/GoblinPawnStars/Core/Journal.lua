@@ -296,8 +296,94 @@ end
 
 local PACK_FORMAT = 2
 
+-- The journal has 2,520 base64 characters in one generation, and a played shop
+-- spent 91% of that on field names: 37 stat keys, 23 settings keys and the event
+-- records. Format 3 carries those sections as ordered arrays of values, so the
+-- names cost nothing and the shop itself fits. The order is part of the format:
+-- append new fields to the end, never reorder, and older payloads still expand
+-- because missing positions keep their default.
+local STAT_FIELDS = {
+    "playtime", "sales", "revenue", "earned", "spent", "expenses", "rejected",
+    "offersSeen", "counterSuccess", "counterFail", "appraisals", "thefts",
+    "theftsPrevented", "rareSales", "customersServed", "bestSale", "bestMultiple",
+    "shopDays", "eventsResolved", "itemsCollected", "negotiations", "refunds",
+    "counterfeitBought", "counterfeitsRefused", "customers", "auctionsWon",
+    "mysteryItems", "donations", "totalDiscount", "wholesaleSpent",
+    "wholesaleBought", "autoSales", "autoRevenue", "debtPaid", "museumDonated",
+    "regularVisits", "franchises",
+}
+local SETTING_FIELDS = {
+    "sound", "minimap", "minimapAngle", "scale", "customerArrival", "animations",
+    "performance", "arrivalPace", "arrivalPositions", "autoCollect",
+    "modestDialog", "showWelcome", "welcomeVersion", "tourDone", "tourVersion",
+    "bagHintShown", "starterGranted", "autoSell", "questAutoSell", "paused",
+    "macroJournal", "autoLoadJournal", "journalHintShown",
+}
+local MARKET_FIELDS = { "key", "startedAt", "untilAt" }
+
+local function packFields(source, fields, into)
+    into = into or {}
+    for index = 1, #fields do
+        into[index] = source[fields[index]]
+    end
+    return into
+end
+
+local function unpackFields(values, fields, into)
+    into = into or {}
+    if type(values) ~= "table" then return into end
+    for index = 1, #fields do
+        local value = values[index]
+        if value ~= nil then into[fields[index]] = value end
+    end
+    return into
+end
+
+-- Same table, with the three name-heavy sections swapped for value arrays.
+local function packJournal(snapshot)
+    local packed = {}
+    for key, value in pairs(snapshot) do packed[key] = value end
+    -- inventoryFormat must survive: it tells the loader the stock records are
+    -- packed tuples rather than full item records.
+    packed.stats = packFields(snapshot.stats or {}, STAT_FIELDS)
+    packed.settings = packFields(snapshot.settings or {}, SETTING_FIELDS)
+    local market = {}
+    for key, value in pairs(snapshot.market or {}) do market[key] = value end
+    local events = {}
+    for index, event in ipairs(snapshot.market and snapshot.market.events or {}) do
+        events[index] = packFields(event, MARKET_FIELDS)
+    end
+    market.events = events
+    packed.market = market
+    return packed
+end
+
+local function unpackJournal(packed)
+    local snapshot = {}
+    for key, value in pairs(packed) do snapshot[key] = value end
+    snapshot.stats = unpackFields(packed.stats, STAT_FIELDS)
+    snapshot.settings = unpackFields(packed.settings, SETTING_FIELDS)
+    local market = {}
+    for key, value in pairs(packed.market or {}) do market[key] = value end
+    local events = {}
+    for index, entry in ipairs(packed.market and packed.market.events or {}) do
+        local event = unpackFields(entry, MARKET_FIELDS)
+        if event.key then events[index] = event end
+    end
+    market.events = events
+    snapshot.market = market
+    return snapshot
+end
+
 local function encodedSnapshot(snapshot)
-    return base64Encode(DB.Encode(snapshot, true))
+    local payload = {
+        version = DB.SchemaVersion(),
+        addon = ns.ADDON,
+        savedAt = tonumber(snapshot.savedAt) or U.now(),
+        format = 3,
+        data = DB.Compact(packJournal(snapshot)),
+    }
+    return base64Encode(ns.Serialize.Encode(payload))
 end
 
 -- Packed stock carries its value at 7 and its count at 8 (see packInventory).
@@ -652,6 +738,14 @@ function J.TryLoad(origin, hold)
         settle(who)
         setError("load", "journal belongs to another addon")
         return false
+    end
+    if payload.format == 3 then
+        -- Positional sections: expand them back into the shape the importer and
+        -- the rest of the addon expect. Payloads without a format are pre-3 and
+        -- already a full table.
+        payload.data = unpackJournal(payload.data or {})
+        payload.format = nil
+        text = ns.Serialize.Encode(payload)
     end
 
     local journalAt = tonumber(payload.savedAt) or 0
@@ -1469,6 +1563,7 @@ function J.Verify()
     if not text then return false, "the saved payload is not readable base64" end
     local payload, decodeError = ns.Serialize.Decode(text)
     if not payload then return false, "the saved data did not decode: " .. tostring(decodeError) end
+    if payload.format == 3 then payload.data = unpackJournal(payload.data or {}) end
     local stored = payload.data or {}
     local storedStats = stored.stats or {}
 

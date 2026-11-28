@@ -2331,6 +2331,145 @@ function D.Run()
         __clearMacros()
     end)
 
+    -----------------------------------------------------------------------
+    -- Journal payload format 3 packs the stat and setting sections by position:
+    -- a played shop spent 91% of its 2,520-character budget on field names and
+    -- then refused to save at all with "journal is too large, even without
+    -- stock". These two tests cover what the format buys and what it must keep.
+    test("a played shop fits the macro journal and round-trips", function()
+        if type(__clearMacros) ~= "function" then return end
+        __clearMacros()
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+
+        local ok, err = pcall(function()
+            local db = ns.DB.Scratch()
+            db.settings.macroJournal = true
+            db.credits = 489
+            db.tier = 2
+            -- Fifty minutes of play touches every counter, so none of them can be
+            -- omitted as a default any more.
+            for key in pairs(db.stats) do db.stats[key] = 17 end
+            db.stats.playtime = 3055
+            db.stats.sales = 12
+            db.stats.revenue = 389
+            db.stats.bestSale = 62
+            db.market.events = {
+                { key = "war", untilAt = 3000, startedAt = 1200 },
+                { key = "plague", untilAt = 3600, startedAt = 2400 },
+            }
+            db.shop.shopDayProgress = 0.39
+            db.shop.request = {
+                id = 70001, name = "Black Whelp Scale", category = "misc", value = 210, day = 1,
+            }
+            db.achievements.unlocked = { firstSale = 1200, rare = 3000 }
+            db.settings.tourDone = true
+            db.settings.welcomeVersion = 3
+            db.settings.arrivalPositions = { compact = { x = 120.5, y = -340.25 } }
+            db.museum.donated = {
+                weapon = { name = "Rusted Longsword of the Fallen Keep", at = 2400 },
+            }
+            ns.db = db
+            ns.Journal.TryLoad()
+            for index = 1, 12 do
+                ns.Inventory.Add({
+                    id = 70000 + index, name = "Black Whelp Scale", quality = 2,
+                    ilvl = 18, category = "misc", value = 120, count = 3,
+                })
+            end
+            expect(ns.Inventory.Count() > 1, "the test needs stock to save")
+            expect(ns.Journal.SaveNow(), "a played shop did not fit the journal: " ..
+                tostring(ns.Journal.status.error))
+            expect(ns.Journal.status.trimmed ~= true,
+                "a played shop still had to throw stock away to fit")
+
+            local loaded = ns.DB.Scratch()
+            loaded.settings.macroJournal = true
+            ns.db = loaded
+            expect(ns.Journal.TryLoad(), "the played shop did not load: " ..
+                tostring(ns.Journal.status.error))
+            expectEqual(ns.DB.Get().credits, 489, "the played shop lost credits")
+            expectEqual(ns.DB.Get().tier, 2, "the played shop lost its tier")
+            expectEqual(ns.DB.Get().stats.sales, 12, "the played shop lost sales")
+            expectEqual(ns.DB.Get().stats.playtime, 3055, "the played shop lost playtime")
+            expectEqual(ns.DB.Get().settings.arrivalPace, "Normal", "the played shop lost settings")
+            expect(ns.Inventory.Count() > 0, "the played shop lost its stock")
+        end)
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __clearMacros()
+        if not ok then error(err, 0) end
+    end)
+
+    -----------------------------------------------------------------------
+    test("a journal written without the positional format still loads", function()
+        if type(__clearMacros) ~= "function" or type(MACRO_STORE) ~= "table" then return end
+        __clearMacros()
+        local real = ns.db
+        local realGlobal = _G.GoblinPawnStarsDB
+
+        local ok, err = pcall(function()
+            -- The previous build wrote the whole shop table with its field names and
+            -- no `format` marker. Those journals have to keep loading.
+            local function b64(text)
+                local alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+                local out = {}
+                local index = 1
+                while index <= #text do
+                    local a, b, c = text:byte(index, index + 2)
+                    local n = (a or 0) * 65536 + (b or 0) * 256 + (c or 0)
+                    local c1 = math.floor(n / 262144) % 64 + 1
+                    local c2 = math.floor(n / 4096) % 64 + 1
+                    local c3 = math.floor(n / 64) % 64 + 1
+                    local c4 = n % 64 + 1
+                    out[#out + 1] = alphabet:sub(c1, c1) .. alphabet:sub(c2, c2)
+                        .. alphabet:sub(c3, c3) .. alphabet:sub(c4, c4)
+                    index = index + 3
+                end
+                return table.concat(out)
+            end
+            local function checksum(text)
+                local value = 5381
+                for index = 1, #text do
+                    value = (value * 33 + text:byte(index)) % 4294967296
+                end
+                return math.floor(value)
+            end
+
+            local text = ns.Serialize.Encode({
+                version = 2,
+                addon = "GoblinPawnStars",
+                savedAt = 1000,
+                data = { credits = 321, tier = 2, stats = { sales = 5, playtime = 1200 } },
+            })
+            local encoded = b64(text)
+            local stamp = checksum(encoded)
+            local chunkSize = 210
+            local total = math.ceil(#encoded / chunkSize)
+            expect(total >= 1 and total <= 12, "the crafted payload does not fit one generation")
+            for index = 1, total do
+                local piece = encoded:sub((index - 1) * chunkSize + 1, index * chunkSize)
+                local body = string.format("--GPSJ2:A:7:%02d:%02d:%.0f:c:%s", index, total, stamp, piece)
+                expect(CreateMacro(string.format("GPSA%02d", index), 134400, body),
+                    "could not write test chunk " .. index)
+            end
+
+            local loaded = ns.DB.Scratch()
+            loaded.settings.macroJournal = true
+            ns.db = loaded
+            expect(ns.Journal.TryLoad(), "a pre-format payload did not load: " ..
+                tostring(ns.Journal.status.error))
+            expectEqual(ns.DB.Get().credits, 321, "a pre-format payload lost credits")
+            expectEqual(ns.DB.Get().stats.sales, 5, "a pre-format payload lost stats")
+        end)
+
+        ns.db = real
+        _G.GoblinPawnStarsDB = realGlobal
+        __clearMacros()
+        if not ok then error(err, 0) end
+    end)
+
     return results
 end
 
