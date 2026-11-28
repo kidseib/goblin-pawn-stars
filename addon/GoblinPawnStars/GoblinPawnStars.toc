@@ -32,6 +32,7 @@ Data\Names.lua
 Data\Personalities.lua
 Data\Dialogue.lua
 Data\Regulars.lua
+Data\Streak.lua
 Data\Upgrades.lua
 Data\Employees.lua
 Data\Wholesale.lua
@@ -48,9 +49,11 @@ Modules\Shop.lua
 Modules\Wholesaler.lua
 Modules\Staff.lua
 Modules\Customers.lua
+Modules\Streak.lua
 Modules\Negotiation.lua
 Modules\Encounters.lua
 Modules\Achievements.lua
+Modules\Ceremony.lua
 Modules\History.lua
 Modules\Throughput.lua
 Modules\Goals.lua

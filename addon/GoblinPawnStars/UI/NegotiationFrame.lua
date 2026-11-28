@@ -17,6 +17,7 @@ local offerLabel, offerValue, marketLabel, marketValue
 local counterBox, feedbackText
 local acceptButton, rejectButton, counterButton, appraiseButton, closeButton
 local oddsText, oddsBar, payoutBanner
+local streakText, streakBar, lastStreakText
 local presets = {}
 local locked = false
 local payoutRevision = 0
@@ -48,6 +49,34 @@ local function refreshOdds()
         oddsBar:SetValue(math.max(odds.chance, 0.02), 1)
         oddsBar:SetColor(color)
     end
+end
+
+--[[ Counter streak ---------------------------------------------------------
+    One bar and one short label in the title bar: how close the current run of
+    landed counters is to a clean deal, and whether one is armed. It reads three
+    numbers from Modules/Streak.lua, writes the label only when the text actually
+    changes, and never runs on a frame of its own.
+--------------------------------------------------------------------------- ]]
+local function refreshStreak()
+    if not streakBar or not streakText then return end
+    local streak = ns.Streak and ns.Streak.Status and ns.Streak.Status()
+    if not streak then return end
+
+    local color = T.colors[streak.tone] or T.colors.muted
+    local text
+    if streak.armed then
+        local percent = math.floor((ns.Streak.Bonus() or 0) * 100 + 0.5)
+        text = T.Hex(color) .. "CLEAN DEAL|r " .. T.Hex(T.colors.dim) .. "+" .. percent .. "% next|r"
+    else
+        text = T.Hex(color) .. (streak.label or "STREAK") .. "|r "
+            .. T.Hex(T.colors.dim) .. string.format("%d/%d", streak.count, streak.limit) .. "|r"
+    end
+    if text ~= lastStreakText then
+        lastStreakText = text
+        streakText:SetText(text)
+    end
+    streakBar:SetValue(streak.armed and streak.limit or streak.count, streak.limit)
+    streakBar:SetColor(streak.armed and T.colors.gold or (streak.count > 0 and T.colors.green or T.colors.dim))
 end
 
 local function refresh()
@@ -117,6 +146,7 @@ local function refresh()
         preset:SetState(true)
     end
     refreshOdds()
+    refreshStreak()
 end
 
 -- Coins and a big number for a completed sale. completeSale has already paid the
@@ -152,7 +182,16 @@ local function finish_and_close(result)
             feedbackText:SetText("|cffff6b5eThat sale reported no price. Nothing was guessed.|r")
             return
         end
-        feedbackText:SetText("|cff5fd64fSold for " .. U.comma(price) .. " gc.|r " .. dialogue)
+        local clean = tonumber(result.cleanDeal) or 0
+        if clean > 0 then
+            -- The flourish for the perk: the payout banner already exists, so
+            -- the celebration is one more pulse on it, not another window.
+            feedbackText:SetText("|cffffd700Clean deal!|r |cff5fd64fSold for "
+                .. U.comma(price) .. " gc.|r " .. dialogue)
+            if payoutBanner then ns.Anim.Pulse(payoutBanner, 1.26, 0.6) end
+        else
+            feedbackText:SetText("|cff5fd64fSold for " .. U.comma(price) .. " gc.|r " .. dialogue)
+        end
         payout(price)
     elseif result.result == "rejected" or result.result == "left" or result.result == "insulted" then
         feedbackText:SetText("|cffff6b5eThey left.|r " .. dialogue)
@@ -194,6 +233,12 @@ local function build()
         frame:Hide()
     end, "danger")
     closeButton:SetPoint("RIGHT", -2, 0)
+
+    streakText = W.Text(titleBar, "", 10, T.colors.muted)
+    streakText:SetPoint("RIGHT", closeButton, "LEFT", -12, 7)
+    streakText:SetJustifyH("RIGHT")
+    streakBar = W.Bar(titleBar, 104, 5, T.colors.dim)
+    streakBar:SetPoint("RIGHT", closeButton, "LEFT", -12, -8)
 
     frame:SetScript("OnMouseDown", function(self, button)
         if button == "LeftButton" then self:StartMoving() end
@@ -442,6 +487,12 @@ ns.UI.Negotiation = {
     end,
     PayoutText = function()
         return payoutBanner and payoutBanner.text:GetText() or nil
+    end,
+    StreakText = function()
+        return streakText and streakText:GetText() or nil
+    end,
+    StreakBar = function()
+        return streakBar
     end,
 }
 

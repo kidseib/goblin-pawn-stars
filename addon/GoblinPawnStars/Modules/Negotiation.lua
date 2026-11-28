@@ -144,7 +144,12 @@ end
 -- Sale completion
 ---------------------------------------------------------------------------
 
-local function completeSale(price, method)
+-- `cleanDeal` is the session streak's one-shot perk: a fraction the customer
+-- rounds the agreed price up by. It only ever applies to a sale that is already
+-- happening (the unit still leaves through Inventory.Remove), it is spent on the
+-- next landed counter and it cannot be banked across a reload, so the money it
+-- adds is bounded by one sale in every five good haggles.
+local function completeSale(price, method, cleanDeal)
     local db = DB.Get()
     local customer = db.shop.current
     if not customer then return nil end
@@ -166,7 +171,7 @@ local function completeSale(price, method)
         request.fulfilled = true
     end
 
-    local bonusAdjustedPrice = price * (1 + requestBonus)
+    local bonusAdjustedPrice = price * (1 + requestBonus + (tonumber(cleanDeal) or 0))
     price = math.max(1, U.floor(method == "questsale" and bonusAdjustedPrice / 3 or bonusAdjustedPrice))
 
     ns.Inventory.Remove(customer.itemUid, 1)
@@ -226,7 +231,7 @@ local function completeSale(price, method)
         icon = record.icon,
         detail = string.format("Market value %s · %s %s",
             U.comma(baseValue),
-            method == "counter" and "counteroffer"
+            method == "counter" and (cleanDeal and "counteroffer · clean deal" or "counteroffer")
                 or (method == "questsale" and "questing auto-sale")
                 or (method == "autosale" and "salesperson sale" or "accepted offer"),
             requestBonus > 0 and "(daily request bonus)" or ""),
@@ -349,15 +354,27 @@ function N.Counter(amount)
 
     if odds and odds.kind == "reach" then
         if U.chance(odds.chance) then
-            local price = completeSale(amount, "counter")
+            -- Spend the clean deal only if the sale really completes. The streak
+            -- then starts again from this win, so the perk is never re-armed by
+            -- the same sale that spent it.
+            local cleanBonus = ns.Streak.Armed() and ns.Streak.Bonus() or 0
+            local price = completeSale(amount, "counter", cleanBonus > 0 and cleanBonus or nil)
             if not price then return false, "That item is no longer in stock." end
+            if cleanBonus > 0 then
+                ns.Streak.Consume()
+                ns.Shop.AddReputation(tonumber(ns.Data.Streak and ns.Data.Streak.perkRep) or 2)
+            end
+            ns.Streak.Hit()
             local line = ns.Data.Dialogue.Line(customer, "accept",
                 { price = U.comma(price) }, { counter = true })
             customer.dialogue = line
             ns.Customers.RecordVisit(customer, "sale", line)
-            return true, response("accepted", line, { price = price })
+            return true, response("accepted", line,
+                { price = price, cleanDeal = cleanBonus > 0 and cleanBonus or nil })
         end
 
+        -- A botched counter ends the hot hand but keeps any armed perk.
+        ns.Streak.Miss()
         customer.patience = math.max(0, (customer.patience or 0) - 1)
         db.stats.counterFail = (db.stats.counterFail or 0) + 1
 
@@ -374,13 +391,20 @@ function N.Counter(amount)
         customer.offer = math.min(maxPay, math.max(customer.offer or 0, raised))
 
         if customer.offer >= amount then
-            local price = completeSale(customer.offer, "counter")
+            local cleanBonus = ns.Streak.Armed() and ns.Streak.Bonus() or 0
+            local price = completeSale(customer.offer, "counter", cleanBonus > 0 and cleanBonus or nil)
             if not price then return false, "That item is no longer in stock." end
+            if cleanBonus > 0 then
+                ns.Streak.Consume()
+                ns.Shop.AddReputation(tonumber(ns.Data.Streak and ns.Data.Streak.perkRep) or 2)
+            end
+            ns.Streak.Hit()
             local line = ns.Data.Dialogue.Line(customer, "accept",
                 { price = U.comma(price) }, { counter = true })
             customer.dialogue = line
             ns.Customers.RecordVisit(customer, "sale", line)
-            return true, response("accepted", line, { price = price })
+            return true, response("accepted", line,
+                { price = price, cleanDeal = cleanBonus > 0 and cleanBonus or nil })
         end
 
         local line = ns.Data.Dialogue.Line(customer, "refuse", {
@@ -391,6 +415,7 @@ function N.Counter(amount)
     end
 
     -- Above the hidden ceiling: they push back once, then can walk away.
+    ns.Streak.Miss()
     customer.patience = math.max(0, (customer.patience or 0) - 1)
     db.stats.counterFail = (db.stats.counterFail or 0) + 1
 

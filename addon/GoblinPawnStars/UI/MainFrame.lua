@@ -25,6 +25,7 @@ local tickAccumulator = 0
 local slowAccumulator = 0
 local toastFrame
 local toastTimer
+local celebrateFrame, celebrateRevision = nil, 0
 
 ---------------------------------------------------------------------------
 -- Window
@@ -160,6 +161,39 @@ local function buildSidebar(parent)
     end
 
     ns.UI.TabButtons = tabButtons
+
+    -- Shop standing: one pip per reputation tier, driven by the same saved flag
+    -- the ceremony writes. Nothing here animates on its own; the pips are shown
+    -- or hidden by the header refresh that is already running once a second.
+    header.pips = {}
+    local tiers = ns.Data.ReputationTiers or {}
+    header.standingCaption = W.Text(sidebar, "SHOP STANDING", 9, T.colors.dim)
+    header.standingCaption:SetPoint("BOTTOMLEFT", 12, 38)
+    header.standingCaption:Hide()
+    for index = 1, math.min(4, #tiers) do
+        local def = tiers[index]
+        local pip = W.Icon(sidebar, 13, def.icon or "Interface\\Icons\\INV_Misc_Coin_01")
+        pip:SetPoint("BOTTOMLEFT", 12 + (index - 1) * 17, 20)
+        pip:Hide()
+        pip:SetScript("OnEnter", function(self)
+            if not GameTooltip then return end
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText("Shop standing", 0.94, 0.78, 0.33)
+            local celebrated = ns.Ceremony and ns.Ceremony.Celebrated() or 0
+            for position, tier in ipairs(tiers) do
+                local earned = position <= celebrated
+                GameTooltip:AddLine(string.format("%s %s",
+                    earned and "|cff5fd64f*|r" or "|cff666666-|r", tier.name or ""),
+                    earned and 1 or 0.55, earned and 0.9 or 0.55, earned and 0.55 or 0.55)
+            end
+            GameTooltip:AddLine("Earned by reputation. Each tier changes the shop.", 0.62, 0.58, 0.47)
+            GameTooltip:Show()
+        end)
+        pip:SetScript("OnLeave", function()
+            if GameTooltip then GameTooltip:Hide() end
+        end)
+        header.pips[index] = pip
+    end
 
     local footer = W.Text(sidebar, "Goblin Pawn Stars", 9, T.colors.dim)
     footer:SetPoint("BOTTOMLEFT", 12, 10)
@@ -427,6 +461,20 @@ local function refreshHeader()
         end
     end
 
+    -- A tier crossed in play celebrates once; the saved flag means a relog only
+    -- restores the pips. Sync is O(1) and returns immediately when nothing moved.
+    if ns.Ceremony and ns.Ceremony.Sync then pcall(ns.Ceremony.Sync) end
+    local celebrated = (ns.Ceremony and ns.Ceremony.Celebrated and ns.Ceremony.Celebrated()) or 0
+    if header.pips and header.lastStanding ~= celebrated then
+        -- Only on a change: the pips are static 99% of the time, so the refresh
+        -- does not touch four widgets every second for nothing.
+        header.lastStanding = celebrated
+        for index, pip in ipairs(header.pips) do
+            pip:SetShown(index <= celebrated)
+        end
+        header.standingCaption:SetShown(celebrated > 0)
+    end
+
     local creditsPerMin, customersPerMin = ns.Throughput.Rates()
     header.rates:SetText(string.format("%s gc/min · %.1f customers/min",
         U.comma(math.floor(creditsPerMin + 0.5)), customersPerMin))
@@ -616,6 +664,62 @@ function ns.UI.Toast(message)
             if toastFrame then toastFrame:Hide() end
         end)
     end
+end
+
+---------------------------------------------------------------------------
+-- Milestone celebration
+---------------------------------------------------------------------------
+
+-- One short, deliberate flourish for a tier or a deed: the same panel and icons
+-- the toast family already uses, a single pulse per icon, and a revision guard
+-- so overlapping milestones never leave a panel stranded on screen. The hide is
+-- a one-shot timer, the same mechanism the toast and payout banner already use.
+local function ensureCelebration()
+    if celebrateFrame then return celebrateFrame end
+    celebrateFrame = W.Panel(UIParent, "parchment")
+    if not celebrateFrame then return nil end
+    celebrateFrame:SetSize(420, 78)
+    celebrateFrame:SetPoint("TOP", UIParent, "TOP", 0, -210)
+    celebrateFrame:SetFrameStrata("FULLSCREEN_DIALOG")
+    celebrateFrame.title = W.Text(celebrateFrame, "", 15, T.colors.gold)
+    celebrateFrame.title:SetPoint("TOPLEFT", 62, -14)
+    celebrateFrame.title:SetPoint("TOPRIGHT", -14, -14)
+    celebrateFrame.subtitle = W.Text(celebrateFrame, "", 10, T.colors.parchment)
+    celebrateFrame.subtitle:SetPoint("TOPLEFT", 62, -36)
+    celebrateFrame.subtitle:SetPoint("TOPRIGHT", -14, -36)
+    celebrateFrame.subtitle:SetWordWrap(true)
+    celebrateFrame.icons = {}
+    for index = 1, 3 do
+        local icon = W.Icon(celebrateFrame, 26, "Interface\\Icons\\INV_Misc_Coin_01")
+        icon:SetPoint("TOPLEFT", 14 + (index - 1) * 13, -14 - (index - 1) * 11)
+        celebrateFrame.icons[index] = icon
+    end
+    celebrateFrame:Hide()
+    return celebrateFrame
+end
+
+function ns.UI.Celebrate(title, text, icon)
+    local panel = ensureCelebration()
+    if not panel then return false end
+    celebrateRevision = celebrateRevision + 1
+    local shown = celebrateRevision
+    panel.title:SetText(tostring(title or "Milestone"))
+    panel.subtitle:SetText(tostring(text or ""))
+    for _, frame in ipairs(panel.icons) do
+        frame:SetIcon(icon or "Interface\\Icons\\INV_Misc_Coin_01")
+    end
+    panel:Show()
+    if ns.Anim then
+        ns.Anim.Reveal(panel, 0.18, 0)
+        ns.Anim.Pulse(panel, 1.03, 0.4)
+        for index, frame in ipairs(panel.icons) do
+            ns.Anim.Pulse(frame, 1.14 + index * 0.04, 0.4 + index * 0.1)
+        end
+    end
+    ns.Compat.After(1.25, function()
+        if shown == celebrateRevision and celebrateFrame then celebrateFrame:Hide() end
+    end)
+    return true
 end
 
 function ns.UI.ShowEncounter()

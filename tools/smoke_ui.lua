@@ -586,6 +586,56 @@ function __smoke()
         end
     end)
 
+    attempt("counter streak meter and milestone ceremony", function()
+        local UI = __NS.UI
+        local db = __NS.DB.Get()
+        __NS.Streak.Reset()
+        __NS.Inventory.Add({
+            id = 2590, name = "Streak Cloth", quality = 1, ilvl = 5,
+            classID = 7, subclassID = 5, category = "cloth", value = 90,
+        })
+        db.shop.current = nil
+        db.shop.waiting = {}
+        __NS.Customers.TrySpawn({ personality = "trader" })
+        assert(__NS.Customers.StartNegotiation(1), "the streak customer did not arrive")
+        UI.Open()
+        UI.Negotiation.Show()
+
+        local api = UI.Negotiation
+        assert(api.StreakText and api.StreakBar, "the negotiation window has no streak meter")
+        assert(api.StreakText():find("NO STREAK", 1, true), "a fresh streak does not read 0")
+
+        __NS.Streak.Hit()
+        __NS.Streak.Hit()
+        UI.Negotiation.Refresh()
+        assert(api.StreakText():find("2/", 1, true) and not api.StreakText():find("NO STREAK", 1, true),
+            "the meter did not follow the streak: " .. tostring(api.StreakText()))
+
+        for _ = 1, __NS.Streak.Threshold() do __NS.Streak.Hit() end
+        UI.Negotiation.Refresh()
+        assert(api.StreakText():find("CLEAN DEAL", 1, true),
+            "an armed clean deal is not announced: " .. tostring(api.StreakText()))
+
+        -- The celebration panel is built lazily and must not throw or leave
+        -- itself on the stack after its one-second beat.
+        assert(UI.Celebrate("Respected", "250 reputation · an extra haggling round",
+            "Interface\\Icons\\INV_Misc_Coin_01"), "the celebration did not build")
+
+        local header = UI.Header
+        assert(header and header.pips, "the sidebar has no standing pips")
+        db.shop.celebratedTier = 2
+        UI.Refresh()
+        assert(header.pips[1]:IsShown() and header.pips[2]:IsShown(),
+            "earned standing pips stay hidden")
+        assert(#header.pips < 3 or not header.pips[3]:IsShown(),
+            "an unearned standing pip is shown")
+        assert(header.standingCaption:IsShown(), "the standing caption stays hidden")
+        db.shop.celebratedTier = 0
+        UI.Refresh()
+        assert(not header.pips[1]:IsShown(), "standing pips outlive their flag")
+        __NS.Streak.Reset()
+    end)
+
     attempt("title bar announces a pending special order", function()
         local db = __NS.DB.Get()
         local UI = __NS.UI

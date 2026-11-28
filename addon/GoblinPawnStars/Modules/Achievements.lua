@@ -62,6 +62,11 @@ function A.Check()
                 ns.Print("New shop title: |cff7bd66b" .. def.title .. "|r")
             end
         end
+        -- The deed celebration is quiet: the lines above already announce the
+        -- unlock, so Ceremony only adds the burst and the fanfare.
+        if ns.Ceremony and ns.Ceremony.Deed then
+            for _, def in ipairs(unlocked) do pcall(ns.Ceremony.Deed, def) end
+        end
         if ns.Sound then ns.Sound.Play("achievement") end
         if ns.UI and ns.UI.Toast then
             ns.UI.Toast("Achievement: " .. unlocked[#unlocked].name)

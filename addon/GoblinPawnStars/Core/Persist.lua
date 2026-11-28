@@ -99,6 +99,9 @@ local function defaults()
             recentLines = {},
             regulars = {},
             orders = {},
+            -- Highest reputation tier already celebrated, so a relog restores
+            -- the shop's standing pips without replaying the fanfare.
+            celebratedTier = 0,
             wholesale = {
                 lots = {},
                 nextRestock = 0,
@@ -301,6 +304,11 @@ local function normalize(db)
         end
     end
     db.shop.orders = cleanOrders
+    -- Ceremony flag: additive, clamped, and derived state only. An old save has
+    -- none and gets 0, which lets the first tier crossed after this build
+    -- celebrate once; it never celebrates a tier twice.
+    local tierCount = (ns.Data and ns.Data.ReputationTiers and #ns.Data.ReputationTiers) or 0
+    db.shop.celebratedTier = U.clamp(math.floor(tonumber(db.shop.celebratedTier) or 0), 0, tierCount)
     if type(db.shop.wholesale) ~= "table" then db.shop.wholesale = { lots = {}, nextRestock = 0, restocks = 0 } end
     if type(db.shop.wholesale.lots) ~= "table" then db.shop.wholesale.lots = {} end
     if type(db.stats) ~= "table" then db.stats = defaults().stats end

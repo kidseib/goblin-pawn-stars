@@ -113,6 +113,10 @@ function S.AddReputation(amount)
     local db = DB.Get()
     local gain = (tonumber(amount) or 0) * (1 + (S.Bonuses().repGain or 0))
     db.reputation = U.clamp((db.reputation or 0) + gain, 0, 1000)
+    -- The only place standing changes, so the only place a tier ceremony can
+    -- fire. It compares two integers and returns immediately when nothing was
+    -- crossed: no polling, no frame cost, nothing to run on a quiet tick.
+    if ns.Ceremony and ns.Ceremony.Sync then pcall(ns.Ceremony.Sync) end
     return db.reputation
 end
 

@@ -3078,6 +3078,184 @@ function D.Run()
         expectEqual(ns.Regulars.SummaryLine(nil), nil, "a missing order produced a summary")
     end)
 
+    -----------------------------------------------------------------------
+    test("the counter streak arms a clean deal, pays it once and resets", function()
+        ns.Streak.Reset()
+        local limit = ns.Streak.Threshold()
+        for index = 1, limit - 1 do
+            ns.Streak.Hit()
+            expectEqual(ns.Streak.Count(), index, "the streak did not count a landed counter")
+            expectEqual(ns.Streak.Armed(), false, "the perk armed before the threshold")
+        end
+        ns.Streak.Hit()
+        expect(ns.Streak.Armed(), "the threshold did not arm the clean deal")
+        expectEqual(ns.Streak.Count(), limit, "the meter ran past its ceiling")
+        expect(ns.Streak.Bonus() > 0, "an armed clean deal is worth nothing")
+        expect(ns.Streak.Bonus() <= (ns.Data.Streak.maxBonus or 0.10),
+            "the clean-deal bonus is not clamped")
+
+        local bonus = ns.Streak.Consume()
+        expect(bonus > 0, "spending the clean deal paid nothing")
+        expectEqual(ns.Streak.Armed(), false, "the clean deal survived being spent")
+        expectEqual(ns.Streak.Count(), 0, "spending the clean deal did not reset the meter")
+        expectEqual(ns.Streak.Consume(), 0, "the clean deal could be spent twice")
+
+        -- Losing the hand resets the meter but not a reward already earned.
+        for _ = 1, limit do ns.Streak.Hit() end
+        expect(ns.Streak.Armed(), "no clean deal to protect")
+        ns.Streak.Miss()
+        expectEqual(ns.Streak.Count(), 0, "a botched counter kept the streak")
+        expect(ns.Streak.Armed(), "losing the streak also confiscated the earned perk")
+        ns.Streak.Reset()
+    end)
+
+    -----------------------------------------------------------------------
+    test("a clean deal pays over the agreed price, from the sale only", function()
+        withScratch(nil, function(scratch)
+            scratch.tier = 3
+            scratch.credits = 1000
+            scratch.shop.request = nil
+            ns.Streak.Reset()
+            local record = ns.Inventory.Add({ id = 9500, name = "Streak Relic", quality = 3, ilvl = 50,
+                classID = 4, subclassID = 0, category = "gem", value = 400 })
+            expect(record, "no stock for the streak sale")
+            expect(ns.Customers.TrySpawn({ personality = "merchant" }), "no customer")
+            expect(ns.Customers.StartNegotiation(1), "the negotiation did not start")
+
+            for _ = 1, ns.Streak.Threshold() do ns.Streak.Hit() end
+            expect(ns.Streak.Armed(), "no clean deal armed")
+            local customer = ns.Negotiation.Active()
+            local amount = math.max(1, math.floor((customer.maxPay or 1) * 0.5))
+            local expected = math.floor(amount * (1 + ns.Streak.Bonus()))
+            local before = scratch.credits
+
+            local previous = ns.Util.chance
+            ns.Util.chance = function() return true end
+            local ok, payload = ns.Negotiation.Counter(amount)
+            ns.Util.chance = previous
+
+            expect(ok and payload and payload.result == "accepted", "the counter did not land")
+            expect(payload.cleanDeal, "the landed counter did not spend the clean deal")
+            expect(payload.price >= expected, "the clean deal did not lift the price")
+            expectEqual(scratch.credits - before, payload.price,
+                "the clean deal paid something other than the sale")
+            expectEqual(ns.Streak.Count(), 1, "the sale that spent the perk did not restart the streak")
+            expectEqual(ns.Streak.Armed(), false, "the perk re-armed itself")
+
+            -- A plain counter win with no perk still counts toward the meter.
+            ns.Inventory.Add({ id = 9502, name = "Streak Relic II", quality = 3, ilvl = 51,
+                classID = 4, subclassID = 0, category = "gem", value = 380 })
+            expect(ns.Customers.TrySpawn({ personality = "merchant" }), "no second customer")
+            expect(ns.Customers.StartNegotiation(1), "the second negotiation did not start")
+            local second = ns.Negotiation.Active()
+            ns.Util.chance = function() return true end
+            local ok2, payload2 = ns.Negotiation.Counter(math.max(1, math.floor((second.maxPay or 1) * 0.5)))
+            ns.Util.chance = previous
+            expect(ok2 and payload2 and payload2.result == "accepted", "the second counter failed")
+            expect(not payload2.cleanDeal, "a card with no armed perk paid one")
+            expectEqual(ns.Streak.Count(), 2, "an ordinary win did not count toward the streak")
+            ns.Streak.Reset()
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("a botched counter resets the streak in the live flow", function()
+        withScratch(nil, function(scratch)
+            scratch.tier = 2
+            ns.Streak.Reset()
+            ns.Inventory.Add({ id = 9501, name = "Bungled Bangle", quality = 2, ilvl = 30,
+                classID = 4, subclassID = 0, category = "gem", value = 200 })
+            expect(ns.Customers.TrySpawn({ personality = "suspicious" }), "no customer")
+            expect(ns.Customers.StartNegotiation(1), "the negotiation did not start")
+            for _ = 1, 3 do ns.Streak.Hit() end
+            expectEqual(ns.Streak.Count(), 3, "the streak did not build")
+
+            local customer = ns.Negotiation.Active()
+            local previous = ns.Util.chance
+            ns.Util.chance = function() return false end
+            -- Ask exactly their ceiling: a failed roll can then only decline or
+            -- walk away, never resolve into a sale on their own raised offer.
+            local ok, payload = ns.Negotiation.Counter(customer.maxPay)
+            ns.Util.chance = previous
+
+            expect(ok, "a failed counter should still resolve")
+            expect(payload.result == "declined" or payload.result == "left",
+                "a failed counter reported a sale")
+            expectEqual(ns.Streak.Count(), 0, "a botched counter kept the streak alive")
+            ns.Streak.Reset()
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("the streak is session-only and never reaches a save", function()
+        withScratch(nil, function(scratch)
+            ns.Streak.Reset()
+            for _ = 1, 3 do ns.Streak.Hit() end
+            local encoded = ns.DB.Export()
+            expect(not encoded:find("streak", 1, true), "the save carries streak state")
+            local repaired = ns.DB.Normalize({ shop = {} })
+            expectEqual(repaired.shop.streak, nil, "normalization invented streak state")
+            expectEqual(repaired.shop.celebratedTier, 0, "a fresh save has no ceremony flag")
+            ns.Streak.Reset()
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("a reputation tier celebrates once, survives a save and never replays", function()
+        withScratch(nil, function(scratch)
+            local celebrate = ns.UI and ns.UI.Celebrate
+            local calls = 0
+            if ns.UI then
+                ns.UI.Celebrate = function() calls = calls + 1 return true end
+            end
+
+            ns.Ceremony.Forget()
+            scratch.reputation = 200
+            expectEqual(ns.Ceremony.Reached(), 1, "the reached tier is wrong below the second milestone")
+            -- Crossing the second milestone (250) celebrates exactly once.
+            ns.Shop.AddReputation(60)
+            expectEqual(ns.Ceremony.Reached(), 2, "the tier did not rise")
+            expectEqual(calls, 1, "crossing a tier did not celebrate exactly once")
+            expectEqual(ns.Ceremony.Celebrated(), 2, "the ceremony flag was not saved")
+
+            ns.Shop.AddReputation(30)
+            expectEqual(calls, 1, "the same tier celebrated twice")
+
+            local encoded = ns.DB.Export()
+            expect(ns.DB.Import(encoded, true), "the export did not import")
+            expectEqual(ns.Ceremony.Celebrated(), 2, "the ceremony flag was lost across a save")
+            ns.Ceremony.Sync()
+            expectEqual(calls, 1, "a reload replayed the tier celebration")
+
+            if ns.UI then ns.UI.Celebrate = celebrate end
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("a deed completion celebrates once and is not replayed", function()
+        withScratch(nil, function(scratch)
+            local celebrate = ns.UI and ns.UI.Celebrate
+            local calls = 0
+            if ns.UI then
+                ns.UI.Celebrate = function() calls = calls + 1 return true end
+            end
+
+            scratch.stats.sales = 0
+            ns.Achievements.Check()
+            local before = calls
+            -- The first sale milestone is a stat achievement and must fire the
+            -- deed celebration, not just the old chat print.
+            scratch.stats.sales = 5
+            local unlocked = ns.Achievements.Check()
+            expect(#unlocked > 0, "no achievement unlocked at five sales")
+            expectEqual(calls, before + #unlocked, "deeds did not celebrate")
+
+            ns.Achievements.Check()
+            expectEqual(calls, before + #unlocked, "an already-unlocked deed celebrated again")
+            if ns.UI then ns.UI.Celebrate = celebrate end
+        end)
+    end)
+
     return results
 end
 
