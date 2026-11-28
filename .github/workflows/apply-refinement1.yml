@@ -89,22 +89,25 @@ jobs:
           git config user.email 'kidseib@gmail.com'
           git rm -q .github/scripts/refinement1-a.js .github/scripts/refinement1-b.js \
                      .github/workflows/apply-refinement1.yml
+          printf '%s\n' \
+            'refinement: reputation milestones and event freshness' \
+            '' \
+            'Reputation is now a progression system instead of a bar: Known (100),' \
+            'Respected (250), Trusted (500) and Legendary (800) each unlock one concrete' \
+            'perk - a waiting slot, +2% rare customers, +1 haggling round, +5% on every' \
+            'offer - and the label, the perks and the dashboard copy all read one table in' \
+            'Data/Upgrades.lua. The dashboard reputation tile lists every milestone on hover.' \
+            '' \
+            'Shop events now remember the last two draws as indices in the save and skip' \
+            'them while at least three candidates remain, so the same crisis cannot repeat' \
+            'back to back or alternate A-B-A; the memory also records the event that' \
+            'actually happened when a draw falls back to another one.' \
+            '' \
+            'Tests: 67 passed, 0 failed (two new). npm run check and UI smoke green; the' \
+            '30-minute simulation is unchanged at 40 sales, tier 2, reputation 146. Not run' \
+            'in a live client.' > /tmp/commit-msg.txt
           git add -A
-          git commit -m "refinement: reputation milestones and event freshness
-
-Reputation is now a progression system instead of a bar: Known (100), Respected (250),
-Trusted (500) and Legendary (800) each unlock one concrete perk - a waiting slot, +2%
-rare customers, +1 haggling round, +5% on every offer - and the label, the perks and
-the dashboard copy all read one table in Data/Upgrades.lua. The dashboard reputation
-tile lists every milestone on hover.
-
-Shop events now remember the last two draws as indices in the save and skip them while
-at least three candidates remain, so the same crisis cannot repeat back to back or
-alternate A-B-A; the memory also records the event that actually happened when a draw
-falls back to another one.
-
-Tests: 67 passed, 0 failed (two new). npm run check and UI smoke green; 30-minute
-simulation unchanged at 40 sales, tier 2, reputation 146. Not run in a live client."
+          git commit -F /tmp/commit-msg.txt
           git log --oneline -1
           git diff --stat HEAD~1 HEAD
           for attempt in 1 2 3; do
