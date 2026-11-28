@@ -1,0 +1,115 @@
+name: Apply refinement 1
+
+# Temporary delivery job for the first refinement iteration on this branch. The
+# changelog, diagnostics and README are larger than the contents API accepts, so two
+# checked-in scripts apply the change. Both must be present before anything runs; the
+# job requires the exact blob hashes the change was verified against, runs the full
+# gate, commits, and deletes itself plus the scripts.
+
+on:
+  push:
+    paths:
+      - '.github/scripts/refinement1-a.js'
+      - '.github/scripts/refinement1-b.js'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refinement-polish
+          fetch-depth: 0
+
+      - name: Wait until both halves are on the branch
+        id: guard
+        run: |
+          if [ -f .github/scripts/refinement1-a.js ] && [ -f .github/scripts/refinement1-b.js ]; then
+            echo "skip=0" >> "$GITHUB_OUTPUT"
+          else
+            echo "waiting for the other half"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.guard.outputs.skip == '0'
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Apply the edits
+        if: steps.guard.outputs.skip == '0'
+        run: |
+          node .github/scripts/refinement1-a.js
+          node .github/scripts/refinement1-b.js
+
+      - name: Require the exact bytes this change was verified against
+        if: steps.guard.outputs.skip == '0'
+        run: |
+          set -eu
+          fail=0
+          check() {
+            got=$(git hash-object "$1")
+            if [ "$got" != "$2" ]; then
+              echo "MISMATCH $1: got $got want $2"
+              fail=1
+            fi
+          }
+          check addon/GoblinPawnStars/Data/Upgrades.lua 3b1d804a992c75759c33d19355066d51769cedcc
+          check addon/GoblinPawnStars/Modules/Shop.lua 4aeeb707987f52dd3ba63059277888cae9b21013
+          check addon/GoblinPawnStars/Modules/Customers.lua 9d995fbdbcef5ededf5efa998c6e7a9f16cc313b
+          check addon/GoblinPawnStars/Data/Encounters.lua 3ee69f611511794d6bdc53a580f3b6c09d453008
+          check addon/GoblinPawnStars/Modules/Encounters.lua 4329e1e85d70124ec4e55d9520b59b8ae73a58ae
+          check addon/GoblinPawnStars/Core/Persist.lua 659dbe7c7c12cd63ea969bed4f4574aa336e079f
+          check addon/GoblinPawnStars/UI/Tabs/Dashboard.lua 4cdef659c0e1c65843e8d877620da4e266d9480b
+          check addon/GoblinPawnStars/Modules/Diagnostics.lua 4119012eb77986c30f116b70d7e8b852beac2169
+          check CHANGELOG.md 23224840dd87182f2c8500677fca9053a4256316
+          check PROGRESS.md 0b78b9b5f19c640da5956216c88b7399367eef2f
+          check README.md 30807f693319999cc7ff798b55db268b37f9fac7
+          check TESTING.md 988498bd1f07fe3d8907796ab704b1a4ba34dd5a
+          check TODO.md cf0c9e5a81d81bd72457fb0857cbd651a1697c08
+          exit "$fail"
+
+      - name: Verify before committing
+        if: steps.guard.outputs.skip == '0'
+        run: |
+          set -eu
+          npm ci
+          npm run verify
+
+      - name: Commit and push
+        if: steps.guard.outputs.skip == '0'
+        run: |
+          set -eu
+          git config user.name 'Error.Seib'
+          git config user.email 'kidseib@gmail.com'
+          git rm -q .github/scripts/refinement1-a.js .github/scripts/refinement1-b.js \
+                     .github/workflows/apply-refinement1.yml
+          git add -A
+          git commit -m "refinement: reputation milestones and event freshness
+
+Reputation is now a progression system instead of a bar: Known (100), Respected (250),
+Trusted (500) and Legendary (800) each unlock one concrete perk - a waiting slot, +2%
+rare customers, +1 haggling round, +5% on every offer - and the label, the perks and
+the dashboard copy all read one table in Data/Upgrades.lua. The dashboard reputation
+tile lists every milestone on hover.
+
+Shop events now remember the last two draws as indices in the save and skip them while
+at least three candidates remain, so the same crisis cannot repeat back to back or
+alternate A-B-A; the memory also records the event that actually happened when a draw
+falls back to another one.
+
+Tests: 67 passed, 0 failed (two new). npm run check and UI smoke green; 30-minute
+simulation unchanged at 40 sales, tier 2, reputation 146. Not run in a live client."
+          git log --oneline -1
+          git diff --stat HEAD~1 HEAD
+          for attempt in 1 2 3; do
+            if git push origin HEAD:refinement-polish; then exit 0; fi
+            sleep 5
+            git pull --rebase -q origin refinement-polish
+          done
+          exit 1
