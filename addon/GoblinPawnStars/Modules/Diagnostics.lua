@@ -3309,7 +3309,11 @@ function D.Run()
         withScratch(nil, function(scratch)
             scratch.tier = 3
             scratch.credits = 1000
-            scratch.shop.request = nil
+            -- Today's request deliberately matches the item: a flip settles at
+            -- the terms it stated, so the request bonus must not inflate it.
+            scratch.shop.request = {
+                day = ns.Util.today(), category = "gem", bonus = 0.25, fulfilled = false,
+            }
             local record = ns.Inventory.Add({ id = 9700, name = "Wager Relic", quality = 3,
                 ilvl = 50, classID = 4, subclassID = 0, category = "gem", value = 400 })
             expect(record, "no stock for the wager")
@@ -3345,6 +3349,7 @@ function D.Run()
             expectEqual(payload.price, terms.prize, "the win did not pay the stated prize")
             expectEqual(scratch.credits - before, payload.price,
                 "the wager paid something other than one sale")
+            expect(scratch.shop.request.fulfilled, "the winning wager did not satisfy the request")
             expectEqual(scratch.inventory[customer.itemUid], nil, "the sold unit stayed in stock")
             local stacksAfter = 0
             for _ in pairs(scratch.inventory) do stacksAfter = stacksAfter + 1 end

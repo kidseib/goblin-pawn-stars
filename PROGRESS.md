@@ -909,6 +909,17 @@ offer, ceiling and the wager flag, so repeats cost three comparisons and no allo
 a raised offer or a new customer recomputes. No timer, no `OnUpdate`, no new frame work; the
 button is built once with the window and only its label changes when the terms change.
 
+**Settles flat.** The first delivery of this feature shipped a flake that only appeared on
+some calendar days: `completeSale` creates the day's request lazily, so a wager on an item
+whose category matched that day's request was paid `prize x (1 + bonus)` — the button stated
+80 and the player received 101. The flip now calls `completeSale(..., flat)`:  the request is
+still marked fulfilled (a real sale happened) but the bonus is not added, so the number on
+the button is the number paid. The window journal line still reads `double or nothing · won`
+without the `(daily request bonus)` suffix, which is correct for a flat settlement. A
+regression test now builds a matching request (`bonus 0.25`, today's date) before the flip and
+asserts the payout equals `terms.prize` and the request is fulfilled; without the flag it
+fails deterministically.
+
 **Measurement.** Temporary headless benchmark (deleted), previous head `7bb0b32` vs this
 build, four runs each under fengari:
 
@@ -932,7 +943,9 @@ one negative reputation call and moves no other credits; a used wager survives
 `Export`/`Import` with no new save field; and the no-customer / missing-stock paths pay
 nothing. `tools/smoke_ui.lua` drives the real window: the button appears for a desperate
 buyer, its label carries the odds, clicking it pays the stated prize and the payout banner
-equals the credits added, and the button is hidden for a trader.
+equals the credits added, and the button is hidden for a trader. `npm test` was run 10 times
+back to back after the flat-settlement fix (95/95 and a green UI smoke every time) because
+the earlier version had a date-dependent flake.
 
 **Economy.** `sim_30min` and the six-seed campaign are unchanged to the digit (1,222 gc /
 tier 2 / 40 sales / rep 166; medians 57:38, 114:04, 180:19, tier 2 37:34, tier 3 88:19,

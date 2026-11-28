@@ -62,7 +62,9 @@ below is released yet.
   twice the safe offer so a big hidden ceiling cannot make it free money. One wager per
   customer, remembered on the customer record the save already carries, so reloading cannot
   reroll a lost flip. The sale itself is an ordinary completed sale: one virtual unit leaves
-  the shelves and the credits come from the customer.
+  the shelves and the credits come from the customer. It settles flat at the figure on the
+  button — a matching daily request is still satisfied, but its bonus is never folded into a
+  wager the player already agreed to.
 - **Counter streak — the clean deal.** Every counteroffer that lands now fills a small
   meter in the negotiation window's title bar (`STREAK 3/5`, gold from the first landed
   counter, then `CLEAN DEAL +10% next` when the perk arms). Five landed counters in a row arm one clean deal: the next

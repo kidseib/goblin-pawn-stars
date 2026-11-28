@@ -173,7 +173,10 @@ end
 -- adds is bounded by one sale in every five good haggles.
 -- `label` overrides the ledger's description of the method for the odd case
 -- that is still a sale but is not one of the four regular routes (the wager).
-local function completeSale(price, method, cleanDeal, label)
+-- `label` renames the sale in the history detail. `flat` settles at exactly the
+-- quoted price: the daily request is still satisfied, but its bonus does not
+-- inflate a figure the player was shown before they agreed to it.
+local function completeSale(price, method, cleanDeal, label, flat)
     local db = DB.Get()
     local customer = db.shop.current
     if not customer then return nil end
@@ -191,7 +194,7 @@ local function completeSale(price, method, cleanDeal, label)
     local requestBonus = 0
     local request = ns.Shop.DailyRequest()
     if request and not request.fulfilled and request.category == record.category then
-        requestBonus = request.bonus or 0
+        if not flat then requestBonus = request.bonus or 0 end
         request.fulfilled = true
     end
 
@@ -493,7 +496,7 @@ function N.Wager()
     local won = ns.Gamble.Roll(terms)
     local price = won and terms.prize or terms.loss
     local paid = completeSale(price, "wager", nil,
-        won and "double or nothing · won" or "double or nothing · lost")
+        won and "double or nothing · won" or "double or nothing · lost", true)
     if not paid then return false, "That item is no longer in stock." end
 
     -- A lost flip costs standing, never gold that was already earned.
