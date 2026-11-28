@@ -1,0 +1,30 @@
+name: Iteration 8 delivery
+
+# TEMPORARY scaffolding. Applies the prepared A-board patch, runs the full gate
+# and commits the result (scripts in .github/scripts/iter8).
+# Removes itself in its final commit, so a later push will not re-run it.
+
+on:
+  push:
+    branches: [refinement-polish]
+    paths:
+      - ".github/scripts/iter8/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  deliver:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Deliver or report
+        run: bash .github/scripts/iter8/drive.sh
