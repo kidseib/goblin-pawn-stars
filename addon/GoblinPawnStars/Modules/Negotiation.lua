@@ -76,6 +76,28 @@ end
     window and the roll must never disagree: that is the worst bug this
     minigame can have.
 --------------------------------------------------------------------------- ]]
+--[[ Wager terms memo -------------------------------------------------------
+    The window refreshes once a second while it is open, and it asks for the
+    wager every time. The terms only change when the customer does, so the last
+    answer is kept in one small table keyed on the four values that decide it.
+    Repeats cost three comparisons and no allocation; a new customer, a raised
+    offer or a spent wager all miss the memo and recompute.
+--------------------------------------------------------------------------- ]]
+local wagerMemo = {}
+local function wagerFor(customer)
+    local id = customer.id
+    local offer = customer.offer
+    local maxPay = customer.maxPay
+    local gambled = customer.gambled and true or false
+    if wagerMemo.id == id and wagerMemo.offer == offer
+        and wagerMemo.maxPay == maxPay and wagerMemo.gambled == gambled then
+        return wagerMemo.terms
+    end
+    wagerMemo.id, wagerMemo.offer, wagerMemo.maxPay, wagerMemo.gambled = id, offer, maxPay, gambled
+    wagerMemo.terms = ns.Gamble.Terms(customer)
+    return wagerMemo.terms
+end
+
 function N.Odds(amount)
     local customer = N.Active()
     local record = N.Item()
@@ -149,7 +171,9 @@ end
 -- happening (the unit still leaves through Inventory.Remove), it is spent on the
 -- next landed counter and it cannot be banked across a reload, so the money it
 -- adds is bounded by one sale in every five good haggles.
-local function completeSale(price, method, cleanDeal)
+-- `label` overrides the ledger's description of the method for the odd case
+-- that is still a sale but is not one of the four regular routes (the wager).
+local function completeSale(price, method, cleanDeal, label)
     local db = DB.Get()
     local customer = db.shop.current
     if not customer then return nil end
@@ -224,16 +248,26 @@ local function completeSale(price, method, cleanDeal)
         ns.Regular.OnServed(customer)
     end
 
+    local how = label
+    if not how then
+        if method == "counter" then
+            how = cleanDeal and "counteroffer · clean deal" or "counteroffer"
+        elseif method == "questsale" then
+            how = "questing auto-sale"
+        elseif method == "autosale" then
+            how = "salesperson sale"
+        else
+            how = "accepted offer"
+        end
+    end
+
     ns.History.Add({
         kind = "sale",
         text = string.format("%s bought %s", customer.name, itemName),
         amount = price,
         icon = record.icon,
         detail = string.format("Market value %s · %s %s",
-            U.comma(baseValue),
-            method == "counter" and (cleanDeal and "counteroffer · clean deal" or "counteroffer")
-                or (method == "questsale" and "questing auto-sale")
-                or (method == "autosale" and "salesperson sale" or "accepted offer"),
+            U.comma(baseValue), how,
             requestBonus > 0 and "(daily request bonus)" or ""),
     })
 
@@ -434,6 +468,52 @@ function N.Counter(amount)
     return true, response("declined", line, { price = 0 })
 end
 
+--[[ Double or nothing ------------------------------------------------------
+    A desperate buyer bets their own purse: win and they pay the most they were
+    ever going to pay, lose and they pay a discount and the shop's name takes a
+    small knock. Once per customer, and it is priced to be slightly worse than
+    accepting, so it is a temptation rather than the correct play.
+
+    The sale still goes through completeSale: the unit leaves the shelves and the
+    credits come from a customer. A lost flip never touches gold that was not on
+    the table.
+--------------------------------------------------------------------------- ]]
+function N.Wager()
+    local customer = N.Active()
+    if not customer then return false, "Nobody is at the counter." end
+
+    local terms = wagerFor(customer)
+    if not terms then return false, "There is no wager on the table." end
+    local personality = N.Personality()
+
+    -- Marked before the roll: a flip cannot be rerolled, not even across the
+    -- reload that restores this customer from the save.
+    customer.gambled = true
+
+    local won = ns.Gamble.Roll(terms)
+    local price = won and terms.prize or terms.loss
+    local paid = completeSale(price, "wager", nil,
+        won and "double or nothing · won" or "double or nothing · lost")
+    if not paid then return false, "That item is no longer in stock." end
+
+    -- A lost flip costs standing, never gold that was already earned.
+    if not won and terms.sting > 0 then ns.Shop.AddReputation(-terms.sting) end
+
+    local line = ns.Gamble.Say(personality, won and "wagerWin" or "wagerLose",
+        { price = U.comma(paid) })
+    customer.dialogue = line
+    ns.Customers.RecordVisit(customer, "sale", line)
+
+    return true, {
+        result = "sold",
+        price = paid,
+        dialogue = line,
+        wager = true,
+        won = won and true or false,
+        terms = terms,
+    }
+end
+
 function N.Appraise()
     local db = DB.Get()
     local customer = N.Active()
@@ -503,5 +583,8 @@ function N.Summary()
         offer = customer.offer or 0,
         patience = N.PatienceRatio(),
         appraised = customer.appraised,
+        -- nil when this customer has no wager to offer (wrong archetype, already
+        -- used it, or there is no gap between their offer and their ceiling).
+        wager = wagerFor(customer),
     }
 end

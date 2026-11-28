@@ -16,6 +16,8 @@ local dialogueText, itemIcon, itemName, itemValue, itemCount
 local offerLabel, offerValue, marketLabel, marketValue
 local counterBox, feedbackText
 local acceptButton, rejectButton, counterButton, appraiseButton, closeButton
+local wagerButton
+local wagerHintId
 local oddsText, oddsBar, payoutBanner
 local streakText, streakBar, lastStreakText
 local presets = {}
@@ -147,6 +149,29 @@ local function refresh()
     end
     refreshOdds()
     refreshStreak()
+
+    -- Double or nothing: only offered by the archetype that carries the data
+    -- flag, only once, and only while there is a real gap to gamble over. The
+    -- button states the odds; the tooltip states both outcomes.
+    local terms = summary.wager
+    if wagerButton then
+        if terms then
+            wagerButton.terms = terms
+            wagerButton:Show()
+            wagerButton:SetLabel(string.format("Double or nothing\n%d%% · win %s gc",
+                terms.percent, U.comma(terms.prize)))
+            if wagerHintId ~= customer.id then
+                wagerHintId = customer.id
+                feedbackText:SetText(string.format(
+                    "|cffffd700They are out of time.|r Double or nothing at %d%%: "
+                    .. "they pay %s gc if you win, %s gc if you lose, and %d standing.",
+                    terms.percent, U.comma(terms.prize), U.comma(terms.loss), terms.sting or 0))
+            end
+        else
+            wagerButton.terms = nil
+            wagerButton:Hide()
+        end
+    end
 end
 
 -- Coins and a big number for a completed sale. completeSale has already paid the
@@ -183,7 +208,17 @@ local function finish_and_close(result)
             return
         end
         local clean = tonumber(result.cleanDeal) or 0
-        if clean > 0 then
+        if result.wager then
+            if result.won then
+                feedbackText:SetText("|cffffd700Double or nothing — you won it.|r |cff5fd64fThey paid "
+                    .. U.comma(price) .. " gc.|r " .. dialogue)
+                if payoutBanner then ns.Anim.Pulse(payoutBanner, 1.3, 0.6) end
+            else
+                feedbackText:SetText("|cffff6b5eDouble or nothing — the coin went their way.|r They paid "
+                    .. U.comma(price) .. " gc and the shop's name took a knock. " .. dialogue)
+            end
+            payout(price)
+        elseif clean > 0 then
             -- The flourish for the perk: the payout banner already exists, so
             -- the celebration is one more pulse on it, not another window.
             feedbackText:SetText("|cffffd700Clean deal!|r |cff5fd64fSold for "
@@ -378,6 +413,38 @@ local function build()
     end, "gold")
     counterButton:SetPoint("TOPLEFT", 16, -416)
 
+    wagerButton = W.Button(frame, "Double or nothing", 220, 30, function()
+        if locked then return end
+        locked = true
+        local ok, result = N.Wager()
+        locked = false
+        if not ok then
+            feedbackText:SetText("|cffff6b5e" .. tostring(result) .. "|r")
+            refresh()
+            return
+        end
+        finish_and_close(result)
+        refresh()
+    end, "gold")
+    wagerButton:SetPoint("TOPLEFT", 226, -416)
+    wagerButton:Hide()
+    wagerButton:SetScript("OnEnter", function(self)
+        local terms = self.terms
+        if not GameTooltip or not terms then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Double or nothing", 0.94, 0.78, 0.33)
+        GameTooltip:AddLine(string.format("Win · %d%%\nThey pay %s gc, the most they would ever pay.",
+            terms.percent, U.comma(terms.prize)), 0.55, 0.85, 0.45)
+        GameTooltip:AddLine(string.format("Lose · %d%%\nThey pay %s gc and your standing drops by %d.",
+            100 - terms.percent, U.comma(terms.loss), terms.sting or 0), 0.95, 0.55, 0.5)
+        GameTooltip:AddLine("One wager per customer. The odds are honest and slightly against you.",
+            0.62, 0.58, 0.47)
+        GameTooltip:Show()
+    end)
+    wagerButton:SetScript("OnLeave", function()
+        if GameTooltip then GameTooltip:Hide() end
+    end)
+
     -- Actions ------------------------------------------------------------
     acceptButton = W.Button(frame, "Accept Offer", 200, 34, function()
         if locked then return end
@@ -493,6 +560,9 @@ ns.UI.Negotiation = {
     end,
     StreakBar = function()
         return streakBar
+    end,
+    WagerButton = function()
+        return wagerButton
     end,
 }
 

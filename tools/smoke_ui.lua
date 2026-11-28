@@ -636,6 +636,61 @@ function __smoke()
         __NS.Streak.Reset()
     end)
 
+    attempt("double or nothing is offered, stated and paid by the window", function()
+        local UI = __NS.UI
+        local db = __NS.DB.Get()
+        db.shop.request = nil
+        db.shop.current = nil
+        db.shop.waiting = {}
+        __NS.Inventory.Add({
+            id = 2610, name = "Wager Cloth", quality = 2, ilvl = 12,
+            classID = 7, subclassID = 5, category = "cloth", value = 120,
+        })
+        assert(__NS.Customers.TrySpawn({ personality = "desperate" }),
+            "the desperate customer did not arrive")
+        assert(__NS.Customers.StartNegotiation(1), "the wager negotiation did not start")
+        local customer = __NS.Negotiation.Active()
+        customer.offer = 40
+        customer.maxPay = 220
+        UI.Open()
+        UI.Negotiation.Show()
+
+        local button = UI.Negotiation.WagerButton()
+        assert(button, "the wager control is not exposed")
+        assert(button:IsShown(), "the wager is hidden for a desperate buyer")
+        local label = button.label and button.label:GetText() or ""
+        assert(label:find("Double", 1, true) and label:find("%", 1, true),
+            "the wager button does not state its odds: " .. label)
+
+        local terms = __NS.Gamble.Terms(customer)
+        assert(terms and terms.prize > customer.offer, "the button has no terms behind it")
+
+        local before = db.credits or 0
+        local original = __NS.Util.chance
+        __NS.Util.chance = function() return true end
+        button:GetScript("OnClick")(button, "LeftButton")
+        __NS.Util.chance = original
+
+        local delta = (db.credits or 0) - before
+        assert(delta == terms.prize,
+            "the wager paid " .. tostring(delta) .. " instead of " .. tostring(terms.prize))
+        local shown = UI.Negotiation.PayoutText()
+        assert(shown == "+" .. __NS.Util.comma(delta) .. " gc",
+            "the wager banner " .. tostring(shown) .. " != credits added")
+        assert(not __NS.Negotiation.Active(), "the wager did not close the visit")
+
+        -- A customer who cannot gamble must not see the control at all.
+        db.shop.current = nil
+        db.shop.waiting = {}
+        assert(__NS.Customers.TrySpawn({ personality = "trader" }), "no trader")
+        assert(__NS.Customers.StartNegotiation(1), "the trader negotiation did not start")
+        UI.Negotiation.Show()
+        UI.Negotiation.Refresh()
+        assert(not button:IsShown(), "the wager is offered to a customer who cannot gamble")
+        __NS.Negotiation.Close()
+        UI.Refresh()
+    end)
+
     attempt("title bar announces a pending special order", function()
         local db = __NS.DB.Get()
         local UI = __NS.UI

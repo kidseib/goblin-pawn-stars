@@ -33,6 +33,7 @@ Data\Personalities.lua
 Data\Dialogue.lua
 Data\Regulars.lua
 Data\Streak.lua
+Data\Gamble.lua
 Data\Upgrades.lua
 Data\Employees.lua
 Data\Wholesale.lua
@@ -50,6 +51,7 @@ Modules\Wholesaler.lua
 Modules\Staff.lua
 Modules\Customers.lua
 Modules\Streak.lua
+Modules\Gamble.lua
 Modules\Negotiation.lua
 Modules\Encounters.lua
 Modules\Achievements.lua

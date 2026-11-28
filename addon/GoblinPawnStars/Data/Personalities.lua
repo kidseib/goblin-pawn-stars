@@ -167,6 +167,10 @@ Data.Personalities = {
         opening = { 0.84, 1.14 }, maxWill = 1.72, budget = 1.35,
         patience = 2, stubborn = 0.12, haggleSkill = 0.3,
         prefer = { "consumable", "armor", "weapon", "herb" },
+        -- The only archetype currently desperate enough to bet its own purse.
+        -- Modules/Gamble.lua reads this flag; the negotiation window shows the
+        -- wager only for customers whose data says yes.
+        gamble = true,
         lines = {
             greet = {
                 "You have it? Tell me you have it.",
@@ -188,6 +192,18 @@ Data.Personalities = {
             leave = {
                 "I'll find it somewhere else. I have to.",
                 "Useless. I'm going.",
+            },
+            wager = {
+                "I haven't got time to haggle. Double or nothing. My whole purse, or I take it cheap.",
+                "One flip. That's all the patience I have left. Everything I have, or a discount.",
+            },
+            wagerWin = {
+                "Fine. {price}. I said double or nothing and the coin said nothing.",
+                "{price}. Take it and don't look so pleased about it.",
+            },
+            wagerLose = {
+                "Ha! {price}, and cheap at that. I needed the good news.",
+                "{price}. I'd have paid double, but you offered to flip.",
             },
         },
     },

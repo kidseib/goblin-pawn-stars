@@ -3256,6 +3256,199 @@ function D.Run()
         end)
     end)
 
+    -----------------------------------------------------------------------
+    test("the wager states honest odds and is worth less than the safe offer", function()
+        local personality = ns.Data.PersonalityByKey.desperate
+        expect(personality and personality.gamble, "the desperate buyer cannot gamble")
+        expect(personality.lines and personality.lines.wager, "the desperate buyer has no wager line")
+
+        local best = 0
+        local seen = 0
+        for ceiling = 120, 900, 60 do
+            for offer = 100, ceiling - 1, 40 do
+                local terms = ns.Gamble.Terms({
+                    personality = "desperate", offer = offer, maxPay = ceiling,
+                })
+                expect(terms, string.format("no wager at offer %d / ceiling %d", offer, ceiling))
+                seen = seen + 1
+                expect(terms.percent >= 12 and terms.percent <= 55,
+                    "the stated odds left their clamp: " .. tostring(terms.percent))
+                expect(terms.prize <= ceiling, "the prize exceeds their own ceiling")
+                expect(terms.prize <= offer * 2, "the prize is more than twice the safe offer")
+                expect(terms.prize > offer, "the win pays nothing extra")
+                expect(terms.loss < offer, "the loss does not cost anything")
+                local value = ns.Gamble.Value(terms)
+                expect(value <= offer + 0.001,
+                    string.format("the wager is not worse than accepting: %.1f vs %d", value, offer))
+                if value / offer > best then best = value / offer end
+            end
+        end
+        expect(seen > 50, "the sweep did not exercise the odds")
+        -- Tempting, not free: around 94% of the safe offer when unclamped.
+        expect(best > 0.90, "the wager is too punishing to ever take: " .. tostring(best))
+        expect(best <= 1.0, "the wager can beat accepting outright")
+    end)
+
+    -----------------------------------------------------------------------
+    test("the wager is offered once, only by a gambler with a real gap", function()
+        expect(ns.Gamble.Terms({ personality = "desperate", offer = 100, maxPay = 300 }),
+            "a desperate buyer with a gap has no wager")
+        expectEqual(ns.Gamble.Terms({ personality = "trader", offer = 100, maxPay = 300 }), nil,
+            "a non-gambling archetype offered a wager")
+        expectEqual(ns.Gamble.Terms({ personality = "desperate", offer = 100, maxPay = 100 }), nil,
+            "a wager was offered with nothing to gamble over")
+        expectEqual(ns.Gamble.Terms({ personality = "desperate", offer = 0, maxPay = 300 }), nil,
+            "a wager was offered against a zero offer")
+        expectEqual(ns.Gamble.Terms({ personality = "desperate", offer = 100, maxPay = 300,
+            gambled = true }), nil, "the wager could be taken twice")
+        expectEqual(ns.Gamble.Terms(nil), nil, "terms were built for no customer")
+    end)
+
+    -----------------------------------------------------------------------
+    test("winning the wager sells one unit at the stated ceiling", function()
+        withScratch(nil, function(scratch)
+            scratch.tier = 3
+            scratch.credits = 1000
+            scratch.shop.request = nil
+            local record = ns.Inventory.Add({ id = 9700, name = "Wager Relic", quality = 3,
+                ilvl = 50, classID = 4, subclassID = 0, category = "gem", value = 400 })
+            expect(record, "no stock for the wager")
+            -- A large shelf (200 stacks, past any tier's capacity): the wager must
+            -- still sell exactly the unit on the counter and nothing else.
+            for index = 1, 200 do
+                local uid = 900000 + index
+                scratch.inventory[uid] = {
+                    uid = uid, id = 9800 + index, name = "Filler " .. index,
+                    quality = 1, ilvl = 10, classID = 4, subclassID = 0,
+                    category = "gem", count = 1, value = 20,
+                }
+            end
+            local stacksBefore = 0
+            for _ in pairs(scratch.inventory) do stacksBefore = stacksBefore + 1 end
+
+            expect(ns.Customers.TrySpawn({ personality = "desperate" }), "no customer")
+            expect(ns.Customers.StartNegotiation(1), "the negotiation did not start")
+            local customer = ns.Negotiation.Active()
+            customer.offer = 100
+            customer.maxPay = 400
+            local terms = ns.Gamble.Terms(customer)
+            expect(terms, "no wager on the table")
+
+            local before = scratch.credits
+            local previous = ns.Util.chance
+            ns.Util.chance = function() return true end
+            local ok, payload = ns.Negotiation.Wager()
+            ns.Util.chance = previous
+
+            expect(ok and payload, "the wager did not resolve")
+            expect(payload.won, "a winning roll lost")
+            expectEqual(payload.price, terms.prize, "the win did not pay the stated prize")
+            expectEqual(scratch.credits - before, payload.price,
+                "the wager paid something other than one sale")
+            expectEqual(scratch.inventory[customer.itemUid], nil, "the sold unit stayed in stock")
+            local stacksAfter = 0
+            for _ in pairs(scratch.inventory) do stacksAfter = stacksAfter + 1 end
+            expectEqual(stacksBefore - stacksAfter, 1, "the wager removed more than one stack")
+            expectEqual(ns.Negotiation.Active(), nil, "the customer stayed at the counter")
+            expectEqual(ns.Negotiation.Wager(), false, "a second wager was allowed")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("losing the wager pays the discount and stings standing, never credits", function()
+        withScratch(nil, function(scratch)
+            scratch.tier = 2
+            scratch.credits = 500
+            scratch.reputation = 100
+            scratch.shop.request = nil
+            ns.Inventory.Add({ id = 9701, name = "Wager Relic II", quality = 3, ilvl = 50,
+                classID = 4, subclassID = 0, category = "gem", value = 400 })
+            expect(ns.Customers.TrySpawn({ personality = "desperate" }), "no customer")
+            expect(ns.Customers.StartNegotiation(1), "the negotiation did not start")
+            local customer = ns.Negotiation.Active()
+            customer.offer = 100
+            customer.maxPay = 400
+            local terms = ns.Gamble.Terms(customer)
+            expect(terms, "no wager on the table")
+
+            local repCalls = {}
+            local realAdd = ns.Shop.AddReputation
+            ns.Shop.AddReputation = function(amount)
+                repCalls[#repCalls + 1] = amount
+                return realAdd(amount)
+            end
+            local before = scratch.credits
+            local previous = ns.Util.chance
+            ns.Util.chance = function() return false end
+            local ok, payload = ns.Negotiation.Wager()
+            ns.Util.chance = previous
+            ns.Shop.AddReputation = realAdd
+
+            expect(ok and payload, "the losing wager did not resolve")
+            expect(not payload.won, "a losing roll won")
+            expectEqual(payload.price, terms.loss, "the loss did not pay the stated discount")
+            expect(payload.price < terms.offer, "the loss paid at least the safe offer")
+            expectEqual(scratch.credits - before, payload.price,
+                "the lost wager moved credits outside the sale")
+            expectEqual(scratch.inventory[customer.itemUid], nil, "the sold unit stayed in stock")
+            local sting = repCalls[#repCalls] or 0
+            expectEqual(sting, -terms.sting, "a lost wager did not cost the stated standing")
+            expect(scratch.reputation >= 0, "the sting pushed reputation below zero")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("a used wager survives a reload without a new save field", function()
+        withScratch(nil, function(scratch)
+            scratch.tier = 2
+            scratch.shop.request = nil
+            local record = ns.Inventory.Add({ id = 9702, name = "Wager Relic III", quality = 2,
+                ilvl = 30, classID = 4, subclassID = 0, category = "gem", value = 300 })
+            expect(record, "no stock for the reload test")
+            expect(ns.Customers.TrySpawn({ personality = "desperate" }), "no customer")
+            expect(ns.Customers.StartNegotiation(1), "the negotiation did not start")
+            local customer = ns.Negotiation.Active()
+            customer.offer = 100
+            customer.maxPay = 400
+            expect(ns.Gamble.Terms(customer), "no wager before the reload")
+            customer.gambled = true
+
+            local encoded = ns.DB.Export()
+            expect(ns.DB.Import(encoded, true), "the export did not import")
+            local restored = ns.DB.Get().shop.current
+            expect(restored, "the saved customer was dropped")
+            expect(restored.gambled == true, "the used wager did not survive the save")
+            expectEqual(ns.Gamble.Terms(restored), nil, "a reload allowed the same wager again")
+
+            -- Nothing new is written to the shop table itself: the flag lives on
+            -- the customer the save already carries.
+            local clean = ns.DB.Normalize({ shop = {} })
+            expectEqual(clean.shop.wager, nil, "the wager invented a saved shop field")
+            expectEqual(clean.shop.current, nil, "normalization invented a customer")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("the wager never pays without a customer or a unit", function()
+        withScratch(nil, function(scratch)
+            scratch.credits = 500
+            expectEqual(ns.Negotiation.Wager(), false, "a wager resolved with nobody at the counter")
+            expectEqual(scratch.credits, 500, "a wager paid with nobody at the counter")
+
+            ns.Inventory.Add({ id = 9703, name = "Wager Relic IV", quality = 2, ilvl = 30,
+                classID = 4, subclassID = 0, category = "gem", value = 300 })
+            expect(ns.Customers.TrySpawn({ personality = "desperate" }), "no customer")
+            expect(ns.Customers.StartNegotiation(1), "the negotiation did not start")
+            local customer = ns.Negotiation.Active()
+            customer.offer = 100
+            customer.maxPay = 400
+            scratch.inventory[customer.itemUid] = nil
+            local ok = ns.Negotiation.Wager()
+            expectEqual(ok, false, "a wager paid for a unit that no longer exists")
+            expectEqual(scratch.credits, 500, "the failed wager still paid")
+        end)
+    end)
+
     return results
 end
 

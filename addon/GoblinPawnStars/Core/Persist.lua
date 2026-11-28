@@ -368,6 +368,10 @@ local function normalize(db)
         customer.maxPay = math.floor(maxPay)
         customer.patience = math.max(0, math.floor(tonumber(customer.patience) or 0))
         customer.patienceMax = math.max(1, math.floor(tonumber(customer.patienceMax) or customer.patience))
+        -- The wager flag rides on the customer record (no new save field). It is
+        -- sanitized here so a templated or hand-edited save cannot smuggle a
+        -- non-boolean in, and a reload cannot reroll a flip that was already lost.
+        customer.gambled = customer.gambled and true or nil
         return customer
     end
 
