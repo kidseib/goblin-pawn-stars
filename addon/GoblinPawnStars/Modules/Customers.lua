@@ -83,7 +83,9 @@ local function buildCustomer(options)
     local value = ns.Market.Value(record)
     local repFactor = ns.Shop.ReputationFactor()
     local offerBonus = 1 + (bonuses.offer or 0)
+    local repPerks = ns.Shop.ReputationPerks()
     local willingness = personality.maxWill * repFactor * offerBonus * U.randomBetween(0.94, 1.08)
+        * (1 + (repPerks.offer or 0))
     -- Campaign rewards are permanent offer bonuses, so they lift what customers
     -- will pay for stock. They never create credits outside a completed sale.
     if ns.Campaign then willingness = willingness * (1 + ns.Campaign.OfferBonus()) end
@@ -110,7 +112,8 @@ local function buildCustomer(options)
     local offer = U.round(maxPay * opening, 5)
     offer = U.clamp(offer, 1, maxPay)
 
-    local patience = (personality.patience or 2) + math.floor(bonuses.patience or 0)
+    local patience = (personality.patience or 2)
+        + math.floor((bonuses.patience or 0) + (repPerks.patience or 0))
     if rare then patience = patience + 1 end
     if options.celebrity then patience = patience + 1 end
     patience = math.max(1, patience)

@@ -70,6 +70,75 @@ never both. The suite is **65 tests**; each of the four new tests failed against
 previous `Core/Journal.lua` with the exact messages above and passes now. No live client
 has run any of this.
 
+## Refinement pass — branch `refinement-polish`
+
+The polish mission runs on `refinement-polish`, branched from `main` at `41a4da7`
+(1.8.0). `main` is not modified by this work; only the owner decides when it merges.
+`npm run check` reports 61 files and 18,306 lines on this branch.
+
+### Iteration 1 — reputation milestones and event freshness
+
+Two systems were shallower than the rest of the simulation.
+
+**Reputation** climbed to 1,000 over a run and changed exactly two things: the label
+beside the shop name and a 0.88-1.10 factor on what customers were willing to pay. That
+is a bar, not a progression system, and nothing told the player what the bar was buying.
+It now drives four milestones from `Data.ReputationTiers`, each with one concrete perk:
+
+| Milestone | Reputation | Perk |
+| --- | --- | --- |
+| Known | 100 | +1 waiting slot |
+| Respected | 250 | +2% rare customers |
+| Trusted | 500 | +1 haggling round |
+| Legendary | 800 | +5% on every offer |
+
+Design decisions:
+
+- **The label and the perk come from one table.** `ReputationLabel`, `ReputationPerks` and
+  the Dashboard copy all read `Data.ReputationTiers`, so a threshold cannot be moved in
+  one place and left behind in another (the old label had four hardcoded `if` lines).
+- **Perks are cumulative and conservative.** The waiting slot is the only structural
+  change; the rest are small modifiers on systems that already exist, so no new UI,
+  timer or saved field was needed to make reputation feel different. The offer bonus is
+  the largest at the very top of the ladder, where a 5% sale increase cannot distort the
+  early economy.
+- **Discovery without clutter.** The Dashboard tile still reads `Known · 1/4 perks`, and
+  hovering it lists every milestone with its perk and whether it is unlocked. No new tab,
+  no new command, no extra window.
+
+**Shop events** were drawn from a weighted table with no memory, so `thief` could fire
+three times in twenty minutes and read as a bug rather than a bad night. `Encounters`
+now keeps the indices of the last two events in `db.shop.encounterRecent` and
+`Data.EncounterPick` skips them while at least three candidates remain:
+
+- **Indices, not key strings.** Two numbers cost about a dozen characters in a journal
+  payload that is measured in characters; two key strings would cost ~60 base64.
+- **The filter yields.** A tier-1 shop has eleven eligible events, but if a future data
+  change leaves three, variety beats the rule and the recent list is ignored.
+- **The save carries it.** The list is additive (`{}` default, `normalize` clamps it to
+  two positive integers), so old saves and old journals load unchanged.
+- **Fixed a quiet bug.** Event memory used to be written from the drawn definition, but
+  a draw with nothing to build from (`complainer` with no sale yet, `thief` with an empty
+  shop) falls back to a different event. The fallback is now the one recorded.
+
+Performance: `ReputationPerks` walks four table entries and is called from
+`WaitingSlots`, `RareChance`, customer construction and the once-a-second header
+refresh. No new timers, no polling, no allocations beyond one small table per call.
+
+Verification on this branch: `npm run check` exit 0 (61 files, 18,306 lines, TOC OK),
+`npm test` exit 0 with **67 passed, 0 failed** (two new tests; the event test includes a
+deterministic 30-draw guard that would fail on the pre-change picker), UI smoke green, and
+`node tools/sim_30min.js` unchanged at 40 sales / tier 2 / reputation 146.
+
+Known issues and next opportunities:
+
+- The tooltip has run only in the mock; whether it clips at small UI scales is unverified.
+- Dialogue is still chosen per archetype without looking at the item, so two visits by
+  the same personality read alike. A contextual greeting (`greetPrefer` when the piece
+  matches `prefer`) is the next text-depth change.
+- Nothing in the addon has been run inside World of Warcraft. That remains true for
+  every claim above.
+
 ## Current state — v1.8.0
 
 **v1.8.0** ships the journal payload format described below: the stat, settings and
@@ -272,7 +341,7 @@ Commands, run from the repository root:
 ```
 npm ci                     -> added 5 packages, exit 0
 npm run check              -> Lua 5.1 syntax OK: 61 files, 18,073 lines; TOC OK
-npm test                   -> 65 passed, 0 failed; UI smoke: all tabs and overlays
+npm test                   -> 67 passed, 0 failed; UI smoke: all tabs and overlays
 node tools/sim_30min.js    -> FINAL 449 gc, tier 2, 40 sales; idle probe 17 auto-sales
 ```
 

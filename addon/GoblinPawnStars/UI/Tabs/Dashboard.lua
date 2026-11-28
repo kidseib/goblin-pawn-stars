@@ -69,9 +69,32 @@ ns.UI.Tabs.dashboard = {
             local note = W.Text(tile, "", 9, T.colors.dim)
             note:SetPoint("BOTTOMLEFT", 10, 7)
 
-            tiles[index] = { value = value, note = note }
+            tiles[index] = { value = value, note = note, frame = tile }
         end
         ui.tiles = tiles
+
+        -- Reputation is a progression system, not a scoreboard: hovering the tile
+        -- lists exactly what each milestone unlocks and which one is next.
+        if tiles[2].frame and GameTooltip then
+            tiles[2].frame:EnableMouse(true)
+            tiles[2].frame:SetScript("OnEnter", function(self)
+                local reputation = math.floor(ns.DB.Get().reputation or 0)
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                GameTooltip:SetText("Reputation", 0.94, 0.78, 0.33)
+                local reached = ns.Shop.ReputationTier()
+                GameTooltip:AddLine(string.format("%s · %d / 1000",
+                    reached and reached.name or "Nobody", reputation), 0.91, 0.85, 0.69)
+                for _, def in ipairs(ns.Data.ReputationTiers) do
+                    local unlocked = reputation >= (def.at or 0)
+                    GameTooltip:AddLine(string.format("%s  %s %d — %s",
+                        unlocked and "|cff5fd64fUnlocked|r" or "|cff888888Locked|r",
+                        def.name, def.at, def.perkText or ""), 0.85, 0.82, 0.7, true)
+                end
+                GameTooltip:AddLine("Every completed sale earns reputation.", 0.62, 0.58, 0.47)
+                GameTooltip:Show()
+            end)
+            tiles[2].frame:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        end
 
         -------------------------------------------------------------------
         -- Today / latest
@@ -254,8 +277,10 @@ ns.UI.Tabs.dashboard = {
                 U.comma(math.floor(creditsPerMin + 0.5)), U.comma(db.stats.earned or 0)))
 
             local repLabel = ns.Shop.ReputationLabel()
+            local perks = ns.Shop.ReputationPerks()
             ui.tiles[2].value:SetText(string.format("%d", math.floor(db.reputation)))
-            ui.tiles[2].note:SetText(repLabel)
+            ui.tiles[2].note:SetText(string.format("%s · %d/%d perks", repLabel,
+                perks.count or 0, #ns.Data.ReputationTiers))
 
             ui.tiles[3].value:SetText(U.comma(db.stats.sales or 0))
             ui.tiles[3].note:SetText(string.format("%d served · %.1f customers/min",

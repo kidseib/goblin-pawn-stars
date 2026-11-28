@@ -13,6 +13,11 @@ ns.Encounters = E
 local ROLL_INTERVAL = 170
 local ROLL_CHANCE = 0.38
 
+-- Two remembered events are enough to break both A-A and A-B-A repeats, and
+-- two small numbers cost almost nothing in a journal payload that is measured
+-- in characters.
+local MAX_RECENT = 2
+
 ---------------------------------------------------------------------------
 -- Builders
 ---------------------------------------------------------------------------
@@ -274,6 +279,29 @@ local BUILDERS = {
 -- Runtime
 ---------------------------------------------------------------------------
 
+-- Recently seen event indices, newest first. Stored in the save so a relog
+-- does not immediately repeat the event the player just dismissed.
+function E.Recent()
+    local db = DB.Get()
+    local list = db.shop.encounterRecent
+    if type(list) ~= "table" then
+        list = {}
+        db.shop.encounterRecent = list
+    end
+    return list
+end
+
+function E.Remember(index)
+    index = tonumber(index)
+    if not index then return end
+    local list = E.Recent()
+    for position = #list, 1, -1 do
+        if list[position] == index then table.remove(list, position) end
+    end
+    table.insert(list, 1, index)
+    while #list > MAX_RECENT do table.remove(list) end
+end
+
 function E.Pending()
     return DB.Get().shop.encounter
 end
@@ -289,7 +317,7 @@ end
 function E.Trigger(key)
     local db = DB.Get()
     if db.shop.encounter then return nil end
-    local def = key and ns.Data.EncounterByKey[key] or ns.Data.EncounterPick(db.tier)
+    local def = key and ns.Data.EncounterByKey[key] or ns.Data.EncounterPick(db.tier, E.Recent())
     if not def then return nil end
 
     local builder = BUILDERS[def.key]
@@ -304,6 +332,9 @@ function E.Trigger(key)
 
     db.shop.encounter = event
     db.shop.encounterResult = nil
+    -- Remember the event that actually happened, not the one that was drawn: a
+    -- draw with nothing to build from falls back to a different event.
+    E.Remember(ns.Data.EncounterIndex[event.key or def.key])
     if ns.UI and ns.UI.ShowEncounter then ns.UI.ShowEncounter() end
     if ns.Sound then ns.Sound.Play("event") end
     return event

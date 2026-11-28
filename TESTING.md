@@ -12,7 +12,7 @@ scale, and any Lua error.
 
 Proven, from a clean clone of `main` with `npm ci`, `npm run check`, `npm test` and
 `node tools/sim_30min.js` all exiting 0: the Lua 5.1 parse (61 files, 18,073 lines),
-the TOC, the **65-test headless suite** (including the four macro-journal tests), the
+the TOC, the **67-test headless suite** (including the four macro-journal tests), the
 UI smoke pass over every tab and overlay, and the scripted 30-minute plus 10-minute
 idle simulation. All of it runs in fengari against mocked WoW APIs.
 
@@ -28,7 +28,7 @@ keep saying so until someone reports back.
   The folder layout must be
   `Interface/AddOns/GoblinPawnStars/GoblinPawnStars.toc`.
 - `/gps version` should report **1.8.0** and interface **16001**.
-- `/gps test` should report **65 passed, 0 failed**. The macro-journal tests skip
+- `/gps test` should report **67 passed, 0 failed**. The macro-journal tests skip
   themselves in the live client so they never touch your real macros; the journal is
   tested for real in the cold-restart pass below.
 - Run `/console scriptErrors 1` before testing.

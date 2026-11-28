@@ -2,6 +2,37 @@
 
 All notable changes to Goblin Pawn Stars. Format loosely follows Keep a Changelog.
 
+## [Unreleased]
+
+Development continues on the `refinement-polish` branch; `main` stays at 1.8.0. Nothing
+below is released yet.
+
+### Added
+
+- **Reputation milestones with real perks.** Reputation used to be a number beside the
+  shop name and a small price modifier, so a lifetime of good deals felt like filling a
+  bar. Four milestones now unlock concrete perks, in order: **Known** (100) one extra
+  waiting slot, **Respected** (250) +2% rare customers, **Trusted** (500) one extra
+  haggling round, **Legendary** (800) +5% on every offer. Perks are cumulative, and the
+  Dashboard reputation tile lists all four, unlocked or not, when you hover it.
+
+### Changed
+
+- **Shop events no longer repeat back to back.** The last two events are remembered in
+  the save as two small indices and skipped while at least three candidates remain, so
+  the same crisis cannot fire twice in a row or alternate A-B-A for an evening. A relog
+  no longer immediately repeats the event you just dismissed.
+- Event memory records the event that actually happened rather than the one drawn: a
+  draw with nothing to build from falls back to another event, and the fallback is what
+  gets remembered.
+
+### Verified
+
+- 67 headless tests (two new: event freshness, reputation perks), `npm run check` and
+  `npm test` at exit 0, UI smoke green, and the 30-minute simulation unchanged at 40
+  sales and tier 2 — reputation 146 at the end, so the first milestone is reached in a
+  normal session. **Not run in the live client.**
+
 ## [1.8.0] — 2026-11-28
 
 Saving to the macro journal works on a shop that has actually been played, and a save

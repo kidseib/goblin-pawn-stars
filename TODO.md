@@ -1,5 +1,33 @@
 # TODO
 
+## Refinement roadmap (branch `refinement-polish`, branched from `main` @ `41a4da7`)
+
+`main` stays at 1.8.0 until the owner says otherwise. Work lands here first.
+
+### Done on this branch
+
+- [x] Reputation milestones: Known / Respected / Trusted / Legendary now unlock a
+      waiting slot, a rare-customer bonus, an extra haggling round and an offer bonus,
+      all from one data table, all visible on the Dashboard tile tooltip.
+- [x] Shop events remember the last two draws, so no event repeats back to back or
+      alternates A-B-A, and a relog does not repeat the event you just dismissed.
+- [x] Two new headless tests (67 total) covering both changes.
+
+### Next up (planned order)
+
+- [ ] **Contextual customer dialogue.** Choose a greeting by whether the piece matches
+      the personality's `prefer` list, so two visits by the same archetype read
+      differently. Pure data + one call site, no schema change.
+- [ ] **UI pass on typography and spacing.** Audit every tab against a single scale for
+      caption/value/label text, tighten the header, and give the negotiation window a
+      clearer hierarchy between offer, odds and actions.
+- [ ] **Return-visit memory.** Customers recognise a shop that treated them well, feeding
+      reputation and the regular-visit path instead of disappearing completely.
+- [ ] Read-path salvage for the macro journal: a partial payload should keep the fields
+      that validate instead of refusing the load outright.
+- [ ] First-run pacing review: the first five minutes currently teach haggling well but
+      say nothing about the market index, the daily request or the deed.
+
 ## Must do in-game for the bounded login load and staged saves (1.7.9)
 
 The 1.7.9 suite is 59 tests (the 55 from 1.7.8 plus the load gate, the staged-save

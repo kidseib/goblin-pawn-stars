@@ -60,13 +60,15 @@ end
 
 function S.RareChance()
     local tier = S.TierInfo()
-    return U.clamp((tier.rareChance or 0) + (S.Bonuses().rare or 0), 0, 0.6)
+    local perks = S.ReputationPerks()
+    return U.clamp((tier.rareChance or 0) + (S.Bonuses().rare or 0) + (perks.rare or 0), 0, 0.6)
 end
 
 function S.WaitingSlots()
     local tier = S.TierInfo()
     local base = 2 + math.floor((tier.tier - 1) / 2)
-    return math.max(2, math.floor(base + (S.Bonuses().waiting or 0) + 0.001))
+    local perks = S.ReputationPerks()
+    return math.max(2, math.floor(base + (S.Bonuses().waiting or 0) + (perks.waiting or 0) + 0.001))
 end
 
 local arrivalMultipliers = { Fast = 1, Normal = 2, Relaxed = 4 }
@@ -114,13 +116,49 @@ function S.AddReputation(amount)
     return db.reputation
 end
 
-function S.ReputationLabel()
+local REPUTATION_COLORS = {
+    Known = "|cff1eff00",
+    Respected = "|cff0070dd",
+    Trusted = "|cffa335ee",
+    Legendary = "|cffff8000",
+}
+
+-- The highest milestone the shop has reached, or nil below the first one.
+function S.ReputationTier()
     local rep = S.Reputation()
-    if rep >= 800 then return "Legendary", "|cffff8000" end
-    if rep >= 500 then return "Trusted", "|cffa335ee" end
-    if rep >= 250 then return "Respected", "|cff0070dd" end
-    if rep >= 100 then return "Known", "|cff1eff00" end
-    return "Nobody", "|cff9d9d9d"
+    local reached
+    for _, def in ipairs(ns.Data.ReputationTiers or {}) do
+        if rep >= (def.at or 0) then reached = def end
+    end
+    return reached
+end
+
+-- The next milestone still to earn, used by the dashboard and the tooltip.
+function S.NextReputationTier()
+    local rep = S.Reputation()
+    for _, def in ipairs(ns.Data.ReputationTiers or {}) do
+        if rep < (def.at or 0) then return def end
+    end
+end
+
+-- Perks are cumulative: reaching Legendary keeps every earlier one.
+function S.ReputationPerks()
+    local perks = { waiting = 0, rare = 0, patience = 0, offer = 0, count = 0 }
+    local rep = S.Reputation()
+    for _, def in ipairs(ns.Data.ReputationTiers or {}) do
+        if rep >= (def.at or 0) then
+            perks.count = perks.count + 1
+            local key = def.perk
+            if key then perks[key] = (perks[key] or 0) + (def.amount or 0) end
+        end
+    end
+    return perks
+end
+
+function S.ReputationLabel()
+    local def = S.ReputationTier()
+    if not def then return "Nobody", "|cff9d9d9d" end
+    return def.name, REPUTATION_COLORS[def.name] or "|cff9d9d9d"
 end
 
 function S.Credits()

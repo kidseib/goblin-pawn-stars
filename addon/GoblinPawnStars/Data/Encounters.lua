@@ -92,16 +92,38 @@ Data.Encounters = {
 }
 
 Data.EncounterByKey = {}
-for _, encounter in ipairs(Data.Encounters) do
+Data.EncounterIndex = {}
+for index, encounter in ipairs(Data.Encounters) do
     Data.EncounterByKey[encounter.key] = encounter
+    Data.EncounterIndex[encounter.key] = index
 end
 
-function Data.EncounterPick(tier)
+--[[ Picking an event --------------------------------------------------------
+    `recent` holds the indices of the last couple of events, newest first. They
+    are skipped so the same event cannot fire twice in a row, or alternate
+    A-B-A all evening, which is what makes a random table feel broken. The
+    filter is dropped when it would leave fewer than three candidates: a young
+    shop has a short eligible list and variety matters more than the rule.
+--------------------------------------------------------------------------- ]]
+function Data.EncounterPick(tier, recent)
     local pool = {}
-    for _, encounter in ipairs(Data.Encounters) do
+    for index, encounter in ipairs(Data.Encounters) do
         if (encounter.minTier or 1) <= (tier or 1) then
-            pool[#pool + 1] = encounter
+            pool[#pool + 1] = { def = encounter, index = index }
         end
     end
-    return ns.Util.weightedPick(pool, function(entry) return entry.weight or 1 end)
+    if #pool == 0 then return nil end
+
+    if type(recent) == "table" and #recent > 0 and #pool > 3 then
+        local blocked = {}
+        for _, index in ipairs(recent) do blocked[tonumber(index) or -1] = true end
+        local remaining = {}
+        for _, entry in ipairs(pool) do
+            if not blocked[entry.index] then remaining[#remaining + 1] = entry end
+        end
+        if #remaining >= 3 then pool = remaining end
+    end
+
+    local picked = ns.Util.weightedPick(pool, function(entry) return entry.def.weight or 1 end)
+    return picked and picked.def or nil
 end

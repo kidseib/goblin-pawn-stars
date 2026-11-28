@@ -91,6 +91,7 @@ local function defaults()
             request = nil,
             requestDay = nil,
             shopDayProgress = 0,
+            encounterRecent = {},
             wholesale = {
                 lots = {},
                 nextRestock = 0,
@@ -204,6 +205,17 @@ local function normalize(db)
     if type(db.upgrades) ~= "table" then db.upgrades = {} end
     if type(db.market.events) ~= "table" then db.market.events = {} end
     if type(db.shop.waiting) ~= "table" then db.shop.waiting = {} end
+    local recent = db.shop.encounterRecent
+    local cleanRecent = {}
+    if type(recent) == "table" then
+        for _, index in ipairs(recent) do
+            index = tonumber(index)
+            if index and index >= 1 and #cleanRecent < 2 then
+                cleanRecent[#cleanRecent + 1] = math.floor(index)
+            end
+        end
+    end
+    db.shop.encounterRecent = cleanRecent
     if type(db.shop.wholesale) ~= "table" then db.shop.wholesale = { lots = {}, nextRestock = 0, restocks = 0 } end
     if type(db.shop.wholesale.lots) ~= "table" then db.shop.wholesale.lots = {} end
     if type(db.stats) ~= "table" then db.stats = defaults().stats end

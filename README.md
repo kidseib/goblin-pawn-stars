@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/version-1.8.0-c9a24a?style=flat-square" alt="Version 1.8.0">
   <img src="https://img.shields.io/badge/interface-16001-3f7d4e?style=flat-square" alt="Interface 16001">
   <img src="https://img.shields.io/badge/Lua-5.1-2c2d72?style=flat-square&logo=lua&logoColor=white" alt="Lua 5.1">
-  <img src="https://img.shields.io/badge/tests-65%2F65-3f7d4e?style=flat-square" alt="65 of 65 tests passing">
+  <img src="https://img.shields.io/badge/tests-67%2F67-3f7d4e?style=flat-square" alt="67 of 67 tests passing">
   <img src="https://img.shields.io/badge/dependencies-none-6b4f2a?style=flat-square" alt="No runtime dependencies">
   <img src="https://img.shields.io/badge/license-MIT-3f7d4e?style=flat-square" alt="MIT License">
 </p>
@@ -38,7 +38,7 @@
 </p>
 
 > **Status — 1.8.0.** The addon is feature-complete and passes the
-> 65-test headless suite plus the UI smoke pass. Live-client validation is still in
+> 67-test headless suite plus the UI smoke pass. Live-client validation is still in
 > progress: see [TESTING.md](TESTING.md) for the in-game checklist and
 > [Testing status](#testing-status) for what is and is not verified.
 >
@@ -447,7 +447,7 @@ node tools/sim_30min.js  # optional: 30-minute progression probe + 10-minute idl
 ```
 
 The headless harness loads all 61 addon files in TOC order with mocked WoW APIs,
-runs the 65-test diagnostics suite (economy, negotiation invariants, wholesaler, salesperson auto-sales,
+runs the 67-test diagnostics suite (economy, negotiation invariants, wholesaler, salesperson auto-sales,
 throughput, encounters, serialization, achievements, expenses, macro-journal
 round-trip/corruption/immediate rebind/deferred franchise commits, the three payments,
 museum donations, Marta and franchise),
@@ -466,7 +466,7 @@ ticks. See `PROGRESS.md` for exactly what was and was not verified.
 ## Testing status
 
 * Lua 5.1 syntax check: **passing** (61 files, 18,073 lines).
-* Headless diagnostics suite: **65/65 passing** (the exact count is printed by
+* Headless diagnostics suite: **67/67 passing** (the exact count is printed by
   `npm test`).
 * UI smoke (all tabs, splash modes, guided tour, goal card, options panel, negotiation,
   events, wholesaler window, slash commands) and a simulated hour of play: **passing

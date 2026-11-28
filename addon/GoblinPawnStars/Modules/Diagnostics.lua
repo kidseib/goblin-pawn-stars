@@ -2470,6 +2470,78 @@ function D.Run()
         if not ok then error(err, 0) end
     end)
 
+    -----------------------------------------------------------------------
+    test("shop events do not repeat back to back", function()
+        withScratch(nil, function(scratch)
+            local previous
+            for _ = 1, 14 do
+                local def = ns.Data.EncounterPick(scratch.tier, scratch.shop.encounterRecent)
+                expect(def, "no event could be picked at tier 1")
+                expect(def.key ~= previous, "the same event fired twice in a row: " .. tostring(def.key))
+                ns.Encounters.Remember(ns.Data.EncounterIndex[def.key])
+                previous = def.key
+            end
+            expect(#scratch.shop.encounterRecent <= 2, "the recency list grew without bound")
+
+            -- Deterministic guard: whatever the dice do, an event listed as recent
+            -- must not be drawn again while the tier still has other candidates.
+            local blockedIndex = ns.Data.EncounterIndex.thief
+            for _ = 1, 30 do
+                local def = ns.Data.EncounterPick(1, { blockedIndex })
+                expect(def, "the recency filter starved the pool")
+                expect(def.key ~= "thief", "an event that just happened was drawn again")
+            end
+
+            ns.Inventory.Add({
+                id = 4500, name = "Brass Key", quality = 2, ilvl = 20,
+                classID = 15, subclassID = 0, category = "misc", value = 90,
+            })
+            ns.Encounters.Trigger("thief")
+            expectEqual(scratch.shop.encounterRecent[1], ns.Data.EncounterIndex.thief,
+                "a triggered event was not remembered as it happened")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("reputation milestones unlock real perks", function()
+        withScratch(nil, function(scratch)
+            scratch.tier = 1
+            scratch.reputation = 0
+            local baseSlots = ns.Shop.WaitingSlots()
+            local baseRare = ns.Shop.RareChance()
+            expectEqual(ns.Shop.ReputationPerks().count, 0, "perks unlocked at zero reputation")
+            expectEqual(ns.Shop.ReputationLabel(), "Nobody", "the label drifted from the milestone table")
+
+            scratch.reputation = 120
+            expectEqual(ns.Shop.ReputationLabel(), "Known", "the first milestone did not unlock")
+            expectEqual(ns.Shop.WaitingSlots(), baseSlots + 1, "Known did not add its waiting slot")
+
+            scratch.reputation = 260
+            expect(ns.Shop.RareChance() > baseRare, "Respected did not raise the rare chance")
+            expectEqual(ns.Shop.ReputationPerks().patience, 0, "patience unlocked before Trusted")
+
+            ns.Inventory.Add({
+                id = 7100, name = "Test Blade", quality = 3, ilvl = 40,
+                classID = 2, subclassID = 7, category = "weapon", value = 500,
+            })
+            ns.Customers.TrySpawn({ personality = "trader" })
+            local early = scratch.shop.waiting[#scratch.shop.waiting]
+            expect(early, "no customer was generated")
+            expectEqual(early.patienceMax, 4, "Trusted changed patience too early")
+
+            scratch.reputation = 520
+            ns.Customers.TrySpawn({ personality = "trader" })
+            local trusted = scratch.shop.waiting[#scratch.shop.waiting]
+            expect(trusted, "no customer was generated at Trusted")
+            expectEqual(trusted.patienceMax, 5, "Trusted did not add its haggling round")
+
+            scratch.reputation = 820
+            expectEqual(ns.Shop.ReputationPerks().offer, 0.05, "Legendary lost its offer bonus")
+            expectEqual(ns.Shop.ReputationPerks().count, 4, "earlier perks were dropped")
+            expectEqual(ns.Shop.ReputationLabel(), "Legendary", "the top milestone is not Legendary")
+        end)
+    end)
+
     return results
 end
 

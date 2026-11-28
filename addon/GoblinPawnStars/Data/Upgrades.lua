@@ -214,3 +214,33 @@ end
 function Data.UpgradeUnlocked(upgrade, tier)
     return upgrade and (upgrade.minTier or 1) <= (tonumber(tier) or 1)
 end
+
+--[[ Reputation milestones ---------------------------------------------------
+    Reputation used to be a number beside the shop name and a small price
+    modifier, which made a lifetime of good deals feel like filling a bar. Each
+    milestone now unlocks one concrete perk. The label, the perk and the
+    dashboard copy all read from this table so they cannot drift apart.
+--------------------------------------------------------------------------- ]]
+
+Data.ReputationTiers = {
+    {
+        at = 100, name = "Known", perk = "waiting", amount = 1,
+        perkText = "+1 waiting slot",
+        blurb = "People know the sign. One more customer will queue for you.",
+    },
+    {
+        at = 250, name = "Respected", perk = "rare", amount = 0.02,
+        perkText = "+2% rare customers",
+        blurb = "Word travels. Collectors hear there is something worth seeing.",
+    },
+    {
+        at = 500, name = "Trusted", perk = "patience", amount = 1,
+        perkText = "+1 haggling round",
+        blurb = "Fair dealing earns customers one more round before they walk.",
+    },
+    {
+        at = 800, name = "Legendary", perk = "offer", amount = 0.05,
+        perkText = "+5% on every offer",
+        blurb = "A living legend. Even the cautious ones pay closer to your price.",
+    },
+}
