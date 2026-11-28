@@ -5,6 +5,7 @@ on:
     branches: [refinement-polish]
     paths:
       - ".github/scripts/iter2-patch.b64"
+      - ".github/workflows/iter2-deliver.yml"
 
 permissions:
   contents: write
@@ -13,30 +14,27 @@ jobs:
   apply:
     runs-on: ubuntu-latest
     steps:
-      - name: Guard (already delivered)
-        id: guard
-        run: |
-          if [ ! -f .github/scripts/iter2-patch.b64 ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          fi
       - uses: actions/checkout@v4
-        if: steps.guard.outputs.skip != 'true'
         with:
           ref: refinement-polish
           fetch-depth: 0
-      - uses: actions/setup-node@v4
-        if: steps.guard.outputs.skip != 'true'
-        with:
-          node-version: 20
+      - name: Is there anything to deliver?
+        id: check
+        run: |
+          if [ -f .github/scripts/iter2-patch.b64 ]; then
+            echo "go=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "Already delivered; nothing to do."
+          fi
       - name: Decode patch
-        if: steps.guard.outputs.skip != 'true'
+        if: steps.check.outputs.go == '1'
         run: |
           set -euo pipefail
           tr -d '\n' < .github/scripts/iter2-patch.b64 | base64 -d > /tmp/iter2.patch.xz
           xz -d -f /tmp/iter2.patch.xz
           echo "057e2eca53b77ebf01c87a590591a7010f3cc4ec40fb5d279ba57da6facb639c  /tmp/iter2.patch" | sha256sum -c -
       - name: Apply and verify
-        if: steps.guard.outputs.skip != 'true'
+        if: steps.check.outputs.go == '1'
         run: |
           set -euo pipefail
           git apply --check /tmp/iter2.patch
@@ -47,7 +45,7 @@ jobs:
           node tools/sim_30min.js
           node tools/sim_campaign.js --hours 4 --seeds 4
       - name: Commit and push
-        if: steps.guard.outputs.skip != 'true'
+        if: steps.check.outputs.go == '1'
         run: |
           set -euo pipefail
           git config user.name "Goblin Pawn Stars bot"
@@ -58,35 +56,25 @@ jobs:
             "refinement: customers who read the room" \
             "" \
             "Greetings, haggling pushback, refusals and walk-aways now come from" \
-            "personality pools that know the piece on the counter: preferred category,"
-          > /tmp/msg.txt
-          printf '%s\n' \
-            "category, quality, price band, the archetype's prefer list, patience and" \
-            "shop reputation. Six contextual pools x nine archetypes live in one data" \
-            "file, with a generic fallback so no personality can render a blank frame."
-          \
-            >> /tmp/msg.txt
-          printf '%s\n' \
+            "personality pools that know the piece on the counter: preferred" \
+            "category, quality, price band, the archetype's prefer list, patience" \
+            "and shop reputation. Six contextual pools x nine archetypes live in" \
+            "one data file, with a generic fallback so no personality can render" \
+            "a blank frame." \
             "" \
-            "The last six chosen lines are kept in the save as packed indices and skipped" \
-            "while another line exists, so consecutive visitors never repeat. Cosmetic" \
-            "text deliberately avoids math.random: a shared-stream draw proved able to" \
-            "shift loot and haggling rolls in the campaign sim."
-          \
-            >> /tmp/msg.txt
-          printf '%s\n' \
+            "The last six chosen lines are kept in the save as packed indices and" \
+            "skipped while another line exists, so consecutive visitors never" \
+            "repeat. Cosmetic text deliberately avoids math.random: a shared-stream" \
+            "draw proved able to shift loot and haggling rolls in the campaign sim." \
             "" \
-            "The negotiation window writes its dialogue only when the text changes, caps" \
-            "it at three lines and refreshes with the customer and item, so it no longer" \
-            "re-wraps once a second or slices a word in half."
-          \
-            >> /tmp/msg.txt
-          printf '%s\n' \
+            "The negotiation window writes its dialogue only when the text changes," \
+            "caps it at three lines and refreshes with the customer and item, so it" \
+            "no longer re-wraps once a second or slices a word in half." \
             "" \
-            "Four new headless tests (71 total), plus a flake fix in the reputation perk" \
-            "test, which had measured rare customers' extra haggling round. Docs updated:"
-          \
-            "CHANGELOG, TODO roadmap, PROGRESS design note and known issues." \
-            >> /tmp/msg.txt
+            "Four new headless tests (71 total), plus a flake fix in the reputation" \
+            "perk test, which had measured rare customers' extra haggling round." \
+            "Docs updated: CHANGELOG, TODO roadmap, PROGRESS design note and known" \
+            "issues." \
+            > /tmp/msg.txt
           git commit -F /tmp/msg.txt
           git push origin HEAD:refinement-polish
