@@ -346,6 +346,11 @@ The older unverified areas:
 11. Trigger an event naturally; resolve both options over a couple of occurrences.
 12. Export a full backup, reset, import; confirm full progress including history returns.
 13. Watch for taint or "blocked" messages (there should be none; no secure APIs are used).
+14. Corrupt one committed journal chunk (edit a `GPSA`/`GPSB` macro body in the macro
+   window), then log in: the bounded load must report `Saved shop could not be loaded
+   (journal payload is corrupt)` or `journal is incomplete`, settle within its four
+   attempts, leave the shop in one coherent state, allow `/gps verify` to write a
+   replacement generation, and keep that replacement after another restart.
 
 ## Campaign simulation (dev-only)
 
