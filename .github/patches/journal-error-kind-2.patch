@@ -1,0 +1,20 @@
+diff --git a/addon/GoblinPawnStars/Modules/Diagnostics.lua b/addon/GoblinPawnStars/Modules/Diagnostics.lua
+index e71d4e8..9fd16e0 100644
+--- a/addon/GoblinPawnStars/Modules/Diagnostics.lua
++++ b/addon/GoblinPawnStars/Modules/Diagnostics.lua
+@@ -962,6 +962,7 @@ function D.Run()
+ 
+         expect(not ok, "a save whose writes fail must not report success")
+         expect(ns.Journal.status.error ~= nil, "the failed save did not record an error")
++        expect(ns.Journal.status.errorKind == "save", "a failed write must be tagged as a save error")
+         expectEqual(ns.Journal.status.generation, first, "a failed save changed the current generation")
+         for index = 1, previousChunks do
+             local name = string.format("GPS%s%02d", first, index)
+@@ -1938,6 +1939,7 @@ function D.Run()
+         db.credits = 601
+         expect(not ns.Journal.SaveNow(), "a save whose writes fail must not report success")
+         expect(ns.Journal.status.error ~= nil, "the failed save did not record an error")
++        expect(ns.Journal.status.errorKind == "save", "a failed write must be tagged as a save error")
+         local failed = mutations
+         expect(failed > 0, "the failed save never attempted a write")
+ 

@@ -1,0 +1,27 @@
+diff --git a/addon/GoblinPawnStars/Modules/Report.lua b/addon/GoblinPawnStars/Modules/Report.lua
+index f17cffc..2fcd8ab 100644
+--- a/addon/GoblinPawnStars/Modules/Report.lua
++++ b/addon/GoblinPawnStars/Modules/Report.lua
+@@ -157,14 +157,19 @@ local function journalLine()
+     local status = journal.status or {}
+     local loaded = attempt(false, journal.Loaded)
+     local active = attempt(true, journal.Active)
+-    local text = string.format("journal: %s · %s · %d chunks · gen %s · saved %s",
++    local slots = attempt(nil, ns.Compat.MacroCount)
++    local text = string.format("journal: %s · %s · %d chunks · gen %s · saved %s · %s slots",
+         active and "on" or "off",
+         loaded and "loaded" or "not loaded",
+         tonumber(status.chunks) or 0,
+         tostring(status.generation or "none"),
+-        ageText(status.savedAt))
++        ageText(status.savedAt),
++        slots and tostring(slots) or "?")
+     if status.trimmed then text = text .. " · trimmed" end
+-    if status.error then text = text .. " · error: " .. truncate(status.error, ERROR_TEXT_LIMIT) end
++    if status.error then
++        local kind = status.errorKind == "load" and "load" or "save"
++        text = text .. " · " .. kind .. " error: " .. truncate(status.error, ERROR_TEXT_LIMIT)
++    end
+     return text
+ end
+ 
