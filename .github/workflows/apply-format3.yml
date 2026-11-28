@@ -1,0 +1,90 @@
+name: Apply journal payload format 3
+
+# Temporary delivery job. The change touches files too large to send through the
+# contents API, so a checked-in script applies it, the job requires the exact blob
+# hashes the change was verified against, runs the full gate, and commits.
+# This workflow and the script are deleted in the commit it makes.
+
+on:
+  push:
+    paths:
+      - '.github/scripts/journal-format3.js'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Nothing to do once the edit has landed
+        id: guard
+        run: |
+          if [ -f .github/scripts/journal-format3.js ]; then
+            echo "skip=0" >> "$GITHUB_OUTPUT"
+          else
+            echo "already applied"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.guard.outputs.skip == '0'
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Apply the edits
+        if: steps.guard.outputs.skip == '0'
+        run: node .github/scripts/journal-format3.js
+
+      - name: Require the exact bytes this change was verified against
+        if: steps.guard.outputs.skip == '0'
+        run: |
+          set -eu
+          fail=0
+          check() {
+            got=$(git hash-object "$1")
+            if [ "$got" != "$2" ]; then
+              echo "MISMATCH $1: got $got want $2"
+              fail=1
+            fi
+          }
+          check addon/GoblinPawnStars/Core/Journal.lua 7da31c0d9931839edcb3877d9790af026ef44f4c
+          check addon/GoblinPawnStars/Modules/Diagnostics.lua 3d4580ee6f773c9ee582a356609a097adef091cf
+          check README.md 4cab71c346c5877efd003c5cf8f50adfb8fc577b
+          check PROGRESS.md 850491dc3c87a5954f592a28871c4aed328dc238
+          check TESTING.md 47adf72c0863b334ba3185ddc5c4355007c904a6
+          check docs/curseforge/description.md 3b42bbb55adeba2dd336a080feb409e25df693e1
+          exit "$fail"
+
+      - name: Verify before committing
+        if: steps.guard.outputs.skip == '0'
+        run: |
+          set -eu
+          npm ci
+          npm run verify
+
+      - name: Commit and push
+        if: steps.guard.outputs.skip == '0'
+        run: |
+          set -eu
+          git config user.name 'Error.Seib'
+          git config user.email 'kidseib@gmail.com'
+          git rm -q .github/scripts/journal-format3.js \
+                     .github/workflows/apply-format3.yml
+          git add -A
+          git commit -m 'journal: pack stats, settings and events positionally so a played shop fits'
+          git log --oneline -1
+          git diff --stat HEAD~1 HEAD
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then exit 0; fi
+            sleep 5
+            git pull --rebase -q origin main
+          done
+          exit 1
