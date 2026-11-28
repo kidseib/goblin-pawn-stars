@@ -25,13 +25,3 @@ this repository.
 
 Delete or replace these images once real in-game screenshots are available; update
 the README gallery and this note at the same time.
-
-**1.7.9 state — `08-settings.png` is one render behind.** The file in this repository
-is still the 1.7.8 Settings panel, taken before the **Auto-load** toggle and the taller
-row layout. The 1.7.9 master render (587,727 bytes) is not in this repository yet: it
-has to be uploaded whole, and GitHub's file API takes one file per request, so a
-base64 body of about 784 KB does not fit in a single one. To finish it, render
-`08-settings.html` at 1440×900, then upload the PNG from a checkout
-(`git add docs/screenshots/08-settings.png && git commit -m "docs: 1.7.9 settings
-render" && git push`) or with **Add file → Upload files** in the GitHub web UI, and
-delete this paragraph afterwards.
