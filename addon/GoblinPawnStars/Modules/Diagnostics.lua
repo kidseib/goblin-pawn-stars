@@ -2960,6 +2960,124 @@ function D.Run()
         end)
     end)
 
+    -----------------------------------------------------------------------
+    test("patron status and order history survive a reload", function()
+        withScratch(nil, function(scratch)
+            scratch.tier = 2
+            scratch.credits = 500
+            ns.Regulars.Remember({ name = "Durable Patron", personality = "merchant",
+                maxPay = 500, race = "Human" }, 500)
+            local entry = ns.Regulars.List()[1]
+            entry.visits = 4
+            entry.patron = true
+            entry.fulfilled = 3
+            local order = ns.Regulars.PlaceOrder(entry, "gem")
+            expect(order and order.patron, "a patron's order was not marked as a patron order")
+            -- Set after placing: a soured regular is not allowed to ask again.
+            entry.souredDay = 1
+
+            -- The normalize rebuild used to keep only identity and visits, which
+            -- turned every patron back into a stranger on the next login.
+            local encoded = ns.DB.Export()
+            expect(ns.DB.Import(encoded, true), "the export did not import")
+            local saved = ns.Regulars.List()[1]
+            expect(saved.patron, "patron status was lost across a save round trip")
+            expectEqual(tonumber(saved.fulfilled), 3, "deliveries were lost across a save")
+            expectEqual(tonumber(saved.souredDay), 1, "the sulk day was lost across a save")
+            expectEqual(#ns.Regulars.Orders(), 1, "the patron order did not survive a save")
+            expect(ns.Regulars.Orders()[1].patron, "the saved order lost its patron flag")
+
+            -- A save that predates the field must not gain a phantom patron.
+            local repaired = ns.DB.Normalize({ shop = { regulars = {
+                { name = "Old Timer", personality = "trader", visits = 3 } } } })
+            expectEqual(repaired.shop.regulars[1].patron, nil,
+                "normalization invented patron status for an old save")
+            expectEqual(tonumber(repaired.shop.regulars[1].fulfilled), 0,
+                "normalization invented deliveries for an old save")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("a patron's order is bigger, longer and pays more", function()
+        withScratch(nil, function(scratch)
+            scratch.tier = 3
+            scratch.credits = 2000
+            local data = ns.Data.Regulars
+            ns.Regulars.Remember({ name = "Big Purse", personality = "merchant",
+                maxPay = 500, race = "Human" }, 500)
+            local entry = ns.Regulars.List()[1]
+            entry.visits = 4
+            entry.patron = true
+            local day = tonumber(scratch.stats.shopDays) or 0
+            local order = ns.Regulars.PlaceOrder(entry, "gem")
+            expect(order, "a patron placed no order")
+
+            local tier = ns.Data.Tier(scratch.tier)
+            expectEqual(order.budget, math.floor(tier.budget * data.patronBudget),
+                "a patron's order does not carry the patron budget")
+            expectEqual(order.dueDay - order.placedDay, data.orderDays + data.patronDays,
+                "a patron's order did not get the extra day")
+
+            local record = ns.Inventory.Add({ id = 9410, name = "Patron Scepter", quality = 4,
+                ilvl = 60, classID = 4, subclassID = 0, category = "gem", value = 500 })
+            local market = ns.Market.Value(record)
+            local normal = ns.Customers.TrySpawn({ name = entry.name, personality = "merchant",
+                returning = 4, order = order, record = record, orderBudget = order.budget })
+            local patron = ns.Customers.TrySpawn({ name = entry.name, personality = "merchant",
+                returning = 4, patron = true, order = order, record = record,
+                orderBudget = order.budget })
+            expect(normal and patron, "the order customers did not arrive")
+            expect(patron.maxPay > normal.maxPay,
+                "patron status does not lift what they will pay for an order")
+            expect(patron.maxPay >= math.floor(market * (data.patronPay - 0.01)),
+                "the patron premium is not reaching the ceiling")
+            expect(patron.patron == true, "the customer record lost the patron flag")
+
+            -- Delivering to a patron: reputation and goodwill are both larger.
+            scratch.reputation = 100
+            local good = ns.Regulars.Fulfil({ name = entry.name, personality = "merchant",
+                order = true }, 1000)
+            expect(good, "the patron delivery was not recognised")
+            expectEqual(math.floor(scratch.reputation + 0.5), 100 + data.patronRep,
+                "delivering to a patron paid the wrong reputation")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("the order card fits its own card at any font size", function()
+        local W = ns.Widgets
+        local function measureOf(lineHeight)
+            return function(text)
+                local lines = 1
+                for _ in tostring(text):gmatch("\n") do lines = lines + 1 end
+                return lines * lineHeight
+            end
+        end
+
+        local both = { "Buyers want Gems.", "Order Wren: Gems · 2 days · 1,684 gc" }
+        local keptDefault = W.FitLines(both, 46, measureOf(15))
+        expectEqual(#keptDefault, 2, "a normal font dropped a line it had room for")
+        expectEqual(keptDefault[2], both[2], "the order line was not the one kept")
+
+        local keptLarge = W.FitLines(both, 46, measureOf(26))
+        expectEqual(#keptLarge, 1, "a large font kept a line that does not fit")
+        expectEqual(keptLarge[1], both[2], "the large font dropped the order line")
+
+        local keptTiny = W.FitLines({ both[2] }, 8, measureOf(26))
+        expectEqual(#keptTiny, 1, "the card emptied itself instead of clamping")
+
+        local shortened = W.Shorten("Wren the Unreasonably Long", 16)
+        expect(shortened:find("\226\128\166", 1, true), "a long name was not elided")
+        expectEqual(W.Shorten("Wren", 16), "Wren", "a short name was changed")
+
+        local line, days = ns.Regulars.SummaryLine({ label = "Gems", budget = 1684,
+            placedDay = 0, dueDay = 2, name = "Wren", personality = "trader", category = "gem" })
+        expect(line and line:find("Gems", 1, true), "the summary line lost the shelf")
+        expect(line and line:find("2 days", 1, true), "the summary line lost the deadline")
+        expectEqual(days, 2, "the summary line reported the wrong days left")
+        expectEqual(ns.Regulars.SummaryLine(nil), nil, "a missing order produced a summary")
+    end)
+
     return results
 end
 

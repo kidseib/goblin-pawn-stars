@@ -586,6 +586,69 @@ function __smoke()
         end
     end)
 
+    attempt("title bar announces a pending special order", function()
+        local db = __NS.DB.Get()
+        local UI = __NS.UI
+        UI.Open()
+        db.shop.orders = {}
+        UI.Refresh()
+        local chip = UI.Header and UI.Header.orderChip
+        assert(chip, "the title bar has no order chip")
+        assert(not chip:IsShown(), "the order chip shows with no order open")
+
+        db.stats.shopDays = 0
+        db.shop.orders = { {
+            name = "Wren", personality = "trader", category = "gem", label = "Gems",
+            budget = 1684, placedDay = 0, dueDay = 2,
+        } }
+        UI.Refresh()
+        assert(chip:IsShown(), "the order chip stays hidden while an order is open")
+        local text = chip.label:GetText()
+        assert(text:find("ORDER", 1, true) and text:find("Gems", 1, true) and text:find("2d", 1, true),
+            "the order chip does not name the shelf and the days left: " .. tostring(text))
+
+        db.shop.orders[1].dueDay = 0
+        UI.Refresh()
+        assert(chip.label:GetText():find("last day", 1, true),
+            "the order chip does not escalate on the last day")
+
+        db.shop.orders = {}
+        UI.Refresh()
+        assert(not chip:IsShown(), "the order chip did not clear after the order")
+    end)
+
+    attempt("order card keeps its bar anchored inside the card", function()
+        __NS.UI.Open()
+        __NS.UI.ShowTab("customers")
+        local def = __NS.UI.Tabs.customers
+        assert(def and def.api, "the customers tab did not build")
+        def.api.Refresh()
+        local text, bar = def.api.requestText, def.api.requestBar
+        assert(text and bar, "the order card is not exposed")
+        local function hasPoint(frame, point)
+            for _, anchor in ipairs(frame.__points or {}) do
+                if anchor.point == point then return anchor end
+            end
+            return nil
+        end
+        local bottom = hasPoint(text, "BOTTOMRIGHT")
+        assert(bottom, "the order text is not bounded to the card bottom")
+        local barPoint = hasPoint(bar, "BOTTOMLEFT")
+        assert(barPoint, "the order bar is not anchored to the card bottom")
+        -- SetPoint is recorded as (point, ...): a two-argument anchor stores x in
+        -- [1] and y in [2], a relative anchor stores them in [3] and [4].
+        local function offsetY(anchor)
+            if anchor[4] ~= nil then return anchor[4] end
+            if type(anchor[1]) == "number" and anchor[2] ~= nil then return anchor[2] end
+            return 0
+        end
+        local textGap = offsetY(bottom)
+        local barTop = offsetY(barPoint) + (bar:GetHeight() or 0)
+        assert(textGap > barTop,
+            string.format("the bounded order text overlaps the bar (%s vs %s)",
+                tostring(textGap), tostring(barTop)))
+    end)
+
     attempt("every market event", function()
         for _, event in ipairs(__NS.Data.MarketEvents) do
             __NS.Market.StartEvent(event.key)
