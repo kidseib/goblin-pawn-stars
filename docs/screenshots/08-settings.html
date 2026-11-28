@@ -1,0 +1,285 @@
+<!doctype html>
+<!-- UI render source for docs/screenshots/08-settings.png.
+     Not a live-client capture: this is an HTML/CSS mock of the current Settings
+     tab, built from the coordinates and labels in UI/Tabs/Settings.lua at the
+     addon's 960x640 window size, then scaled to 1440x900 for the gallery.
+     Regenerate by opening it at 1440x900 and screenshotting the viewport. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Goblin Pawn Stars — Settings UI render</title>
+<style>
+  :root{
+    --bg:#0a0705; --wood:#17110b; --wood-light:#241a10; --panel:#1d1610;
+    --inset:#120d08; --line:#4a3a1e; --line-bright:#7a5d2c;
+    --gold:#f0c754; --gold-dim:#9e7f3d; --text:#f0e6cc; --parchment:#e8d9b0;
+    --muted:#a19478; --dim:#736957; --green:#7dd66b; --red:#db5244;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1440px;height:900px;overflow:hidden}
+  body{
+    background:
+      radial-gradient(ellipse at 50% 30%, #2a1c10 0%, #120c07 45%, #070503 100%);
+    font-family:"DejaVu Sans","Segoe UI",Helvetica,Arial,sans-serif;
+    color:var(--text);
+  }
+  .tag{
+    position:absolute;right:26px;top:14px;font-size:10px;letter-spacing:2.6px;
+    color:#8c7752;text-transform:uppercase;
+  }
+  .caption{
+    position:absolute;left:0;right:0;bottom:16px;text-align:center;font-size:10px;
+    letter-spacing:3.2px;color:#8c7752;text-transform:uppercase;
+  }
+  .stage{position:absolute;left:115px;top:30px;width:960px;height:640px;transform:scale(1.26);transform-origin:top left}
+
+  /* window */
+  .window{
+    position:relative;width:960px;height:640px;border-radius:6px;
+    background:linear-gradient(180deg,#241a11 0%,#1a1310 22%,#150f0b 100%);
+    border:1px solid #6b5327;
+    box-shadow:0 0 0 1px #2a1f10, 0 0 46px rgba(0,0,0,.85), inset 0 0 90px rgba(0,0,0,.55);
+  }
+  .window:before{
+    content:"";position:absolute;inset:5px;border:1px solid rgba(160,124,58,.35);
+    border-radius:4px;pointer-events:none;
+  }
+  /* header */
+  .head{position:absolute;left:0;right:0;top:0;height:56px;border-bottom:1px solid rgba(160,124,58,.28)}
+  .crest{
+    position:absolute;left:22px;top:11px;width:34px;height:34px;border-radius:50%;
+    border:1px solid #8a6c33;background:radial-gradient(circle at 34% 30%,#3b2a15,#160f08);
+    color:var(--gold);font-family:Georgia,serif;font-size:14px;font-weight:700;
+    text-align:center;line-height:32px;letter-spacing:.5px;
+  }
+  .title{position:absolute;left:70px;top:9px;font-family:Georgia,"Times New Roman",serif;
+    font-size:25px;letter-spacing:2.4px;color:#f2dc9d}
+  .subtitle{position:absolute;left:72px;top:38px;font-size:8px;letter-spacing:2.6px;color:#9c8558}
+  .icon-btn{
+    position:absolute;top:14px;width:26px;height:26px;line-height:24px;text-align:center;
+    border:1px solid var(--line-bright);border-radius:3px;background:#1b1209;
+    color:#c8ab6d;font-size:12px;
+  }
+  .icon-btn.help{right:60px}
+  .icon-btn.close{right:24px}
+
+  /* sidebar */
+  .sidebar{position:absolute;left:0;top:56px;bottom:0;width:196px;border-right:1px solid rgba(160,124,58,.22)}
+  .sidebar .lbl{position:absolute;left:18px;top:18px;font-size:9px;letter-spacing:2.4px;color:#a38a58}
+  .nav{position:absolute;left:14px;right:14px;top:34px}
+  .nav .item{
+    position:relative;height:31px;margin-bottom:9px;border-radius:4px;padding-left:34px;
+    line-height:31px;font-size:11px;color:#cfc0a2;
+  }
+  .nav .ic{
+    position:absolute;left:8px;top:7px;width:17px;height:17px;border-radius:2px;
+    background:linear-gradient(160deg,#4a3a22,#241a0f);border:1px solid #6c5629;
+  }
+  .nav .item.active{
+    background:linear-gradient(180deg,rgba(240,199,84,.18),rgba(240,199,84,.07));
+    border:1px solid #a9853c;color:#ffe9a8;
+  }
+  .version-foot{position:absolute;left:18px;bottom:16px;font-size:9px;color:#8a7a5c}
+
+  /* content */
+  .content{position:absolute;left:206px;right:10px;top:56px;bottom:12px}
+  .stats{position:relative;height:88px;border-bottom:1px solid rgba(160,124,58,.16);margin-bottom:8px}
+  .stat{position:absolute;top:10px;width:158px}
+  .stat .k{font-size:8px;letter-spacing:2.2px;color:#a38a58}
+  .stat .v{font-family:Georgia,serif;font-size:21px;color:#f3d98f;margin-top:2px}
+  .stat .v small{font-size:11px;color:#b7a075;letter-spacing:0}
+  .stat .s{font-size:8px;color:#8f8064;margin-top:2px}
+  .bar{position:relative;height:5px;margin-top:6px;background:#160f08;border:1px solid #3d2f18;border-radius:3px}
+  .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+  .stat.c1{left:0}
+  .stat.c2{left:172px}
+  .stat.c3{left:352px}
+  .stat.c4{left:512px;width:180px}
+  .right-note{position:absolute;right:0;top:62px;font-size:8px;letter-spacing:1.6px;color:#a38a58}
+
+  .tabhead{position:relative;height:44px}
+  .tabhead .k{position:absolute;left:0;top:0;font-size:9px;letter-spacing:2.6px;color:#9c8558}
+  .tabhead .h{position:absolute;left:0;top:14px;font-family:Georgia,serif;font-size:21px;color:#f4e2b4}
+  .tabhead .badge{
+    position:absolute;right:0;top:6px;font-size:8px;letter-spacing:1.8px;color:#b9a373;
+    border:1px solid #6b5327;border-radius:12px;padding:4px 10px;background:#1a1209;
+  }
+
+  /* panels */
+  .panel{
+    position:absolute;border:1px solid #59441f;border-radius:5px;
+    background:linear-gradient(180deg,#231910 0%,#1b140e 60%,#181008 100%);
+    box-shadow:inset 0 0 40px rgba(0,0,0,.5);
+  }
+  .panel .ptitle{position:absolute;left:12px;top:10px;font-size:9px;letter-spacing:2.4px;color:#a38a58}
+
+  .options{left:0;top:140px;width:380px;height:410px}
+  .backup{left:388px;top:140px;width:356px;height:400px}
+
+  .btn{
+    position:absolute;display:flex;align-items:center;justify-content:center;
+    border:1px solid #6b5327;border-radius:3px;background:linear-gradient(180deg,#332617,#1d150c);
+    color:#e6d3a8;font-size:9px;letter-spacing:.7px;
+  }
+  .btn.primary{background:linear-gradient(180deg,#e6bb52,#b98a2a);border-color:#f0d27d;color:#241708;font-weight:700}
+  .btn.gold{background:linear-gradient(180deg,#4a3a20,#2a1e10);border-color:#a9853c;color:#f4e0a6}
+  .btn.danger{background:linear-gradient(180deg,#8f2f26,#5c1c16);border-color:#b4503f;color:#f6d7cf}
+  .btn.on{background:linear-gradient(180deg,#3f6b32,#24401d);border-color:#6f9c5c;color:#d8f0c8}
+
+  .row{position:absolute;left:12px;right:12px;height:32px}
+  .row .lbl{position:absolute;left:0;top:3px;font-size:11px;color:var(--parchment)}
+  .row .sub{position:absolute;left:0;top:17px;font-size:8px;color:#8e7f63}
+  .row .btn{right:0;top:4px;width:64px;height:22px}
+
+  .field{position:absolute;left:12px;right:12px}
+  .field .lbl{position:absolute;left:0;top:0;font-size:11px;color:var(--parchment)}
+  .field .btn{right:0;top:-4px;width:90px;height:22px}
+  .scaleval{position:absolute;left:130px;top:2px;font-size:10px;color:#efc754}
+  .field .step{position:absolute;width:30px;height:22px;right:auto;font-size:11px}
+
+  .about{position:absolute;left:12px;right:12px;top:354px;height:46px;font-size:8px;line-height:1.5;color:#6f6450}
+
+  .note{position:absolute;left:12px;right:12px;top:52px;height:52px;font-size:8px;line-height:1.6;color:#8e7f63}
+  .note b{color:#e8c877;font-weight:600}
+  .box{
+    position:absolute;left:12px;right:12px;top:110px;height:112px;border:1px solid #4a3a1e;border-radius:3px;
+    background:#100c07;padding:7px;font-family:"DejaVu Sans Mono",Consolas,monospace;font-size:7px;
+    line-height:1.55;color:#9b8a68;word-break:break-all;overflow:hidden;
+  }
+  .status{position:absolute;left:12px;right:12px;top:268px;height:22px;font-size:8px;line-height:1.5;color:#7dd66b}
+</style>
+</head>
+<body>
+  <div class="tag">UI render — 1.7.9</div>
+  <div class="stage">
+    <div class="window">
+      <div class="head">
+        <div class="crest">gp</div>
+        <div class="title">GOBLIN PAWN STARS</div>
+        <div class="subtitle">HONEST DEALS — MOSTLY</div>
+        <div class="icon-btn help">?</div>
+        <div class="icon-btn close">✕</div>
+      </div>
+
+      <div class="sidebar">
+        <div class="lbl">SHOP LEDGER</div>
+        <div class="nav">
+          <div class="item"><span class="ic"></span>Dashboard</div>
+          <div class="item"><span class="ic"></span>The Deed</div>
+          <div class="item"><span class="ic"></span>Customers</div>
+          <div class="item"><span class="ic"></span>Inventory</div>
+          <div class="item"><span class="ic"></span>Market</div>
+          <div class="item"><span class="ic"></span>Upgrades</div>
+          <div class="item"><span class="ic"></span>Employees</div>
+          <div class="item"><span class="ic"></span>Achievements</div>
+          <div class="item"><span class="ic"></span>Ledger</div>
+          <div class="item active"><span class="ic"></span>Settings</div>
+        </div>
+        <div class="version-foot">Goblin Pawn Stars</div>
+      </div>
+
+      <div class="content">
+        <div class="stats">
+          <div class="stat c1">
+            <div class="k">GOBLIN CREDITS</div>
+            <div class="v">18,420 <small>gc</small></div>
+            <div class="s">126 gc/min · 27,800 lifetime</div>
+          </div>
+          <div class="stat c2">
+            <div class="k">REPUTATION</div>
+            <div class="v" style="font-size:15px;color:#7dd66b">Trusted 48</div>
+            <div class="bar"><i style="width:62%;background:linear-gradient(90deg,#4d8a3c,#8fdc77)"></i></div>
+            <div class="s">Known around Bilgewater</div>
+          </div>
+          <div class="stat c3">
+            <div class="k">STOCK</div>
+            <div class="v" style="font-size:15px">34 <small>/ 44</small></div>
+            <div class="bar"><i style="width:77%;background:linear-gradient(90deg,#a9853c,#f0c754)"></i></div>
+            <div class="s">10 slots free</div>
+          </div>
+          <div class="stat c4">
+            <div class="k">NEXT CUSTOMER</div>
+            <div class="v" style="font-size:15px">0:18</div>
+            <div class="bar"><i style="width:44%;background:linear-gradient(90deg,#3f6f9c,#79b4e0)"></i></div>
+            <div class="s">Wealthy collector approaching</div>
+          </div>
+          <div class="right-note">SHOP DAY 9/18 · 15:00</div>
+        </div>
+
+        <div class="tabhead">
+          <div class="k">SETTINGS</div>
+          <div class="h">Make the shop yours.</div>
+          <div class="badge">SESSION · JOURNAL AUTO-LOAD ON</div>
+        </div>
+
+        <!-- Options: UI/Tabs/Settings.lua, 380 x 410 -->
+        <div class="panel options">
+          <div class="ptitle">OPTIONS</div>
+          <div class="btn gold" style="right:12px;top:4px;width:132px;height:22px">Performance: Off</div>
+
+          <div class="row" style="top:30px"><div class="lbl">Sound effects</div><div class="btn on">On</div></div>
+          <div class="row" style="top:66px"><div class="lbl">Minimap coin button</div><div class="btn on">On</div></div>
+          <div class="row" style="top:102px"><div class="lbl">Collect items from bags</div><div class="btn on">On</div></div>
+          <div class="row" style="top:138px"><div class="lbl">Salesperson works the queue</div><div class="btn on">On</div></div>
+          <div class="row" style="top:174px"><div class="lbl">Pause the simulation</div><div class="btn">Off</div></div>
+
+          <div class="field" style="top:236px">
+            <div class="lbl">Arrival notification</div><div class="btn">Animated</div>
+          </div>
+          <div class="field" style="top:266px">
+            <div class="lbl">Customer arrival pace</div><div class="btn">Normal</div>
+          </div>
+
+          <div class="field" style="top:208px">
+            <div class="lbl">Window scale</div>
+            <div class="scaleval">100%</div>
+            <div class="btn step" style="left:250px;top:-4px">−</div>
+            <div class="btn step" style="left:286px;top:-4px">+</div>
+          </div>
+
+          <div class="row" style="top:286px"><div class="lbl">Questing auto-sell (1/3 max offer)</div><div class="btn">Off</div></div>
+
+          <div class="btn gold" style="left:12px;top:322px;width:110px;height:24px">Scan bags</div>
+          <div class="btn" style="left:126px;top:322px;width:110px;height:24px">Diagnostics</div>
+          <div class="btn" style="left:240px;top:322px;width:110px;height:24px">Welcome</div>
+
+          <div class="about">
+            World of Warcraft: Forever · Interface 16001 · Created by ErrorSeib &amp; Buffy (Codebuff).<br>
+            All currency, items and customers are fictional. Nothing here touches your real bags, gold or the game world.
+          </div>
+        </div>
+
+        <!-- Backup: 356 x 400 -->
+        <div class="panel backup">
+          <div class="ptitle">BACKUP &amp; RESTORE</div>
+
+          <div class="btn" style="right:220px;top:26px;width:90px;height:20px">Load saved</div>
+          <div class="btn primary" style="right:126px;top:26px;width:90px;height:20px">Save Now</div>
+          <div class="btn" style="right:12px;top:26px;width:110px;height:20px">Rolling backups</div>
+
+          <div class="note">
+            Copy this string somewhere safe, or paste an old one and restore.<br>
+            <b>Beta workaround:</b> Forever does not load SavedVariables. Progress checkpoints into macro bodies; a load runs shortly after login unless auto-load is off.
+          </div>
+
+          <div class="box">GPS-CACHE: GPS-BACKUP:2:s1:addon s3:gps s2:da s7:savedAtd17567:campaignd2:pa1:paymentsi1e1:paid i1500ee1:creditdi18420e1:inventoryl1:s4:uidi3e2:id i2589e4:name8:Linen Clo…</div>
+
+          <div class="btn gold" style="left:12px;top:236px;width:96px;height:26px">Export</div>
+          <div class="btn primary" style="left:116px;top:236px;width:96px;height:26px">Import</div>
+          <div class="btn" style="left:220px;top:236px;width:96px;height:26px">Clear box</div>
+
+          <div class="status">Journal saved: 8 chunks.</div>
+
+          <div class="btn on" style="left:12px;top:296px;width:132px;height:22px">Auto-load: On</div>
+
+          <div class="btn danger" style="left:12px;bottom:16px;width:170px;height:28px">Reset all progress</div>
+          <div style="position:absolute;right:12px;bottom:18px;font-size:8px;color:#6f6450">
+            v1.7.9 · schema 1
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="caption">UI render · theme and sample data · not a live-client capture</div>
+</body>
+</html>
