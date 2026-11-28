@@ -53,8 +53,7 @@ Data.ReputationTiers = {
         perkText = "+5% on every offer",
         blurb = "A living legend. Even the cautious ones pay closer to your price.",
     },
-}
-`,
+}`,
 ]]);
 
 edit('addon/GoblinPawnStars/Modules/Shop.lua', [
