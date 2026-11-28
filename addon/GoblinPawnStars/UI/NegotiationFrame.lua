@@ -20,6 +20,7 @@ local oddsText, oddsBar, payoutBanner
 local presets = {}
 local locked = false
 local payoutRevision = 0
+local lastDialogueText
 
 local PRESETS = {
     { label = "Low", kind = "low" },
@@ -78,7 +79,16 @@ local function refresh()
     patienceLabel:SetText(string.format("Patience: %d of %d",
         customer.patience or 0, customer.patienceMax or 0))
 
-    dialogueText:SetText("“" .. (customer.dialogue or customer.greeting or "...") .. "”")
+    -- Only touch the font string when the line actually changed: rewriting the
+    -- same text every second re-wraps it and is wasted work while the window is
+    -- open. An empty pool must still render something readable.
+    local line = U.trim(customer.dialogue or customer.greeting or "")
+    if line == "" then line = "They wait for you to name a price." end
+    local shown = "“" .. line .. "”"
+    if shown ~= lastDialogueText then
+        dialogueText:SetText(shown)
+        lastDialogueText = shown
+    end
 
     itemIcon:SetIcon(item.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
     itemName:SetText(T.ItemName(item))
@@ -229,6 +239,9 @@ local function build()
     dialogueText:SetJustifyH("LEFT")
     dialogueText:SetWordWrap(true)
     dialogueText:SetSpacing(3)
+    -- Long contextual lines wrap to three lines and stop there instead of being
+    -- sliced by the panel edge halfway through a word.
+    if dialogueText.SetMaxLines then dialogueText:SetMaxLines(3) end
 
     -- Item ---------------------------------------------------------------
     local itemPanel = W.Panel(frame, "inset")

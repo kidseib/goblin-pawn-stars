@@ -9,12 +9,33 @@ below is released yet.
 
 ### Added
 
+- **Customers who read the room.** Every archetype used to talk from one pool per
+  moment, so the third visit from the same personality sounded like the first. Greetings,
+  haggling pushback, refusals and walk-aways now come from contextual pools that know the
+  piece on the counter: the preferred-category greeting, the "good quality" greeting, the
+  rich-offer acceptance, the over-reach and insulted refusals, the furious walk-away. All
+  of it lives in one data file (`Data/Dialogue.lua`), 6 pools x 9 archetypes x 2 lines,
+  with a generic fallback so no personality can ever render a blank frame.
+- **Customer dialogue remembers what was just said.** The last six chosen lines are kept
+  in the save as small packed indices (no strings, no growth beyond six) and skipped while
+  another line is available, so consecutive visitors, and even consecutive rounds with
+  the same customer, cannot repeat. A relog keeps the memory, so the first customer after
+  a restart does not repeat the last one from before it.
 - **Reputation milestones with real perks.** Reputation used to be a number beside the
   shop name and a small price modifier, so a lifetime of good deals felt like filling a
   bar. Four milestones now unlock concrete perks, in order: **Known** (100) one extra
   waiting slot, **Respected** (250) +2% rare customers, **Trusted** (500) one extra
   haggling round, **Legendary** (800) +5% on every offer. Perks are cumulative, and the
   Dashboard reputation tile lists all four, unlocked or not, when you hover it.
+
+### Fixed
+
+- **The negotiation dialogue no longer jumps or slices words.** The window rewrote its
+  font string every second, which re-wrapped the same sentence and could clip a long line
+  mid-word; it is now written only when the text actually changes, wraps to at most three
+  lines, and never shows an empty quote pair when a customer has nothing to say.
+- Greeting text now refreshes with the customer and the item, instead of holding the
+  previous visit's line until the next tick.
 
 ### Changed
 
@@ -28,10 +49,12 @@ below is released yet.
 
 ### Verified
 
-- 67 headless tests (two new: event freshness, reputation perks), `npm run check` and
-  `npm test` at exit 0, UI smoke green, and the 30-minute simulation unchanged at 40
-  sales and tier 2 — reputation 146 at the end, so the first milestone is reached in a
-  normal session. **Not run in the live client.**
+- 71 headless tests (four new for this pass: every archetype x every situation, pool
+  selection and fallbacks, anti-repeat determinism with the memory round-tripped through
+  a save, and old/broken saves), `npm run check` and `npm test` at exit 0, UI smoke
+  green, and both simulations running: the 30-minute probe reaches 41 sales, tier 2 and
+  reputation 167, and the four-seed campaign probe reaches all three deed notes on all
+  four seeds. **Not run in the live client.**
 
 ## [1.8.0] — 2026-11-28
 

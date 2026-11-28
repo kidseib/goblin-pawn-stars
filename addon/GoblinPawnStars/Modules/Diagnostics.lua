@@ -2527,18 +2527,158 @@ function D.Run()
             ns.Customers.TrySpawn({ personality = "trader" })
             local early = scratch.shop.waiting[#scratch.shop.waiting]
             expect(early, "no customer was generated")
-            expectEqual(early.patienceMax, 4, "Trusted changed patience too early")
+            -- Rare customers get one extra round of their own; strip it so the
+            -- assertion measures the reputation perk and not a lucky roll.
+            local function withoutRare(customer)
+                return customer.patienceMax - ((customer.rare and 1) or 0)
+            end
+            expectEqual(withoutRare(early), 4, "Trusted changed patience too early")
 
             scratch.reputation = 520
             ns.Customers.TrySpawn({ personality = "trader" })
             local trusted = scratch.shop.waiting[#scratch.shop.waiting]
             expect(trusted, "no customer was generated at Trusted")
-            expectEqual(trusted.patienceMax, 5, "Trusted did not add its haggling round")
+            expectEqual(withoutRare(trusted), withoutRare(early) + 1,
+                "Trusted did not add its haggling round")
 
             scratch.reputation = 820
             expectEqual(ns.Shop.ReputationPerks().offer, 0.05, "Legendary lost its offer bonus")
             expectEqual(ns.Shop.ReputationPerks().count, 4, "earlier perks were dropped")
             expectEqual(ns.Shop.ReputationLabel(), "Legendary", "the top milestone is not Legendary")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("every personality speaks in every situation", function()
+        local keys = { "greet", "offer", "accept", "refuse", "leave" }
+        local real = ns.db
+        for _, personality in ipairs(ns.Data.Personalities) do
+            ns.db = ns.DB.Scratch()
+            ns.db.tier = 3
+            -- A preferred, high-quality piece so the contextual pools are used.
+            local category = personality.prefer and personality.prefer[1] or "misc"
+            ns.Inventory.Add({
+                id = 8000, name = "Dialogue Test Piece", quality = 4, ilvl = 60,
+                classID = 15, subclassID = 0, category = category, value = 900,
+            })
+            local ok, err = pcall(function()
+                local customer = ns.Customers.TrySpawn({ personality = personality.key })
+                expect(customer, "no customer for " .. personality.key)
+                for _, key in ipairs(keys) do
+                    local line = ns.Data.Dialogue.Line(customer, key,
+                        { counter = "120", price = "340" })
+                    expect(type(line) == "string" and #line > 0,
+                        personality.key .. "/" .. key .. " produced an empty line")
+                    expect(#line <= 200, personality.key .. "/" .. key .. " line is too long: " .. line)
+                    expect(not line:find("{", 1, true),
+                        personality.key .. "/" .. key .. " left a placeholder: " .. line)
+                end
+            end)
+            ns.db = real
+            if not ok then error(err, 0) end
+        end
+    end)
+
+    -----------------------------------------------------------------------
+    test("dialogue picks the contextual pool and falls back cleanly", function()
+        withScratch(nil, function(scratch)
+            local personality = ns.Data.PersonalityByKey.expecting or ns.Data.Personalities[2]
+            scratch.tier = 2
+            local prefer = personality.prefer[1]
+            ns.Inventory.Add({
+                id = 8100, name = "Context Gem", quality = 4, ilvl = 50,
+                classID = 15, subclassID = 0, category = prefer, value = 600,
+            })
+            local customer = ns.Customers.TrySpawn({ personality = personality.key })
+            expect(customer, "no customer was generated")
+            local name = ns.Data.Dialogue.Explain(customer, "greet")
+            expectEqual(name, "greetPrefer", "the preferred category did not select its pool")
+
+            -- Unknown archetype: no voice of its own, so the generic fallback speaks.
+            local stranger = { personality = "not_a_real_archetype", patience = 1,
+                patienceMax = 1, offer = 10, itemUid = 99999 }
+            local fallbackName = ns.Data.Dialogue.Explain(stranger, "greet")
+            expectEqual(fallbackName, "fallback", "an unknown personality did not fall back")
+            local line = ns.Data.Dialogue.Line(stranger, "greet")
+            expect(#line > 0, "the fallback produced an empty line")
+
+            -- Missing item context must not throw and must still speak.
+            local itemless = { personality = personality.key, patience = 2,
+                patienceMax = 3, offer = 0, itemUid = 123456 }
+            local ok, text = pcall(ns.Data.Dialogue.Line, itemless, "offer")
+            expect(ok, "a missing item broke dialogue: " .. tostring(text))
+            expect(#text > 0, "a missing item produced an empty line")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("dialogue does not repeat the last line and stays bounded", function()
+        withScratch(nil, function(scratch)
+            scratch.tier = 2
+            local prefer = "misc"
+            ns.Inventory.Add({
+                id = 8200, name = "Repeat Guard Piece", quality = 4, ilvl = 40,
+                classID = 15, subclassID = 0, category = prefer, value = 500,
+            })
+            local customer = ns.Customers.TrySpawn({ personality = "collector" })
+            expect(customer, "no customer was generated")
+
+            local seen = {}
+            local previous
+            for _ = 1, 8 do
+                local line = ns.Data.Dialogue.Line(customer, "offer")
+                expect(line ~= previous, "the same line came back twice in a row: " .. line)
+                seen[line] = true
+                previous = line
+                expect(#scratch.shop.recentLines <= 6, "dialogue memory grew past its bound")
+            end
+            expect(U.count(seen) >= 2, "the two-line pool never varied")
+
+            -- The memory is part of the save, not session state.
+            local before = #scratch.shop.recentLines
+            expect(before > 0, "no memory was written")
+            local encoded = ns.DB.Export()
+            expect(ns.DB.Import(encoded, true), "the export did not import")
+            expectEqual(#ns.DB.Get().shop.recentLines, before,
+                "the dialogue memory did not survive a save round trip")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("dialogue survives old saves and broken customer records", function()
+        -- A save written before the memory existed, plus junk in the new fields.
+        local old = ns.DB.Normalize({
+            credits = 400,
+            shop = { recentLines = "not a table", encounterRecent = { 3, "x", 9, 9 } },
+        })
+        expect(type(old.shop.recentLines) == "table", "a broken memory was not repaired")
+        expectEqual(#old.shop.recentLines, 0, "junk survived in the dialogue memory")
+        expect(#old.shop.encounterRecent <= 2, "the event memory grew past its bound")
+
+        withScratch(nil, function(scratch)
+            scratch.tier = 2
+            ns.Inventory.Add({
+                id = 8300, name = "Edge Piece", quality = 1, ilvl = 10,
+                classID = 15, subclassID = 0, category = "misc", value = 40,
+            })
+            -- Zero and negative patience, an archetype with an unknown preference.
+            local zero = ns.Customers.TrySpawn({ personality = "impatient" })
+            expect(zero, "no customer was generated")
+            zero.patience = 0
+            expect(#ns.Data.Dialogue.Line(zero, "leave") > 0, "zero patience produced no line")
+            zero.patience = -4
+            expect(#ns.Data.Dialogue.Line(zero, "refuse") > 0, "negative patience produced no line")
+
+            -- An archetype whose preference list names a category no item uses.
+            local odd = ns.Data.PersonalityByKey.suspicious
+            local savedPrefer = odd.prefer
+            odd.prefer = { "not_a_category" }
+            local unknownPrefer = ns.Customers.TrySpawn({ personality = "suspicious" })
+            odd.prefer = savedPrefer
+            expect(unknownPrefer, "no customer was generated")
+            local ok, line = pcall(ns.Data.Dialogue.Line, unknownPrefer, "greet")
+            expect(ok and #line > 0, "an unknown preferred class broke dialogue")
+            expect(not line:find("{", 1, true), "a placeholder survived: " .. tostring(line))
         end)
     end)
 

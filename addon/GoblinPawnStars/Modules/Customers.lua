@@ -216,12 +216,9 @@ function C.TrySpawn(options)
     if not customer then return nil, record end
 
     db.shop.waiting[#db.shop.waiting + 1] = customer
-    local def = ns.Data.PersonalityByKey[customer.personality]
-    if customer.regular then
-        customer.dialogue = customer.greeting
-    else
-        customer.dialogue = def and ns.Data.PersonalityLine(def, "greet", {}) or customer.greeting
-    end
+    -- The greeting is chosen with the item in hand, so a collector looking at a
+    -- gem and a collector looking at a rusty fork do not say the same thing.
+    customer.dialogue = ns.Data.Dialogue.Line(customer, "greet", nil, { offer = customer.offer })
 
     db.stats.customers = (db.stats.customers or 0) + 1
     db.shop.lastArrivalAt = db.stats.playtime or 0
@@ -329,8 +326,7 @@ function C.StartNegotiation(index)
     db.stats.negotiations = (db.stats.negotiations or 0) + 1
     db.stats.offersSeen = (db.stats.offersSeen or 0) + 1
 
-    local def = C.Personality(customer)
-    customer.dialogue = ns.Data.PersonalityLine(def, "offer", {
+    customer.dialogue = ns.Data.Dialogue.Line(customer, "offer", {
         offer = U.comma(customer.offer),
         item = (db.inventory[customer.itemUid] or {}).name or "it",
     })
@@ -350,9 +346,8 @@ function C.Dismiss(index)
     return true, customer
 end
 
-function C.LeaveDialogue(customer, lineKey)
-    local def = C.Personality(customer)
-    return ns.Data.PersonalityLine(def, lineKey or "leave", {})
+function C.LeaveDialogue(customer, lineKey, flags)
+    return ns.Data.Dialogue.Line(customer, lineKey or "leave", nil, flags)
 end
 
 function C.RecordVisit(customer, result, text)

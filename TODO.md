@@ -12,17 +12,32 @@
 - [x] Shop events remember the last two draws, so no event repeats back to back or
       alternates A-B-A, and a relog does not repeat the event you just dismissed.
 - [x] Two new headless tests (67 total) covering both changes.
+- [x] Contextual customer dialogue: greeting and every haggling reaction drawn from
+      personality pools that know the item's category/quality/price band, the `prefer`
+      match, patience and reputation; 9 archetypes x 6 pools, one Data file.
+- [x] Anti-repeat dialogue memory: the last six chosen lines are packed into numbers in
+      the save (bounded, no strings) and skipped while another line exists.
+- [x] Negotiation window text fix: no per-second re-wrap, three-line cap, no empty
+      quotes, greeting follows the customer and item.
+- [x] Four new headless tests (71 total): archetype sweep, contextual selection and
+      fallbacks, anti-repeat plus save round trip, old and broken saves.
 
 ### Next up (planned order)
 
-- [ ] **Contextual customer dialogue.** Choose a greeting by whether the piece matches
-      the personality's `prefer` list, so two visits by the same archetype read
-      differently. Pure data + one call site, no schema change.
+Honest read after this pass: text is no longer the weak spot, so the biggest remaining
+gap is *shape*. The shop still has one screen of decisions per customer, the tabs are
+visually even (nothing leads the eye), and reputation buys perks but not relationships.
+
 - [ ] **UI pass on typography and spacing.** Audit every tab against a single scale for
       caption/value/label text, tighten the header, and give the negotiation window a
-      clearer hierarchy between offer, odds and actions.
+      clearer hierarchy between offer, odds and actions. Weakest area overall now.
 - [ ] **Return-visit memory.** Customers recognise a shop that treated them well, feeding
-      reputation and the regular-visit path instead of disappearing completely.
+      reputation and the regular-visit path instead of disappearing completely. This is
+      what makes the new dialogue pay off: the same archetype coming back because of how
+      the last visit went.
+- [ ] **Valuation depth.** `Market.Value` still produces one number per item; a piece's
+      story (provenance, a collector's specific want) would give the haggling something
+      to be *about* beyond a price band.
 - [ ] Read-path salvage for the macro journal: a partial payload should keep the fields
       that validate instead of refusing the load outright.
 - [ ] First-run pacing review: the first five minutes currently teach haggling well but

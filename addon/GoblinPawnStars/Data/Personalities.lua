@@ -331,8 +331,10 @@ Data.Personalities = {
 }
 
 Data.PersonalityByKey = {}
-for _, personality in ipairs(Data.Personalities) do
+Data.PersonalityIndex = {}
+for index, personality in ipairs(Data.Personalities) do
     Data.PersonalityByKey[personality.key] = personality
+    Data.PersonalityIndex[personality.key] = index
 end
 
 function Data.PersonalityPick(tier)

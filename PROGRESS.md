@@ -74,7 +74,7 @@ has run any of this.
 
 The polish mission runs on `refinement-polish`, branched from `main` at `41a4da7`
 (1.8.0). `main` is not modified by this work; only the owner decides when it merges.
-`npm run check` reports 61 files and 18,306 lines on this branch.
+`npm run check` reports 62 files and 19,010 lines on this branch.
 
 ### Iteration 1 — reputation milestones and event freshness
 
@@ -518,6 +518,71 @@ after the note. Lowering it to 5,000 moved the final note to 221 min (median)
 and tier 3 to 116 min, at the cost of the second note sliding to 145 min
 because the policy invests in the tier first. Tier 4 (32,000) stays above the
 final note and remains post-campaign content; tier 5 is endless mode only.
+
+### Iteration 2 — customers who read the room
+
+Iteration 1 fixed what the shop *rewarded*. This pass fixed what it *said*. Every
+archetype had one greeting pool, one accept pool and one leave pool, and the negotiation
+window rewrote its font string every second. The result was nine voices that went stale
+after three visits, and a dialogue panel that could clip a long sentence mid-word.
+
+**The dialogue is one data file.** `Data/Dialogue.lua` owns the resolver and the pools;
+`Data/Personalities.lua` still owns behaviour and the flat per-key base line that other
+systems use. Each archetype has six contextual pools - `greetPrefer`, `greetFine`,
+`acceptRich`, `refuseOver`, `refuseInsult`, `leaveFurious` - plus the base `greet`,
+`offer`, `accept`, `refuse`, `leave` lines. Context is derived from state the shop
+already has:
+
+| Context | Source |
+| --- | --- |
+| price band | `customer.offer` vs `Market.Value(item)` (rich / fair / low) |
+| quality | `item.quality` >= 3 |
+| preferred category | `U.contains(personality.prefer, item.category)` |
+| mood | `customer.patience` vs `patienceMax`, and the haggling flag |
+| reputation | `Shop.Reputation()` label, used in the greeting pools |
+
+Pools are chosen in `D.Variants` priority order (greet: prefer then fine; accept: counter
+then rich; refuse: insult, then over-reach, then furious), and each resolves through
+`U.fill`, so a missing `{item}` or `{price}` cannot leak a brace into the frame. An
+unknown archetype, a missing item or an empty pool lands on `D.Fallback`, which is also
+two lines per key - a blank quote pair is now impossible.
+
+Design decisions worth keeping:
+
+- **The save holds indices, not strings.** Six entries of `scope * 16 + index`, newest
+  first, is roughly a dozen characters in a journal that is measured by the character.
+  Strings would cost 60+ base64 each for the same information.
+- **Cosmetic text never draws from `math.random`.** Line choice is a deterministic
+  rotation over the unblocked candidates. This was not the first implementation: when it
+  used `math.random`, the shared stream shifted and the fixed-policy campaign sim fell
+  from "all four seeds finish" to two - proof that a cosmetic draw can move loot and
+  haggling rolls. Nothing in the dialogue path consumes gameplay randomness now, and the
+  campaign probe is back to four of four seeds.
+- **The memory yields rather than starving.** A two-line pool fills its own memory after
+  two draws; instead of repeating the newest line it drops only that entry and picks among
+  the rest, so a two-line pool still alternates forever.
+- **The window is written, not redrawn.** `UI/NegotiationFrame` compares the composed
+  string before `SetText`, caps the font string at three lines, and refreshes when the
+  customer or item changes, so the panel no longer re-wraps once a second.
+
+Verification on this branch: `npm run check` exit 0 (**62 files, 19,010 lines**, TOC OK),
+`npm test` exit 0 with **71 passed, 0 failed** (four new: the archetype sweep over
+greet/offer/accept/refuse/leave, contextual selection incl. unknown archetype/missing
+item/unknown preference, anti-repeat determinism with a save round trip of the memory,
+and old/broken saves), UI smoke green, `node tools/sim_30min.js` at 41 sales / tier 2 /
+reputation 167, and `node tools/sim_campaign.js --hours 4 --seeds 4` reaching every
+milestone on all four seeds.
+
+Known issues:
+
+- The three-line cap is a compromise for the existing 76px panel; a very long line loses
+  its tail instead of growing the window. Nothing exceeds three lines at 100% scale in the
+  mock, but a large font or a small UI scale could clip.
+- The campaign sim is deterministic but policy-fragile: any change in the number of RNG
+  draws reshuffles every seed, so sim-to-sim comparisons are only meaningful for the same
+  draw count. That fragility is in the sim's fixed policy, not in the addon.
+- Nothing here has run inside World of Warcraft; the dialogue panel, the three-line cap
+  and the fonts are unverified in the live client.
 
 ## Notes for the next agent
 

@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/version-1.8.0-c9a24a?style=flat-square" alt="Version 1.8.0">
   <img src="https://img.shields.io/badge/interface-16001-3f7d4e?style=flat-square" alt="Interface 16001">
   <img src="https://img.shields.io/badge/Lua-5.1-2c2d72?style=flat-square&logo=lua&logoColor=white" alt="Lua 5.1">
-  <img src="https://img.shields.io/badge/tests-67%2F67-3f7d4e?style=flat-square" alt="67 of 67 tests passing">
+  <img src="https://img.shields.io/badge/tests-71%2F71-3f7d4e?style=flat-square" alt="71 of 71 tests passing">
   <img src="https://img.shields.io/badge/dependencies-none-6b4f2a?style=flat-square" alt="No runtime dependencies">
   <img src="https://img.shields.io/badge/license-MIT-3f7d4e?style=flat-square" alt="MIT License">
 </p>
@@ -446,8 +446,8 @@ npm run package      # builds dist/GoblinPawnStars-<version>.zip
 node tools/sim_30min.js  # optional: 30-minute progression probe + 10-minute idle probe
 ```
 
-The headless harness loads all 61 addon files in TOC order with mocked WoW APIs,
-runs the 67-test diagnostics suite (economy, negotiation invariants, wholesaler, salesperson auto-sales,
+The headless harness loads all 62 addon files in TOC order with mocked WoW APIs,
+runs the 71-test diagnostics suite (economy, negotiation invariants, wholesaler, salesperson auto-sales,
 throughput, encounters, serialization, achievements, expenses, macro-journal
 round-trip/corruption/immediate rebind/deferred franchise commits, the three payments,
 museum donations, Marta and franchise),
@@ -465,16 +465,16 @@ ticks. See `PROGRESS.md` for exactly what was and was not verified.
 
 ## Testing status
 
-* Lua 5.1 syntax check: **passing** (61 files, 18,073 lines).
-* Headless diagnostics suite: **67/67 passing** (the exact count is printed by
+* Lua 5.1 syntax check: **passing** (62 files, 19,010 lines).
+* Headless diagnostics suite: **71/71 passing** (the exact count is printed by
   `npm test`).
 * UI smoke (all tabs, splash modes, guided tour, goal card, options panel, negotiation,
   events, wholesaler window, slash commands) and a simulated hour of play: **passing
   under mocks**.
 * 30-minute progression probe (a fixed scripted policy that never pays the cartel
-  debt): 40 sales and 2,472 gc earned, tier 2 reached at minute 25, 449 gc left and
-  1.0–1.3 customers/min. A 10-minute closed-window probe records 17 auto-sales, an
-  empty queue and 193 gc/min. These are simulation numbers, not a live-client feel
+  debt): 41 sales and 3,450 gc earned, tier 2 reached early, 276 gc left, reputation
+  167 and 1.0–1.3 customers/min. A 10-minute closed-window probe records 17 auto-sales,
+  an empty queue and 186 gc/min. These are simulation numbers, not a live-client feel
   test.
 * **Not yet verified in the live client:** real item tooltips, texture appearance,
   font sizes and layout on different UI scales, the Deed tab and its five museum rows,

@@ -30,6 +30,7 @@ Core\Slash.lua
 Data\Items.lua
 Data\Names.lua
 Data\Personalities.lua
+Data\Dialogue.lua
 Data\Upgrades.lua
 Data\Employees.lua
 Data\Wholesale.lua

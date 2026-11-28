@@ -286,9 +286,8 @@ function N.Accept()
     if not customer then return false, "Nobody is at the counter." end
     local price = completeSale(customer.offer, "accept")
     if not price then return false, "That item is no longer in stock." end
-    local line = ns.Data.PersonalityLine(N.Personality(), "accept", {
-        price = U.comma(price),
-    })
+    local line = ns.Data.Dialogue.Line(customer, "accept", { price = U.comma(price) })
+    customer.dialogue = line
     ns.Customers.RecordVisit(customer, "sale", line)
     return true, { result = "sold", price = price, dialogue = line }
 end
@@ -299,7 +298,10 @@ function N.Reject()
     if not customer then return false, "Nobody is at the counter." end
 
     db.stats.rejected = (db.stats.rejected or 0) + 1
-    local line = ns.Customers.LeaveDialogue(customer, "leave")
+    local line = ns.Customers.LeaveDialogue(customer, "leave", {
+        furious = (tonumber(customer.patience) or 0) <= 0,
+    })
+    customer.dialogue = line
     endVisit(customer, "rejected", line)
     if ns.Sound then ns.Sound.Play("reject") end
     return true, { result = "rejected", dialogue = line }
@@ -335,7 +337,8 @@ function N.Counter(amount)
 
     -- Absurd demands insult the customer and end the conversation.
     if odds and odds.kind == "insult" then
-        local line = ns.Customers.LeaveDialogue(customer, "leave")
+        local line = ns.Customers.LeaveDialogue(customer, "leave", { insult = true })
+        customer.dialogue = line
         db.stats.counterFail = (db.stats.counterFail or 0) + 1
         endVisit(customer, "insulted", line)
         if ns.Sound then ns.Sound.Play("reject") end
@@ -346,7 +349,9 @@ function N.Counter(amount)
         if U.chance(odds.chance) then
             local price = completeSale(amount, "counter")
             if not price then return false, "That item is no longer in stock." end
-            local line = ns.Data.PersonalityLine(personality, "accept", { price = U.comma(price) })
+            local line = ns.Data.Dialogue.Line(customer, "accept",
+                { price = U.comma(price) }, { counter = true })
+            customer.dialogue = line
             ns.Customers.RecordVisit(customer, "sale", line)
             return true, response("accepted", line, { price = price })
         end
@@ -355,7 +360,8 @@ function N.Counter(amount)
         db.stats.counterFail = (db.stats.counterFail or 0) + 1
 
         if customer.patience <= 0 then
-            local line = ns.Customers.LeaveDialogue(customer, "leave")
+            local line = ns.Customers.LeaveDialogue(customer, "leave", { furious = true })
+            customer.dialogue = line
             endVisit(customer, "walked", line)
             if ns.Sound then ns.Sound.Play("reject") end
             return true, response("left", line, { price = 0 })
@@ -368,12 +374,14 @@ function N.Counter(amount)
         if customer.offer >= amount then
             local price = completeSale(customer.offer, "counter")
             if not price then return false, "That item is no longer in stock." end
-            local line = ns.Data.PersonalityLine(personality, "accept", { price = U.comma(price) })
+            local line = ns.Data.Dialogue.Line(customer, "accept",
+                { price = U.comma(price) }, { counter = true })
+            customer.dialogue = line
             ns.Customers.RecordVisit(customer, "sale", line)
             return true, response("accepted", line, { price = price })
         end
 
-        local line = ns.Data.PersonalityLine(personality, "refuse", {
+        local line = ns.Data.Dialogue.Line(customer, "refuse", {
             counter = U.comma(amount),
         })
         customer.dialogue = line
@@ -392,7 +400,8 @@ function N.Counter(amount)
     end
 
     customer.offer = math.min(maxPay, U.round((customer.offer or 0) * 1.08, 5))
-    local line = ns.Data.PersonalityLine(personality, "refuse", { counter = U.comma(amount) })
+    local line = ns.Data.Dialogue.Line(customer, "refuse",
+        { counter = U.comma(amount) }, { over = true })
     customer.dialogue = line
     if ns.Sound then ns.Sound.Play("reject") end
     return true, response("declined", line, { price = 0 })

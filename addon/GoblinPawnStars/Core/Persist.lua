@@ -92,6 +92,7 @@ local function defaults()
             requestDay = nil,
             shopDayProgress = 0,
             encounterRecent = {},
+            recentLines = {},
             wholesale = {
                 lots = {},
                 nextRestock = 0,
@@ -216,6 +217,21 @@ local function normalize(db)
         end
     end
     db.shop.encounterRecent = cleanRecent
+
+    -- Last dialogue choices, newest first, packed as scope * 16 + index. Six
+    -- numbers is all the anti-repeat memory needs; anything longer is trimmed so
+    -- an old or hand-edited save cannot grow it.
+    local lines = db.shop.recentLines
+    local cleanLines = {}
+    if type(lines) == "table" then
+        for _, entry in ipairs(lines) do
+            entry = tonumber(entry)
+            if entry and entry >= 0 and #cleanLines < 6 then
+                cleanLines[#cleanLines + 1] = math.floor(entry)
+            end
+        end
+    end
+    db.shop.recentLines = cleanLines
     if type(db.shop.wholesale) ~= "table" then db.shop.wholesale = { lots = {}, nextRestock = 0, restocks = 0 } end
     if type(db.shop.wholesale.lots) ~= "table" then db.shop.wholesale.lots = {} end
     if type(db.stats) ~= "table" then db.stats = defaults().stats end
