@@ -8,11 +8,21 @@
     capped at 255 characters, so the payload is kept deliberately small and
     inventory is trimmed (lowest value first) if it would not fit.
 
-    Saves alternate between two generations (A and B). A save writes the whole
-    generation in one batch, reads every chunk back, and retires the generation
-    it replaced, so the macro list holds one save at rest. Autosaves
-    run every five minutes and wait until the shop window and counter are idle.
-    Logout, import and `/gps verify` read every chunk back.
+    Saves alternate between two generations (A and B). A save is a queue of
+    single macro operations, handed a few milliseconds a second by the clock, so
+    it never writes or deletes more than one chunk per frame; that is what keeps
+    a large shop from hitching the client. Every chunk is read back and only the
+    final write commits the generation, so the macro list holds one save at rest
+    and an interrupted save leaves the previous one intact. Autosaves run every
+    five minutes and wait until the shop window and counter are idle. Logout,
+    import and `/gps verify` finish any staged save and read every chunk back.
+
+    Loading starts by itself shortly after login but is strictly bounded: at
+    most four reads, one counter, no chained retries, and the last attempt always
+    settles. A save is refused until a load has settled or the player resets, so
+    a fresh session cannot overwrite a run it has not read. Settings → Backup &
+    Restore → Load saved repeats one read on demand, and Auto-load there turns the
+    login load off.
 --------------------------------------------------------------------------- ]]
 
 local ADDON, ns = ...
@@ -35,14 +45,23 @@ local SAVE_THROTTLE = 300
 -- the delay up to the normal autosave interval.
 local RETRY_DELAY = 60
 local FIRST_SAVE = 300
-local EMPTY_ATTEMPTS = 3
+-- Milliseconds a tick may spend on macro work. One chunk write is allowed even
+-- when it alone costs more than this, so a save always makes progress.
+local STEP_BUDGET_MS = 8
+-- A login load may read the macro list this many times, at these seconds after
+-- login, driven by the clock. One counter, no chaining: a journal that will not
+-- assemble costs four reads in total and then settles, instead of multiplying
+-- reads the way the old retry chains did.
+local LOGIN_DELAYS = { 2, 5, 10, 30 }
+local LOGIN_ATTEMPTS = 4
 
 local startedAt = U.now()
 local lastSave = 0
-local loaded = false
-local loading = false
 local saving = false
+local staged = nil           -- the save currently spread across ticks
 local pending = false
+local auto = nil            -- { tries, nextAt } while a login load is pending
+local afterSettle = nil     -- one-shot listener for the first settled load
 local nextAttempt = 0
 local legacyScanned = false
 
@@ -55,6 +74,11 @@ local function millis()
 end
 
 J.status = {
+    -- False until a save has been loaded or deliberately reset this session.
+    -- Every write path checks it, so an unread journal is never overwritten.
+    loaded = false,
+    -- Which path settled the load (login, manual, import, reset), for /gps journal.
+    loadedBy = nil,
     chunks = 0,
     savedAt = 0,
     trimmed = false,
@@ -80,29 +104,36 @@ local function reportSaveFailure(detail)
 end
 
 -- Both success paths end the same way: the journal is no longer in flight and
--- the status describes the save that just landed.
-local function finishSave(started)
+-- the status describes the save that just landed. `spentMs` is the macro time the
+-- queue measured, so a save spread over several ticks never reports the wall
+-- clock it spanned; an unchanged save passes nil and reports zero.
+local function finishSave(spentMs)
     saving = false
     lastSave = U.now()
     pending = false
     nextAttempt = 0
     J.status.error = nil
-    J.status.empty = false
     J.status.savedAt = lastSave
     J.status.attempts = 0
-    if started then
-        local finished = millis()
-        J.status.saveMs = finished
-            and math.max(0, math.floor(finished - started + 0.5)) or 0
-    else
-        -- No timing source (or an unchanged save): report 0 instead of a
-        -- misleading wall-clock number.
-        J.status.saveMs = 0
-    end
+    J.status.saveMs = math.max(0, math.floor(tonumber(spentMs) or 0))
     if ns.Perf and (J.status.saveMs or 0) > 0 then
         ns.Perf.RecordValue("journal", J.status.saveMs)
     end
     return true, J.status
+end
+
+-- Reasons the journal declines to write without being broken. They must not
+-- reach the player as a save failure, or a closed shop window would look like a
+-- lost save.
+local QUIET = {
+    ["journal off"] = true,
+    ["in combat"] = true,
+    ["journal not loaded"] = true,
+    ["busy"] = true,
+}
+
+local function quietDetail(detail)
+    return QUIET[detail] == true
 end
 
 local function abandonSave(detail)
@@ -449,31 +480,42 @@ end
 -- Loading
 ---------------------------------------------------------------------------
 
-local function scheduleRetry()
-    ns.Compat.After(2, function() J.TryLoad() end)
-    ns.Compat.After(5, function() J.TryLoad() end)
-    ns.Compat.After(10, function() J.TryLoad() end)
+-- A settled journal is one whose state is known: nothing to restore, a run
+-- restored, or a save that cannot be read and may therefore be replaced. Every
+-- outcome settles except "macro API unavailable", which leaves the next attempt
+-- free to try again. `origin` only records which path settled it, for /gps
+-- journal; the gate itself is the boolean.
+local function settle(origin)
+    J.status.loaded = true
+    J.status.loadedBy = origin or "manual"
 end
 
--- Returns settled, restored. "Settled" means the journal state is known, so a
--- save may replace it; "restored" means this call imported an older run and the
--- macros already hold it.
-function J.TryLoad(force)
-    if loading then return false, false end
-    if loaded and not force then return true, false end
-    if force then loaded = false end
+-- Returns settled, restored, waiting. "Settled" means the journal state is
+-- known, so a save may replace it; "restored" means this call imported an older
+-- run and the macros already hold it. "Waiting" means the macro list looked
+-- empty, which right after login usually means it has not arrived yet: only the
+-- automatic login load passes hold, and only it keeps the gate closed for that
+-- case. One read: a failure reports why and stops, so even an unreadable journal
+-- costs a single scan of the macro list.
+function J.TryLoad(origin, hold)
+    local who = origin or "manual"
+    -- The flag is cleared for the duration of the read and settled by every
+    -- outcome except "macro API unavailable". A journal that cannot be assembled
+    -- is not a save this addon can ever restore, and blocking writes forever would
+    -- strand the session, so settling lets the next save replace the bad chunks.
+    J.status.loaded = false
+    J.status.loadedBy = nil
 
     local db = DB.Get()
     if db.settings.macroJournal == false then
-        loaded = true
+        settle(who)
         J.status.error = nil
         return true, false
     end
 
     if ns.Compat.MacroCount() == nil then
         J.status.error = "macro API unavailable"
-        scheduleRetry()
-        return false
+        return false, false
     end
 
     local generations, legacy = collectJournal()
@@ -510,7 +552,7 @@ function J.TryLoad(force)
         -- Single-generation save from 1.6.3 or earlier: no commit header exists.
         local legacyEncoded, legacyTotal = assemble(legacy, LEGACY_CHUNKS, false)
         if not legacyEncoded then
-            loaded = true
+            settle(who)
             J.status.error = legacyTotal
             return false
         end
@@ -523,49 +565,47 @@ function J.TryLoad(force)
             if generations[name] then sawChunks = true end
         end
         if sawChunks then
-            -- Chunks exist but none is a finished save: the macro list may still
-            -- be filling in, or the last save stopped before its commit header.
+            -- Chunks exist but none is a finished save: a save stopped before its
+            -- commit header and its run is gone, so there is nothing to restore.
+            -- Report it and let the next save replace those chunks.
+            settle(who)
             J.status.error = "journal is incomplete"
-            scheduleRetry()
             return false, false
         end
-        -- No chunks at all looks identical on a fresh install and on a client
-        -- whose macro list lands a moment after login. Treat the first reads as
-        -- provisional and only settle as empty once they keep coming back empty,
-        -- because settling early lets the first autosave overwrite a real save.
-        if not force and (tonumber(J.status.attempts) or 0) < EMPTY_ATTEMPTS then
-            J.status.attempts = (tonumber(J.status.attempts) or 0) + 1
-            J.status.empty = true
+        if hold then
+            -- The macro list can still be filling in right after login. Leave
+            -- the journal unloaded so no save can stamp defaults over a run that
+            -- has not arrived yet; the caller reads again later.
             J.status.error = nil
-            scheduleRetry()
-            return false, false
+            return false, false, true
         end
-        J.status.attempts = 0
-        loaded = true
+        -- No saved run at all: a fresh install, or a manual load requested before
+        -- the macro list arrived. The player can ask again, so adopting the
+        -- session here is safe.
+        settle(who)
         J.status.error = nil
         J.status.savedAt = 0
         J.status.chunks = 0
         J.status.stamp = nil
         J.status.generation = nil
         J.status.counter = 0
-        J.status.empty = true
         return true, false
     end
 
     local text = base64Decode(encoded)
     if not text then
-        loaded = true
+        settle(who)
         J.status.error = "journal payload is corrupt"
         return false
     end
     local payload, err = ns.Serialize.Decode(text)
     if not payload or type(payload.data) ~= "table" then
-        loaded = true
+        settle(who)
         J.status.error = "journal could not be decoded: " .. tostring(err or "bad payload")
         return false
     end
     if payload.addon and payload.addon ~= ns.ADDON then
-        loaded = true
+        settle(who)
         J.status.error = "journal belongs to another addon"
         return false
     end
@@ -573,16 +613,14 @@ function J.TryLoad(force)
     local journalAt = tonumber(payload.savedAt) or 0
     local currentPriority = DB.Get()
     if hasProgress(currentPriority) and (currentPriority.savedAt or 0) >= journalAt then
-        loaded = true
+        settle(who)
         J.status.error = nil
         J.status.savedAt = journalAt
         J.status.chunks = total
         J.status.stamp = loadedStamp
         J.status.fingerprint = nil
-        J.status.attempts = 0
         J.status.generation = generation
         J.status.counter = counter or 0
-        J.status.empty = false
         return true, false
     end
 
@@ -596,6 +634,10 @@ function J.TryLoad(force)
     local login = currentPriority.lastSession and currentPriority.lastSession.login
     local ok, importError = DB.Import(text, true)
     if not ok then
+        -- The payload decoded but could not be adopted. Nothing can ever restore
+        -- it, so settle and let the next save replace it instead of leaving the
+        -- session with no save path.
+        settle(who)
         J.status.error = "journal import failed: " .. tostring(importError)
         return false
     end
@@ -607,16 +649,14 @@ function J.TryLoad(force)
     -- a later login. No elapsed time is credited here; this only schedules the
     -- next ordinary arrival.
     fresh.shop.nextArrival = math.max(16, tonumber(fresh.shop.nextArrival) or 16)
-    loaded = true
+    settle(who)
     J.status.error = nil
     J.status.savedAt = journalAt
     J.status.chunks = total
     J.status.stamp = loadedStamp
     J.status.fingerprint = nil
-    J.status.attempts = 0
     J.status.generation = generation
     J.status.counter = counter or 0
-    J.status.empty = false
 
     if not fresh.settings.journalHintShown then
         fresh.settings.journalHintShown = true
@@ -627,6 +667,97 @@ function J.TryLoad(force)
         if not refreshOk then ns.Debug("UI refresh after journal load failed") end
     end
     return true, true
+end
+
+---------------------------------------------------------------------------
+-- Automatic loading
+---------------------------------------------------------------------------
+
+-- Arms the bounded login load. The clock drives it rather than a chain of
+-- timers, so there is exactly one pending attempt and one counter, and a client
+-- that cannot read macros can never multiply the work.
+function J.AutoLoad()
+    auto = nil
+    if J.status.loaded then return false end
+    if not J.Active() then return false end
+    if DB.Get().settings.autoLoadJournal == false then return false end
+    auto = { tries = 0, nextAt = U.now() + LOGIN_DELAYS[1] }
+    return true
+end
+
+function J.AutoPending()
+    return auto ~= nil
+end
+
+-- Runs `fn` once when the first load of this session settles. The login summary
+-- registers here: at login the journal is still a couple of seconds away, so
+-- describing the shop straight away would call every returning player a fresh
+-- stall. Already-settled sessions run the callback immediately.
+function J.AfterSettle(fn)
+    if type(fn) ~= "function" then return end
+    if J.status.loaded then
+        local ok = pcall(fn)
+        if not ok then ns.Debug("journal settle callback failed") end
+        return
+    end
+    afterSettle = fn
+end
+
+-- Drains the listener from a tick rather than from settle(), so the restored
+-- run's own chat line lands first and the summary describes the loaded shop.
+local function drainAfterSettle()
+    if not afterSettle or not J.status.loaded then return end
+    local fn = afterSettle
+    afterSettle = nil
+    local ok = pcall(fn)
+    if not ok then ns.Debug("journal settle callback failed") end
+end
+
+-- A manual load, an import or a reset settles the journal on its own terms.
+function J.CancelAutoLoad()
+    auto = nil
+end
+
+-- Reads the macro list once, then settles, schedules the next bounded attempt,
+-- or gives up and settles anyway so the session never loses its save path.
+local function tickAutoLoad()
+    if not auto then return end
+    -- Something else chose a run (Load saved, import, reset) while this was
+    -- waiting: that choice wins and the login load stops.
+    if J.status.loaded then
+        auto = nil
+        return
+    end
+    local now = U.now()
+    if now < auto.nextAt then return end
+    -- Never read macros in combat. This defers the attempt without spending it,
+    -- so the cap still counts only real reads of the macro list.
+    if ns.Compat.InCombat() then
+        auto.nextAt = now + 5
+        return
+    end
+
+    auto.tries = auto.tries + 1
+    local settled, restored, waiting = J.TryLoad("login", true)
+    if restored or settled then
+        auto = nil
+        return
+    end
+    if waiting and auto.tries < LOGIN_ATTEMPTS then
+        -- The macro list looked empty and may still be filling in. Try again
+        -- later; the gate stays closed so no save can run in the meantime.
+        auto.nextAt = now + LOGIN_DELAYS[auto.tries + 1]
+        return
+    end
+
+    -- Out of attempts, or the macro API never appeared. Settle so the session is
+    -- not stuck, and say so when the read genuinely failed.
+    auto = nil
+    settle("login")
+    if J.status.error then
+        ns.Warn("Saved shop could not be loaded (" .. tostring(J.status.error) ..
+            "). Use Settings → Backup & Restore to keep a backup. Type |cffffffff/gps journal|r for details.")
+    end
 end
 
 ---------------------------------------------------------------------------
@@ -712,6 +843,10 @@ end
 local function prepareJob(force)
     local db = DB.Get()
     if db.settings.macroJournal == false then return nil, "journal off" end
+    -- Nothing is written until the player has loaded a run or reset one, so a
+    -- fresh session cannot stamp defaults over a real save. Checked before the
+    -- combat deferral, which must not arm a save that will never run.
+    if not J.status.loaded then return nil, "journal not loaded" end
     if ns.Compat.InCombat() then
         pending = true
         return nil, "in combat"
@@ -727,12 +862,6 @@ local function prepareJob(force)
             nextAttempt = U.now() + 20
             return nil, "busy"
         end
-    end
-
-    if not loaded then
-        local settled, restored = J.TryLoad()
-        if not settled then return nil, "waiting for the macro list" end
-        if restored then return "restored" end
     end
 
     local snapshot = DB.Snapshot()
@@ -767,56 +896,183 @@ local function prepareJob(force)
         total = total,
         fingerprint = fingerprint,
         trimmed = trimmed and true or false,
-        started = millis(),
     }
 end
 
--- Writes the new generation. The pending header goes first, every payload
--- chunk is read back, and only then is the header rewritten as committed.
--- Until that final verified write this generation can never win at login, so
--- an interrupted save leaves the previous generation untouched.
-local function writeGeneration(current)
-    local header = chunkName(current.generation, 1)
-    local ok, detail, kind = writeChunk(header, jobBody(current, 1, "p"))
-    if not ok then return false, detail, kind end
+-- A save is a queue of single macro operations rather than one batch. The
+-- clock hands it a few milliseconds a second, so a save can never hold the
+-- frame no matter how many chunks the shop needs or how slow the client's macro
+-- calls are. The order is unchanged, so crash safety is unchanged: the pending
+-- header goes first, every payload chunk is read back, and only the final
+-- verified write makes the generation committed.
 
+-- The new generation: header "p", then the payload, then the same header as
+-- "c". Until that last write lands this generation can never win at login.
+local function buildSteps(job)
+    local current = job
+    local steps = {
+        { kind = "write", name = chunkName(current.generation, 1), index = 1, state = "p" },
+    }
     for index = 2, current.total do
-        ok, detail, kind = writeChunk(chunkName(current.generation, index),
-            jobBody(current, index, "c"))
-        if not ok then return false, detail, kind end
+        steps[#steps + 1] = {
+            kind = "write", name = chunkName(current.generation, index),
+            index = index, state = "c",
+        }
     end
-
-    return writeChunk(header, jobBody(current, 1, "c"))
+    steps[#steps + 1] = {
+        kind = "write", name = chunkName(current.generation, 1), index = 1, state = "c",
+    }
+    job.steps, job.cursor = steps, 1
 end
 
--- Retry only failures that more macros can fix: a create refused because the
--- list is full. A failed read-back or a name collision aborts immediately, and
--- the committed generation is never removed here.
-local function commitJob(current)
-    local ok, detail, kind = writeGeneration(current)
-    if not ok and kind == "create" and deleteLegacy() > 0 then
-        ok, detail, kind = writeGeneration(current)
+-- Cleanup runs only after the commit, one name per step: the retired generation,
+-- chunks left over from a larger save, and pre-1.6.4 legacy chunks.
+local function buildCleanup(job)
+    local current = job
+    local steps = {}
+    if current.previous and current.previous ~= current.generation then
+        for index = 1, MAX_CHUNKS do
+            steps[#steps + 1] = { kind = "delete", name = chunkName(current.previous, index) }
+        end
+    end
+    for index = current.total + 1, MAX_CHUNKS do
+        steps[#steps + 1] = { kind = "delete", name = chunkName(current.generation, index) }
+    end
+    if not legacyScanned then
+        legacyScanned = true
+        for index = 1, LEGACY_CHUNKS do
+            steps[#steps + 1] = { kind = "delete", name = legacyName(index) }
+        end
+    end
+    job.steps, job.cursor = steps, 1
+end
+
+-- Performs one queued operation. Returns ok, then true when the save is finished
+-- or a failure table when it has to stop.
+local function stepJob(job)
+    if job.cursor > #job.steps then
+        if job.phase == "write" then
+            job.phase = "cleanup"
+            buildCleanup(job)
+            return true, false
+        end
+        return true, true
     end
 
-    if not ok and kind == "create" and current.previous
+    local step = job.steps[job.cursor]
+    if step.kind == "delete" then
+        job.cursor = job.cursor + 1
+        deleteChunk(step.name)
+        return true, false
+    end
+
+    local current = job
+    local ok, detail, kind = writeChunk(step.name, jobBody(current, step.index, step.state))
+    if ok then
+        job.cursor = job.cursor + 1
+        return true, false
+    end
+
+    -- A refused create is the one failure that more macros can fix. It is rare,
+    -- so the scan stays inside this step instead of being queued.
+    if kind == "create" and not job.freed then
+        job.freed = true
+        if deleteLegacy() > 0 then return true, false end
+    end
+
+    if kind == "create" and current.previous and not job.rewrote
         and (ns.Compat.MacroCount() or 0) >= 36
         and current.total <= (J.status.chunks or 0) then
         -- Completely full list: rewrite the committed generation in place.
         -- This gives up the fallback, but a save that lands beats a dead
-        -- journal. The new payload must not be larger than the old one. The
+        -- journal, and the new payload cannot be larger than the old one. The
         -- failed partial generation is removed first so its chunks cannot
         -- linger on the list.
+        job.rewrote = true
         local failed = current.generation
         current.generation = current.previous
         current.previous = nil
-        if failed ~= current.generation then deleteGeneration(failed) end
-        ok, detail = writeGeneration(current)
+        for index = 1, MAX_CHUNKS do deleteChunk(chunkName(failed, index)) end
+        job.phase = "write"
+        buildSteps(job)
+        return true, false
     end
-    return ok, detail
+
+    return false, { detail = detail, kind = kind }
+end
+
+-- Runs queued operations until the budget is spent, or to the end when no
+-- budget is given. At least one operation always runs, so a save made of slow
+-- calls still makes progress one call per tick.
+local function advance(job, budgetMs)
+    local started = millis()
+    local ops = 0
+    -- Only the time spent inside this save is reported, never the wall clock it
+    -- spanned across ticks.
+    local function spent()
+        local now = millis()
+        if started and now then
+            job.busyMs = (job.busyMs or 0) + math.max(0, now - started)
+        end
+    end
+    while true do
+        local ok, result = stepJob(job)
+        if not ok then spent() return false, result end
+        if result == true then spent() return true end
+        ops = ops + 1
+        if budgetMs then
+            local now = millis()
+            if now and (now - started) >= budgetMs then spent() return nil end
+        end
+        -- A queue this long means something is wrong; stop for this tick and
+        -- let the next one continue instead of spinning. A synchronous save has
+        -- no budget to spend, so only the absolute guard applies to it.
+        if budgetMs and ops >= 64 then spent() return nil end
+        if ops >= 4096 then spent() return nil end
+    end
+end
+
+local function finishJob(job)
+    local current = job
+    J.status.chunks = current.total
+    J.status.trimmed = current.trimmed
+    J.status.stamp = current.stamp
+    J.status.fingerprint = current.fingerprint
+    J.status.generation = current.generation
+    J.status.counter = current.counter
+    J.status.attempts = 0
+    return finishSave(job.busyMs)
+end
+
+-- Finishes whatever is staged, synchronously. Save Now, logout, an import and
+-- /gps verify must see a committed save, never a half-written generation.
+local function flushStaged()
+    if not staged then return true, J.status end
+    local job = staged
+    staged = nil
+    local called, ok, failure = pcall(advance, job, nil)
+    if not called then
+        saving = false
+        return abandonSave("the save errored: " .. tostring(ok))
+    end
+    if ok ~= true then
+        saving = false
+        return abandonSave(failure and failure.detail or "the staged save failed")
+    end
+    return finishJob(job)
 end
 
 function J.SaveNow(force)
-    if saving or loading then return false, J.status end
+    if staged then
+        -- A forced call (Save Now, logout, import, /gps verify) finishes the queue
+        -- before it returns. A gameplay checkpoint lets the in-flight save finish
+        -- on its own ticks instead of bunching the rest of the writes into this
+        -- frame; the next autosave picks up whatever changed.
+        if not force then return false, J.status end
+        local ok = flushStaged()
+        if not ok then return false, J.status end
+    end
+    if saving then return false, J.status end
     saving = true
 
     local job, detail = prepareJob(force)
@@ -824,51 +1080,31 @@ function J.SaveNow(force)
         if not legacyScanned then deleteLegacy() end
         saving = false
         return finishSave(nil)
-    elseif job == "restored" then
-        -- TryLoad imported the saved run; the macros already hold it.
-        saving = false
-        lastSave = U.now()
-        pending = false
-        return true, J.status
     elseif not job then
         saving = false
-        if detail == "journal off" or detail == "in combat"
-            or detail == "waiting for the macro list" or detail == "busy" then
-            return false, J.status
-        end
+        if quietDetail(detail) then return false, J.status end
         reportSaveFailure(detail or "could not prepare a save")
         nextAttempt = U.now() + RETRY_DELAY
         return false, J.status
     end
 
-    local ok, writeError = commitJob(job)
+    job.phase = "write"
+    buildSteps(job)
+    local called, ok, failure = pcall(advance, job, nil)
     saving = false
-    if not ok then
-        return abandonSave(writeError)
+    if not called then
+        return abandonSave("the save errored: " .. tostring(ok))
     end
-
-    -- Every chunk was read back, so the new generation is complete. Only now
-    -- may the previous save disappear. Leftover chunks past the new total are
-    -- removed from the new generation so the list does not creep upward.
-    if job.previous and job.previous ~= job.generation then
-        deleteGeneration(job.previous)
+    -- Never commit a generation the queue did not finish.
+    if ok ~= true then
+        return abandonSave(failure and failure.detail or "the save did not finish")
     end
-    deleteGeneration(job.generation, job.total)
-    if not legacyScanned then deleteLegacy() end
-
-    J.status.chunks = job.total
-    J.status.trimmed = job.trimmed
-    J.status.stamp = job.stamp
-    J.status.fingerprint = job.fingerprint
-    J.status.generation = job.generation
-    J.status.counter = job.counter
-    J.status.attempts = 0
-    return finishSave(job.started)
+    return finishJob(job)
 end
 
 function J.Save()
-    if not ns.db or loaded == false then return false end
-    if saving then return false end
+    if not ns.db or not J.status.loaded then return false end
+    if saving or staged then return false end
     local now = U.now()
     if now - startedAt < FIRST_SAVE then return false end
     if now < nextAttempt then return false end
@@ -876,13 +1112,64 @@ function J.Save()
     local wait = J.status.error
         and math.min(SAVE_THROTTLE, RETRY_DELAY * attempts) or SAVE_THROTTLE
     if now - lastSave < wait and not pending then return false end
-    return J.SaveNow(false)
+
+    -- The autosave stages the job and spends one slice of it now; the rest lands
+    -- one tick at a time. Nothing here writes the whole generation in one frame.
+    saving = true
+    local job, detail = prepareJob(false)
+    saving = false
+    if job == "unchanged" then
+        if not legacyScanned then deleteLegacy() end
+        return finishSave(nil)
+    elseif not job then
+        if not quietDetail(detail) then
+            reportSaveFailure(detail or "could not prepare a save")
+            nextAttempt = U.now() + RETRY_DELAY
+        end
+        return false
+    end
+
+    job.phase = "write"
+    buildSteps(job)
+    staged = job
+    local called, ok, failure = pcall(advance, job, STEP_BUDGET_MS)
+    if not called then
+        staged = nil
+        return abandonSave("the save errored: " .. tostring(ok))
+    end
+    if ok == false then
+        staged = nil
+        return abandonSave(failure and failure.detail or "the save failed")
+    elseif ok == true then
+        staged = nil
+        return finishJob(job)
+    end
+    return false, J.status
 end
 
 -- Drives the save schedule itself. The clock calls this once a second; the
--- journal only writes when the five-minute interval is due and the shop is idle.
+-- journal only writes when the five-minute interval is due and the shop is idle,
+-- and it advances at most one time budget of macro work per second.
 function J.Tick()
-    if not loaded then return end
+    tickAutoLoad()
+    drainAfterSettle()
+    if not J.status.loaded then return end
+    if staged then
+        local job = staged
+        local called, ok, failure = pcall(advance, job, STEP_BUDGET_MS)
+        if not called then
+            staged = nil
+            return abandonSave("the save errored: " .. tostring(ok))
+        end
+        if ok == false then
+            staged = nil
+            abandonSave(failure and failure.detail or "the save failed")
+        elseif ok == true then
+            staged = nil
+            finishJob(job)
+        end
+        return
+    end
     if pending and not ns.Compat.InCombat() then
         -- A save deferred by combat should not fire the instant the fight ends.
         -- Give the player twenty seconds to loot and move on.
@@ -895,6 +1182,11 @@ end
 
 function J.Clear()
     if ns.Compat.MacroCount() == nil then return false end
+    -- A reset wins over a save that is half written: its chunks go below, and it
+    -- also cancels any login load that has not run yet.
+    auto = nil
+    staged = nil
+    saving = false
     for _, generation in ipairs(GENERATIONS) do deleteGeneration(generation) end
     deleteLegacy()
     legacyScanned = false
@@ -903,13 +1195,14 @@ function J.Clear()
     J.status.savedAt = 0
     J.status.chunks = 0
     J.status.error = nil
-    J.status.empty = true
     J.status.stamp = nil
     J.status.fingerprint = nil
     J.status.attempts = 0
     J.status.generation = nil
     J.status.counter = 0
     J.status.saveMs = 0
+    -- The macros are empty now, so this session owns them: saving starts here.
+    settle("reset")
     return true
 end
 
@@ -921,19 +1214,57 @@ function J.Active()
     return DB.Get().settings.macroJournal ~= false
 end
 
--- True once TryLoad has settled (restored, empty, or rejected). The splash
--- screen waits for this so a slow macro list cannot make it think the player
--- has never seen it.
+-- True once a load has settled (restored, empty, or rejected) or a reset
+-- adopted the macro list. Every write path needs it, so the header and the
+-- login line read it too.
 function J.Loaded()
-    return loaded
+    return J.status.loaded == true
+end
+
+-- Lets another explicit choice (importing a pasted backup) adopt the save path.
+function J.MarkLoaded()
+    auto = nil
+    settle("import")
+end
+
+-- The on-demand load behind Settings → Backup & Restore → Load saved. One read,
+-- one answer: a failure is reported to the player instead of being retried
+-- behind their back.
+function J.Load()
+    if not J.Active() then
+        return false, "the macro journal is off in Settings; use a backup string instead"
+    end
+    if ns.Compat.InCombat() then
+        return false, "cannot read the macro list in combat; try again after the fight"
+    end
+
+    auto = nil
+    local settled, restored = J.TryLoad("manual")
+    drainAfterSettle()
+    if restored then return true, "Saved run loaded." end
+    if settled then
+        return true, "No saved run was found. This session is a fresh shop and now saves."
+    end
+    return false, "the journal could not be read: " ..
+        tostring(J.status.error or "unknown reason")
 end
 
 function J.Report()
     local db = DB.Get()
     local active = db.settings.macroJournal ~= false
     local slots = ns.Compat.MacroCount()
+    local loadText
+    if J.status.loaded then
+        loadText = "loaded this session" ..
+            (J.status.loadedBy and (" (" .. tostring(J.status.loadedBy) .. ")") or "")
+    elseif auto then
+        loadText = "|cffe0c060loading the saved shop|r"
+    else
+        loadText = "|cffe0c060not loaded — Settings → Backup & Restore → Load saved|r"
+    end
     ns.Print("Macro journal: " .. (active and "|cff7bd66bon|r" or "|cffff5555off|r") ..
-        " · " .. (loaded and "loaded this session" or "not loaded yet"))
+        " · " .. loadText ..
+        " · auto-load " .. (db.settings.autoLoadJournal == false and "off" or "on"))
     ns.Print(string.format("  Chunks: %d/%d · generation %s · macro list: %s",
         J.status.chunks or 0, MAX_CHUNKS, tostring(J.status.generation or "none"),
         slots and (tostring(slots) .. " slot(s) visible") or "|cffff5555unavailable|r"))
@@ -964,6 +1295,10 @@ function J.Health()
     local status = J.status
     if not J.Active() then return "|cffff6b5esave off|r", "off" end
     if status.error then return "|cffff5555save error|r", "error" end
+    if not status.loaded then
+        if auto then return "|cffe0c060loading saved shop|r", "pending" end
+        return "|cffe0c060load progress|r", "pending"
+    end
     -- A journal restored at login is not a save this session. Keep the header
     -- on "save pending" until the first five-minute save lands, instead of
     -- showing a stale age that makes a healthy journal look broken.
@@ -972,8 +1307,7 @@ function J.Health()
         if age <= 330 then return "|cff7bd66bsaved " .. U.clock(age) .. " ago|r", "ok" end
         return "|cffe0c060saved " .. U.clock(age) .. " ago|r", "stale"
     end
-    if loaded then return "|cffe0c060save pending|r", "pending" end
-    return "|cffe0c060waiting for macros|r", "pending"
+    return "|cffe0c060save pending|r", "pending"
 end
 
 -- Reads the committed journal back off the macro list and compares it with the
@@ -981,11 +1315,14 @@ end
 -- logout, and it is the check every save bug report should start with.
 function J.Verify()
     local db = DB.Get()
-    if db.settings.macroJournal == false then
+    if not J.Active() then
         return false, "the macro journal is off; use a backup string in Settings"
     end
     if ns.Compat.MacroCount() == nil then
         return false, "the macro API is unavailable on this client"
+    end
+    if not J.status.loaded then
+        return false, "nothing is loaded this session; the saved shop is still being read, or press Load saved in Settings → Backup & Restore"
     end
     if ns.Compat.InCombat() then
         return false, "cannot save in combat; try again after the fight"
@@ -1051,29 +1388,26 @@ function J.StatusText()
     local status = J.status
     if not J.Active() then return "Macro journal off; use a backup string in Settings." end
     if status.error then return "Journal: " .. tostring(status.error) end
+    if not status.loaded then
+        if auto then return "Journal: loading the saved shop from the macro list…" end
+        return "Journal not loaded this session. Settings → Backup & Restore → Load saved."
+    end
     if (status.savedAt or 0) > 0 then
         local age = math.max(0, U.now() - status.savedAt)
         local trimmed = status.trimmed and " · inventory trimmed" or ""
         return string.format("Journal: %d chunks (gen %s) · saved %s ago%s",
             status.chunks or 0, tostring(status.generation or "?"), U.clock(age), trimmed)
     end
-    if loaded then return "Journal empty; the next autosave will fill it." end
-    return "Journal waiting for the macro list."
+    return "Journal empty; the next autosave will fill it."
 end
 
 J.events = ns.Compat.EventFrame({
+    -- The only automatic read. It arms one bounded login load; the clock performs
+    -- the reads, so a bad journal costs at most LOGIN_ATTEMPTS scans and cannot
+    -- stall anyone. Auto-load is a setting, and Load saved works either way.
     PLAYER_LOGIN = function()
-        if not J.TryLoad() then scheduleRetry() end
-    end,
-    PLAYER_ENTERING_WORLD = function()
-        -- Macro lists can populate a fraction after PLAYER_LOGIN. Recheck an
-        -- empty journal once the world is ready, before an autosave could
-        -- overwrite a real run with fresh defaults.
-        if J.status.empty and (DB.Get().savedAt or 0) == 0 then
-            J.TryLoad(true)
-        else
-            J.TryLoad()
-        end
+        local ok = pcall(J.AutoLoad)
+        if not ok then ns.Debug("journal auto-load did not arm") end
     end,
     PLAYER_LOGOUT = function()
         J.SaveNow(true)
