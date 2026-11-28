@@ -74,7 +74,7 @@ has run any of this.
 
 The polish mission runs on `refinement-polish`, branched from `main` at `41a4da7`
 (1.8.0). `main` is not modified by this work; only the owner decides when it merges.
-`npm run check` reports 64 files and 19,365 lines on this branch.
+`npm run check` reports 64 files and 20,121 lines on this branch.
 
 ### Iteration 1 — reputation milestones and event freshness
 
@@ -583,6 +583,74 @@ Known issues:
   draw count. That fragility is in the sim's fixed policy, not in the addon.
 - Nothing here has run inside World of Warcraft; the dialogue panel, the three-line cap
   and the fonts are unverified in the live client.
+
+### Iteration 4 — special orders
+
+Iteration 3 gave the shop a cast; the cast had nothing to do but browse. This pass turns a
+regular into a small standing goal: they come back wanting one shelf of goods, name a
+budget, and give the player two shop days to find it.
+
+| Knob | Value | Why |
+| --- | --- | --- |
+| asks per arrival | 0.50 | measured 3.2 orders per 30-minute session — one every ~9 minutes, rare enough to feel like an event |
+| minimum visits | 1 | one remembered sale is the entry ticket; requiring two made the loop absent in 4 of 6 probe seeds |
+| deadline | 2 shop days (30 minutes) | 4 days never lapsed in a 30-minute session, which made the gamble toothless |
+| premium | 1.35x live market value, capped by the named budget | ~33% over a good haggled sale, and it still removes the unit through `completeSale` |
+| budget | tier budget x 2.6 | reads as a real ceiling early on; it stops being the binding constraint as tiers rise |
+| reputation | +8 delivered / -4 lapsed | a delivery is worth more than two ordinary sales; a lapse stings and never wipes progress |
+| goodwill | +1 visit on delivery, -1 on lapse | makes the relationship itself the reward |
+| patron | 2 deliveries | permanent 2% offer lift; small, permanent and visible in the queue |
+| caps | 3 orders, 1 per regular | bounded save state; one regular cannot monopolise the board |
+
+Design decisions:
+
+- **The order is placed by the regular, at arrival, in their own voice.** There is no
+  order board the player opens and no new window: the mechanic rides the arrival path the
+  addon already had (`Regulars.SpawnOptions` → `Customers.TrySpawn`).
+- **The wanted shelf is one the shop is short of**, preferring categories the wholesaler
+  is currently offering. That is what makes it an errand instead of a formality, and it
+  keeps the loop solvable without a loot drop.
+- **A fillable order gets first refusal on the next arrival** (55% per arrival, before the
+  ordinary regular roll). Without this the payoff was a blind bet: the regular who asked
+  almost never came back while the stock was still on the shelf.
+- **Collecting opens near the ceiling (90%) rather than at a haggle opening.** The order is
+  a stated price, so accepting it is the reward for having held the stock. Ordinary
+  bargaining still happens with everyone else.
+- **Lapsing runs on `Shop.EndShopDay`**, the 15-minute day clock that already exists. No
+  new timer, no polling, one pass over at most three rows per day.
+- **Journal snapshots strip orders** exactly like regulars: they carry names, and the
+  macro journal is measured in characters. SavedVariables carry them; the journal does not.
+
+Balance measurements (six seeds x 30 simulated minutes, same policy, feature on / off /
+ignoring orders):
+
+| Mode | Orders placed | Delivered | Lapsed | Order revenue | Gross earned |
+| --- | --- | --- | --- | --- | --- |
+| on (sources the shelf) | 3.2 / session | 2.8 | 0 | 267 gc (11% of gross) | 2,411 gc |
+| off (feature disabled) | 0 | 0 | 0 | 0 | 2,606 gc |
+| ignore (never buys the shelf) | 2.5 / session | 0.3 | 0.7 | 51 gc | 3,040 gc |
+
+The order premium is a real but bounded slice of revenue: about one sale in three is an
+order, worth roughly 11% of gross. With orders on, gross earned is *not* higher than with
+them off (2,411 vs 2,606) because an order customer displaces an ordinary arrival and
+because the player spends credits sourcing the shelf — the loop pays for the decision, not
+for existing. Ignoring orders shows the intended failure mode: orders lapse, reputation
+drops (123 vs 135 and 108 vs 140 on two seeds) and no premium is collected. Lapses did not
+occur in the "on" runs at all, which is the point: an attentive player converts.
+
+Known issues from this pass:
+
+- The order premium of 1.35x is validated only against the headless policy. A player who
+  buys the wanted shelf at wholesale and sells it at the premium can chain orders; the cap
+  of three open orders and the 50% ask chance are what bound it, and a live session may
+  want `orderPay` closer to 1.25.
+- The queue row, the counter meta and the wanted panel all gained text. They fit at 100%
+  UI scale in the mock (`WANTED TODAY` now carries two lines above its bar), but a large
+  font or a small UI scale has not been checked.
+- The order greeting and acceptance pools are new prose; nobody has read them on a live
+  client.
+- The `ignore` probe buys no wanted shelf at all, which is a harsher player than reality;
+  a half-attentive player sits between the `on` and `ignore` rows.
 
 ### Iteration 3 — regulars
 

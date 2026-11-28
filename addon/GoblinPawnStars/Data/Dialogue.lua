@@ -32,9 +32,9 @@ local SLOTS_PER_SCOPE = 16
     patient customer's ordinary refusal.
 --------------------------------------------------------------------------- ]]
 D.Variants = {
-    greet = { "return", "prefer", "fine" },
+    greet = { "order", "orderAsk", "return", "prefer", "fine" },
     offer = { "rich", "cheap" },
-    accept = { "counter", "rich" },
+    accept = { "order", "counter", "rich" },
     refuse = { "insult", "over", "furious" },
     leave = { "furious" },
 }
@@ -69,6 +69,8 @@ function D.Context(customer, personality, item, flags)
         insult = flags.insult == true,
         over = flags.over == true,
         returning = false,
+        order = false,
+        orderAsk = false,
         furious = false,
         mood = "calm",
         band = "fair",
@@ -79,6 +81,10 @@ function D.Context(customer, personality, item, flags)
 
     if not customer then return ctx end
     ctx.returning = (tonumber(customer.returning) or 0) > 0
+    -- Collecting a special order outranks asking for one: the same tag would
+    -- otherwise let a customer say "I want a {category}" while buying it.
+    ctx.order = customer.order == true
+    ctx.orderAsk = (not ctx.order) and customer.orderCategory ~= nil
 
     local max = tonumber(customer.patienceMax) or 0
     local left = tonumber(customer.patience) or 0
@@ -563,4 +569,151 @@ function D.Explain(customer, key)
     local base = basePool(personality, key)
     if base then return "base", #base, ctx end
     return "fallback", #(D.Fallback[key] or {}), ctx
+end
+
+---------------------------------------------------------------------------
+-- Special orders
+---------------------------------------------------------------------------
+--[[ Asking for a shelf, and collecting it ----------------------------------
+    Iteration 4 lets a regular turn up wanting one specific shelf of goods. The
+    pools live in one block so the archetype tables above stay a description of
+    behaviour; the merge below attaches them to the contextual pools D.Line
+    already looks up, so no other file has to know they exist.
+--------------------------------------------------------------------------- ]]
+local ORDER_POOLS = {
+    cheap = {
+        greetOrder = {
+            "The {category}. I said I'd be back for one, and here I am.",
+            "Still after a {category}. Small purse, long memory.",
+        },
+        greetOrderAsk = {
+            "I want a {category}. Something cheap, before the week is out.",
+            "Find me a {category} worth its price and I'll come back for it.",
+        },
+        acceptOrder = {
+            "{price} for a {category} I asked for. Fair. Take it.",
+            "There. That's the {category} I wanted. Don't gloat about it.",
+        },
+    },
+    collector = {
+        greetOrder = {
+            "The {category}. I've been thinking about it all week.",
+            "You kept it. A {category}, just as I asked.",
+        },
+        greetOrderAsk = {
+            "I'm hunting a {category}. Something with a story on it.",
+            "Find me a {category} and I'll pay what it deserves.",
+        },
+        acceptOrder = {
+            "Yes. {price}, and it belongs in my collection.",
+            "The {category}. {price} is nothing for the missing piece.",
+        },
+    },
+    trader = {
+        greetOrder = {
+            "My {category}. You found one, as promised.",
+            "I placed an order, not a wish. Let's see it.",
+        },
+        greetOrderAsk = {
+            "I need a {category} by market day. Can you source one?",
+            "A {category}, decent, and I'll make it worth your while.",
+        },
+        acceptOrder = {
+            "{price}. Clean trade, and the {category} is mine.",
+            "Goods first, coin second. {price}, as agreed.",
+        },
+    },
+    gullible = {
+        greetOrder = {
+            "You got the {category}! I told everyone you would.",
+            "Is that it? The {category}? It's better than I imagined.",
+        },
+        greetOrderAsk = {
+            "Could you find a {category}? I'd be ever so grateful.",
+            "I've been hoping for a {category}. Anything shiny will do.",
+        },
+        acceptOrder = {
+            "{price}? Here, take it all. It's beautiful.",
+            "I'd have paid twice. {price} it is.",
+        },
+    },
+    desperate = {
+        greetOrder = {
+            "The {category}. Please tell me you still have it.",
+            "I came back. I need that {category} more than I need the coin.",
+        },
+        greetOrderAsk = {
+            "A {category}. Soon. I can pay, I just can't wait.",
+            "Find me a {category} and I'll owe you one.",
+        },
+        acceptOrder = {
+            "{price} — take it, take it, just hand it over.",
+            "Yes. {price}. I'll not haggle with my own luck.",
+        },
+    },
+    suspicious = {
+        greetOrder = {
+            "The {category}. Let me look at it before I believe you.",
+            "I asked for a {category}. This had better be one.",
+        },
+        greetOrderAsk = {
+            "I want a {category}. Untouched, mind. No repairs, no tricks.",
+            "A {category}, and I'll be checking it myself.",
+        },
+        acceptOrder = {
+            "{price}. It's honest work, for once.",
+            "Fine. {price}, and I'll be telling people it was fair.",
+        },
+    },
+    impatient = {
+        greetOrder = {
+            "The {category}. Quickly, I've wasted enough of the morning.",
+            "I asked for a {category}. You have ten seconds to show me.",
+        },
+        greetOrderAsk = {
+            "One {category}. Today, not next week.",
+            "I want a {category} and I want to be done with it.",
+        },
+        acceptOrder = {
+            "{price}. Done. Wrapped, if you can manage it.",
+            "Finally. {price}, and I'm out the door.",
+        },
+    },
+    merchant = {
+        greetOrder = {
+            "The {category}. I trust it's the pick of the shelf.",
+            "I ordered a {category}, not an excuse. Show me.",
+        },
+        greetOrderAsk = {
+            "Source me a {category}, and don't insult me with the dregs.",
+            "A {category}, top of the pile. You'll be paid properly.",
+        },
+        acceptOrder = {
+            "{price} for a piece this good. We have an arrangement.",
+            "There it is. {price}, and I'll be back with more orders.",
+        },
+    },
+    rare_hunter = {
+        greetOrder = {
+            "The {category}. I've chased one of these across three valleys.",
+            "You found it. A {category} worth the trip.",
+        },
+        greetOrderAsk = {
+            "I'm after a particular {category}. Quality, not quantity.",
+            "Find me a {category} with some age to it. I'll pay for pedigree.",
+        },
+        acceptOrder = {
+            "{price}, and it's finally mine. Worth every coin.",
+            "The {category}. {price} is a fair finder's fee.",
+        },
+    },
+}
+
+for key, pools in pairs(ORDER_POOLS) do
+    local target = D.Lines[key]
+    if not target then
+        target = {}
+        D.Lines[key] = target
+    end
+    for name, lines in pairs(pools) do target[name] = lines end
 end

@@ -89,10 +89,14 @@ function __sim30()
 
     local final = string.format(
         "\nFINAL | %d gc | tier %d | %d sales | %d served | %d auto-sales | %d lots | rep %d | best %d"
+            .. "\nregulars %d | orders %d placed / %d filled / %d lapsed | order sales %d"
             .. "\nearned %d | spent %d | wholesale %d | expenses %d | avg sale %d | export chars %d | compact chars %d",
         db.credits, db.tier, db.stats.sales or 0, db.stats.customersServed or 0,
         db.stats.autoSales or 0, db.stats.wholesaleBought or 0,
         math.floor(db.reputation or 0), db.stats.bestSale or 0,
+        #(db.shop.regulars or {}),
+        db.stats.ordersPlaced or 0, db.stats.ordersFilled or 0, db.stats.ordersLapsed or 0,
+        db.stats.orderRevenue or 0,
         db.stats.earned or 0, db.stats.spent or 0, db.stats.wholesaleSpent or 0,
         db.stats.expenses or 0,
         math.floor((db.stats.revenue or 0) / math.max(1, db.stats.sales or 1)),

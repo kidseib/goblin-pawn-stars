@@ -297,6 +297,12 @@ function S.EndShopDay()
     end
 
     S.RefreshDailyRequest()
+
+    -- Special orders lapse on the shop day the addon already counts. No timer,
+    -- no polling: one bounded pass over at most three orders per day.
+    if ns.Regulars and ns.Regulars.EndShopDay then
+        pcall(ns.Regulars.EndShopDay)
+    end
 end
 
 function S.Tick(dt)

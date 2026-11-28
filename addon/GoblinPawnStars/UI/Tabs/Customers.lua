@@ -120,14 +120,14 @@ ns.UI.Tabs.customers = {
         request:SetPoint("TOPRIGHT", 0, 0)
         request:SetHeight(96)
 
-        local requestTitle = W.Text(request, "TODAY'S REQUEST", 9, T.colors.goldDim)
+        local requestTitle = W.Text(request, "WANTED TODAY", 9, T.colors.goldDim)
         requestTitle:SetPoint("TOPLEFT", 12, -10)
         ui.requestText = W.Text(request, "", 11, T.colors.parchment)
         ui.requestText:SetPoint("TOPLEFT", 12, -26)
         ui.requestText:SetPoint("TOPRIGHT", -12, -26)
         ui.requestText:SetWordWrap(true)
         ui.requestBar = W.Bar(request, 300, 6, T.colors.gold)
-        ui.requestBar:SetPoint("TOPLEFT", 12, -68)
+        ui.requestBar:SetPoint("TOPLEFT", 12, -76)
 
         local event = W.Panel(parent, "panel")
         event:SetPoint("TOPLEFT", 388, -104)
@@ -179,13 +179,23 @@ ns.UI.Tabs.customers = {
                 ui.currentPortrait:Show()
                 ui.currentPortrait:SetCustomer(currentCustomer)
                 ui.currentName:SetText(currentCustomer.name)
-                ui.currentMeta:SetText(string.format("%s%s%s · wants %s · offering %s",
-                    currentCustomer.regular and "|cffffd700Named regular|r · " or "",
-                    currentCustomer.returning and string.format("|cff7fd0ffReturning visitor (%d)|r · ",
-                        currentCustomer.returning) or "",
-                    personality and personality.name or "Customer",
-                    item and item.name or "something sold",
-                    U.comma(currentCustomer.offer or 0) .. " gc"))
+                if currentCustomer.order then
+                    -- A regular collecting a special order leads with what they
+                    -- came back for; the item and price follow.
+                    ui.currentMeta:SetText(string.format(
+                        "|cffffd700Special order: %s|r · wants %s · offering %s",
+                        ns.Data.CategoryName(currentCustomer.orderCategory),
+                        item and item.name or "something sold",
+                        U.comma(currentCustomer.offer or 0) .. " gc"))
+                else
+                    ui.currentMeta:SetText(string.format("%s%s%s · wants %s · offering %s",
+                        currentCustomer.regular and "|cffffd700Named regular|r · " or "",
+                        currentCustomer.returning and string.format("|cff7fd0ffReturning visitor (%d)|r · ",
+                            currentCustomer.returning) or "",
+                        personality and personality.name or "Customer",
+                        item and item.name or "something sold",
+                        U.comma(currentCustomer.offer or 0) .. " gc"))
+                end
                 ui.currentBar:SetValue(ns.Customers.PatienceRatio(currentCustomer), 1)
                 ui.currentButton:SetLabel("Resume Negotiation")
                 ui.currentButton:SetState(true)
@@ -210,12 +220,24 @@ ns.UI.Tabs.customers = {
                     row.customerIndex = index
                     row.portrait:SetCustomer(customer)
                     row.name:SetText(customer.name)
-                    row.meta:SetText(string.format("%s%s%s · %s",
-                        customer.regular and "|cffffd700Named regular|r · " or "",
-                        customer.returning and string.format("|cff7fd0ffReturning (%d)|r · ",
-                            customer.returning) or "",
-                        personality and personality.name or "Customer",
-                        item and item.name or "item gone"))
+                    if customer.order then
+                        row.meta:SetText(string.format("|cffffd700Order: %s|r · %s · %s",
+                            ns.Data.CategoryName(customer.orderCategory),
+                            personality and personality.name or "Customer",
+                            item and item.name or "item gone"))
+                    elseif customer.orderCategory then
+                        row.meta:SetText(string.format("|cffffd700Wants %s|r · %s · %s",
+                            ns.Data.CategoryName(customer.orderCategory),
+                            personality and personality.name or "Customer",
+                            item and item.name or "item gone"))
+                    else
+                        row.meta:SetText(string.format("%s%s%s · %s",
+                            customer.regular and "|cffffd700Named regular|r · " or "",
+                            customer.returning and string.format("|cff7fd0ffReturning (%d)|r · ",
+                                customer.returning) or "",
+                            personality and personality.name or "Customer",
+                            item and item.name or "item gone"))
+                    end
                     row.patience:SetValue(ns.Customers.PatienceRatio(customer), 1)
                     row.talk:SetState(item ~= nil)
                     row:Show()
@@ -226,13 +248,33 @@ ns.UI.Tabs.customers = {
             end
 
             local requestDef = ns.Shop.DailyRequest()
+            local order = ns.Regulars.Next()
+            local wanted = {}
             if requestDef then
-                ui.requestText:SetText(string.format("Buyers want %s today. First matching sale earns +%d%%.",
-                    requestDef.label, math.floor((requestDef.bonus or 0) * 100)))
                 if requestDef.fulfilled then
-                    ui.requestText:SetText("|cff5fd64fRequest fulfilled.|r Tomorrow brings a new obsession.")
+                    wanted[#wanted + 1] = "|cff5fd64fBuyer satisfied today.|r"
+                else
+                    wanted[#wanted + 1] = string.format("Buyers want %s · +%d%% first sale.",
+                        requestDef.label, math.floor((requestDef.bonus or 0) * 100))
                 end
-                ui.requestBar:SetValue(requestDef.fulfilled and 1 or 0, 1)
+            end
+            if order then
+                local days = ns.Regulars.DaysLeft(order)
+                local others = #ns.Regulars.Orders() - 1
+                wanted[#wanted + 1] = string.format("|cffffd700Order|r %s: %s · %s · %s gc%s",
+                    order.name, order.label,
+                    days <= 1 and "|cffff5555last day|r" or (days .. " days"),
+                    U.comma(order.budget),
+                    others > 0 and string.format(" |cff9c8a5a(+%d)|r", others) or "")
+            end
+            ui.requestText:SetText(table.concat(wanted, "\n"))
+            if order then
+                -- The bar fills as the deadline approaches, so urgency is a shape
+                -- as well as a number.
+                local span = math.max(1, (tonumber(order.dueDay) or 0) - (tonumber(order.placedDay) or 0))
+                ui.requestBar:SetValue(1 - ns.Regulars.DaysLeft(order) / span, 1)
+            else
+                ui.requestBar:SetValue(requestDef and requestDef.fulfilled and 1 or 0, 1)
             end
 
             local pending = ns.Encounters.Pending()

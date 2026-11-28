@@ -98,6 +98,19 @@ local function buildCustomer(options)
         local _, loyaltyOffer = ns.Regulars.Loyalty(returning)
         willingness = willingness * loyaltyOffer
     end
+    -- A regular who came back for the exact shelf they asked for is motivated:
+    -- they will pay over live market value, up to the budget they named. A
+    -- patron keeps a small permanent lift. Both only ever raise a real sale.
+    local order = options.order
+    local orderData = ns.Data.Regulars
+    if order then
+        willingness = math.max(willingness, orderData.orderPay or 1.35)
+        local named = tonumber(options.orderBudget) or 0
+        if named > 0 then budget = math.max(budget, named) end
+    end
+    if options.patron then
+        willingness = willingness * (orderData.patronOffer or 1.02)
+    end
 
     -- Hidden ceiling: what this customer would actually pay for this item.
     local maxPay = math.floor(math.min(
@@ -115,6 +128,9 @@ local function buildCustomer(options)
     local opening = U.randomBetween(personality.opening[1], personality.opening[2])
     -- The scripted first buyer opens low enough to leave a visible upward counter.
     if options.firstDeal then opening = math.min(opening, 0.45) end
+    -- A special order is a stated price, not a haggle: they open near their
+    -- ceiling, so accepting it is the reward for having held the stock.
+    if order then opening = math.max(opening, 0.9) end
     local offer = U.round(maxPay * opening, 5)
     offer = U.clamp(offer, 1, maxPay)
 
@@ -126,6 +142,8 @@ local function buildCustomer(options)
         local loyaltyPatience = ns.Regulars.Loyalty(returning)
         patience = patience + loyaltyPatience
     end
+    -- Someone who came back for a piece waits a little longer for it.
+    if order then patience = patience + 1 end
     patience = math.max(1, patience)
 
     db.shop.nextCustomerId = (db.shop.nextCustomerId or 0) + 1
@@ -158,6 +176,11 @@ local function buildCustomer(options)
         regular = options.regular and true or false,
         regularVisit = options.regularVisit,
         returning = returning > 0 and returning or nil,
+        -- Collecting an order, or having just asked for one (orderCategory).
+        order = order and true or nil,
+        orderCategory = order and order.category
+            or (options.orderAsk and options.orderAsk.category) or nil,
+        orderBudget = order and tonumber(options.orderBudget) or nil,
     }
 
     return customer, record, personality
@@ -233,8 +256,13 @@ function C.TrySpawn(options)
 
     db.shop.waiting[#db.shop.waiting + 1] = customer
     -- The greeting is chosen with the item in hand, so a collector looking at a
-    -- gem and a collector looking at a rusty fork do not say the same thing.
-    customer.dialogue = ns.Data.Dialogue.Line(customer, "greet", nil, { offer = customer.offer })
+    -- gem and a collector looking at a rusty fork do not say the same thing. A
+    -- special order names the shelf they came back for.
+    local greetVars = { offer = customer.offer }
+    if customer.orderCategory then
+        greetVars.category = ns.Data.CategoryName(customer.orderCategory)
+    end
+    customer.dialogue = ns.Data.Dialogue.Line(customer, "greet", greetVars)
 
     db.stats.customers = (db.stats.customers or 0) + 1
     db.shop.lastArrivalAt = db.stats.playtime or 0

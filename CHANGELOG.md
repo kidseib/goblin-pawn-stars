@@ -9,6 +9,20 @@ below is released yet.
 
 ### Added
 
+- **Special orders from regulars.** A remembered customer can now come back wanting
+  something specific: one shelf of goods (gems, herbs, recipes...), a stated budget
+  ("up to 1,684 credits") and a deadline of two shop days. The wanted shelf is chosen
+  from what the shop is shortest of, preferring what the wholesaler is currently
+  offering, so the order is an errand the player can actually run. Turning up with it
+  pays 1.35x live market value inside the named budget, +8 reputation and extra
+  goodwill; two delivered orders make that customer a **patron**, with a small
+  permanent lift on what they will pay. Letting the deadline pass costs 4 reputation,
+  one remembered visit and a two-day sulk, and the regular stays on the books — a real
+  cost, never a catastrophe. Orders live in `db.shop.orders`, capped at three, cleaned
+  by an additive `Persist.normalize` pass and deliberately stripped from journal
+  snapshots. The `Customers` tab shows the request and its urgency in the existing
+  wanted panel, in the queue row and at the counter, plus an order-greeting and
+  order-acceptance pool for every archetype.
 - **Regulars: customers who remember the shop.** A sale that met the customer's own
   hidden ceiling is remembered — name, archetype, race and visit count — in
   `db.shop.regulars`, and that person can walk back in later instead of a stranger.
@@ -58,6 +72,12 @@ below is released yet.
 
 ### Verified
 
+- 80 headless tests (five new for this pass: special orders only come from proven
+  regulars, a delivered order pays over market value and grows the relationship, two
+  deliveries make a patron, a lapsed order costs a little goodwill and nothing
+  catastrophic, and orders survive saves while the journal omits them), `npm run check`
+  at exit 0 (**64 files, 20,121 lines**), UI smoke green, and both sims run: the
+  30-minute probe and the four-seed campaign probe. **Not run in the live client.**
 - 75 headless tests (four new: only a done deal makes a regular, the list stays bounded,
   returning customers keep their identity and earn loyalty, and regulars survive a save
   while the journal fallback deliberately omits their names) — plus the four from the

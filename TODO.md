@@ -28,6 +28,16 @@
       familiar customer greets you like one.
 - [x] Four more headless tests (75 total) and a 30-minute probe showing three regulars
       formed with 2/2/1 visits.
+- [x] Special orders: a regular who has bought something can come back wanting one
+      specific shelf, with a named budget and a two-shop-day deadline. Delivering pays
+      1.35x market value inside that budget, +8 reputation and extra goodwill, and two
+      deliveries make a patron (permanent 2% offer lift). Lapsing costs 4 reputation and a
+      remembered visit, and the regular survives. Capped at three, normalized additively,
+      stripped from the journal, shown in the wanted panel, the queue row and the counter,
+      with order-greeting and order-acceptance pools for all nine archetypes.
+- [x] Five more headless tests (80 total) and a six-seed on/off/ignore probe: orders
+      average 3.2 placed and 2.8 delivered per 30 minutes, order revenue is ~11% of
+      gross, and ignoring them shows up as lapses and lost reputation.
 
 ### Next up (planned order)
 
@@ -38,9 +48,16 @@ visually even (nothing leads the eye), and reputation buys perks but not relatio
 - [ ] **UI pass on typography and spacing.** Audit every tab against a single scale for
       caption/value/label text, tighten the header, and give the negotiation window a
       clearer hierarchy between offer, odds and actions. Weakest area overall now.
-- [ ] **Give regulars a request.** They already remember the shop; the next step is
-      asking after something specific ("bring me anything with a gem in it"), which turns
-      the relationship into a small standing goal. Cheap to build on `Data/Regulars.lua`.
+- [ ] **Make the order board visible when nobody is in the shop.** Requests currently
+      surface only in the Customers tab. A one-line ticker on the Dashboard header, or a
+      badge on the Customers tab button, would tell the player an order is about to go
+      cold while they are busy elsewhere.
+- [ ] **Patron rewards with teeth.** Patron status is a 2% offer lift; it should also
+      change what the shop can do — a patron who refers a new face, or one who will hold
+      stock for *you* for a day.
+- [ ] **Order history.** A delivered order leaves a history line and nothing else. A
+      small "regulars served" counter in the Deed/Campaign tab would make long-term
+      relationship building legible.
 - [ ] **Valuation depth.** `Market.Value` still produces one number per item; a piece's
       story (provenance, a collector's specific want) would give the haggling something
       to be *about* beyond a price band.

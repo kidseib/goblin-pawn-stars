@@ -2783,6 +2783,183 @@ function D.Run()
         end)
     end)
 
+    -----------------------------------------------------------------------
+    test("special orders only come from proven regulars", function()
+        withScratch(nil, function(scratch)
+            scratch.tier = 2
+            ns.Inventory.Add({ id = 9401, name = "Order Test Ring", quality = 3, ilvl = 30,
+                classID = 4, subclassID = 0, category = "misc", value = 300 })
+            ns.Regulars.Remember({ name = "Fresh Face", personality = "collector", maxPay = 200,
+                race = "Orc", class = "Warrior", occupation = "Smith" }, 200)
+            local entry = ns.Regulars.List()[1]
+            expect(entry, "the regular was not remembered")
+            -- The threshold is data, so the test proves the gate rather than the
+            -- current number.
+            local threshold = ns.Data.Regulars.orderMinVisits
+            ns.Data.Regulars.orderMinVisits = 2
+            expectEqual(ns.Regulars.PlaceOrder(entry), nil,
+                "a regular below the visit threshold was allowed to order")
+            ns.Data.Regulars.orderMinVisits = threshold
+
+            entry.visits = 3
+            local order = ns.Regulars.PlaceOrder(entry)
+            expect(order, "a proven regular placed no order")
+            expect(ns.Data.CategoryNames[order.category], "the order names no real shelf")
+            expect(order.budget > 0, "the order has no implied budget")
+            expectEqual(order.dueDay, (scratch.stats.shopDays or 0) + ns.Data.Regulars.orderDays,
+                "the order has the wrong deadline")
+            expectEqual(#ns.Regulars.Orders(), 1, "the order was not stored")
+            expectEqual(ns.Regulars.PlaceOrder(entry), nil,
+                "the same regular placed two orders at once")
+            -- The empty shelf is what makes it an errand rather than a formality.
+            expectEqual(ns.Regulars.StockFor(order.category), nil,
+                "the wanted shelf was already in stock")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("a delivered special order pays over market value and grows the relationship", function()
+        withScratch(nil, function(scratch)
+            scratch.tier = 3
+            scratch.credits = 500
+            local record = ns.Inventory.Add({ id = 9402, name = "Wanted Scepter", quality = 4, ilvl = 60,
+                classID = 4, subclassID = 0, category = "gem", value = 500 })
+            expect(record, "no stock for the order")
+            local market = ns.Market.Value(record)
+
+            ns.Regulars.Remember({ name = "Patron Test", personality = "merchant", maxPay = 500,
+                race = "Human", class = "Mage", occupation = "Trader" }, 500)
+            local entry = ns.Regulars.List()[1]
+            entry.visits = 3
+            local order = ns.Regulars.PlaceOrder(entry, "gem")
+            expect(order, "no order was placed")
+
+            local reputationBefore = scratch.reputation
+            local customer = ns.Customers.TrySpawn({
+                name = entry.name, personality = "merchant", returning = 3,
+                order = order, record = record, orderBudget = order.budget,
+            })
+            expect(customer, "the order customer did not arrive")
+            expect(customer.order, "the customer is not carrying the order")
+            expectEqual(customer.orderCategory, "gem", "the order lost its shelf")
+            expect(customer.maxPay > market, "the order ceiling is not a premium")
+            expect(customer.offer >= customer.maxPay * 0.85,
+                "the order opened like an ordinary haggle")
+
+            expect(ns.Customers.StartNegotiation(1), "the order customer could not be served")
+            local ok, payload = ns.Negotiation.Accept()
+            expect(ok, "accepting the order offer failed")
+            expect(payload.price > market, "the delivered order did not beat market value")
+            expectEqual(#ns.Regulars.Orders(), 0, "the delivered order was not cleared")
+            expectEqual(entry.fulfilled, 1, "the delivery was not counted")
+            expect(entry.visits > 3, "delivering did not add goodwill")
+            expect(scratch.reputation > reputationBefore, "delivering earned no reputation")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("two delivered orders make a patron", function()
+        withScratch(nil, function(scratch)
+            scratch.tier = 3
+            scratch.credits = 500
+            ns.Inventory.Add({ id = 9403, name = "Patron Gem One", quality = 3, ilvl = 40,
+                classID = 4, subclassID = 0, category = "gem", value = 300 })
+            ns.Inventory.Add({ id = 9404, name = "Patron Gem Two", quality = 3, ilvl = 41,
+                classID = 4, subclassID = 0, category = "gem", value = 320 })
+            ns.Regulars.Remember({ name = "Patron Twin", personality = "trader", maxPay = 300,
+                race = "Orc" }, 300)
+            local entry = ns.Regulars.List()[1]
+            entry.visits = 5
+
+            for round = 1, 2 do
+                local order = ns.Regulars.PlaceOrder(entry, "gem")
+                expect(order, "order " .. round .. " was not placed")
+                local record = ns.Regulars.StockFor("gem")
+                expect(record, "no stock left to deliver")
+                expect(ns.Customers.TrySpawn({ name = entry.name, personality = "trader",
+                    returning = entry.visits, order = order, record = record,
+                    orderBudget = order.budget }), "the regular did not arrive")
+                expect(ns.Customers.StartNegotiation(1), "the regular could not be served")
+                expect(ns.Negotiation.Accept(), "the order sale failed")
+            end
+
+            expect(entry.patron, "two deliveries did not earn patron status")
+            local _, offer = ns.Regulars.Loyalty(entry.visits)
+            expect(offer >= 1, "a patron lost the loyalty premium")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("a lapsed order costs a little goodwill and nothing catastrophic", function()
+        withScratch(nil, function(scratch)
+            scratch.tier = 2
+            scratch.credits = 5000
+            scratch.reputation = 200
+            ns.Regulars.Remember({ name = "Forgetful", personality = "suspicious", maxPay = 100,
+                race = "Orc" }, 100)
+            local entry = ns.Regulars.List()[1]
+            entry.visits = 4
+            local order = ns.Regulars.PlaceOrder(entry)
+            expect(order, "no order was placed")
+
+            scratch.stats.shopDays = order.dueDay
+            local lapsed = ns.Regulars.EndShopDay()
+            expectEqual(lapsed, 1, "the deadline did not lapse the order")
+            expectEqual(#ns.Regulars.Orders(), 0, "the lapsed order survived")
+            expect(scratch.reputation < 200, "letting an order lapse cost nothing")
+            expect(scratch.reputation >= 190, "letting an order lapse was too harsh")
+            expectEqual(#ns.Regulars.List(), 1, "the regular was forgotten entirely")
+            expect(ns.Regulars.List()[1].visits < 4, "goodwill did not cool")
+            expect(ns.Regulars.List()[1].visits >= 1, "goodwill was wiped out")
+            -- A lapse keeps them quiet for a day or two, it does not exile them.
+            expectEqual(ns.Regulars.PlaceOrder(entry, "gem"), nil,
+                "a soured regular asked again immediately")
+        end)
+    end)
+
+    -----------------------------------------------------------------------
+    test("orders survive saves, are capped and the journal omits them", function()
+        local repaired = ns.DB.Normalize({
+            shop = {
+                orders = {
+                    "junk",
+                    { name = "", category = "gem" },
+                    { name = "Ghost", category = "no_such_shelf", personality = "trader" },
+                    { name = "Bad Face", category = "gem", personality = "no_such_archetype" },
+                },
+            },
+        })
+        expectEqual(#repaired.shop.orders, 0, "invalid orders survived normalization")
+
+        local many = {}
+        for index = 1, 6 do
+            many[index] = { name = "Buyer " .. index, personality = "trader", category = "gem",
+                budget = 100, placedDay = 0, dueDay = 3 }
+        end
+        local capped = ns.DB.Normalize({ shop = { orders = many } })
+        expectEqual(#capped.shop.orders, ns.Data.Regulars.maxOrders,
+            "the order list grew past its cap")
+
+        withScratch(nil, function(scratch)
+            scratch.tier = 2
+            ns.Regulars.Remember({ name = "Saver", personality = "trader", maxPay = 200,
+                race = "Orc" }, 200)
+            local entry = ns.Regulars.List()[1]
+            entry.visits = 3
+            expect(ns.Regulars.PlaceOrder(entry, "gem"), "no order to save")
+
+            local encoded = ns.DB.Export()
+            expect(ns.DB.Import(encoded, true), "the export did not import")
+            local list = ns.DB.Get().shop.orders
+            expectEqual(#list, 1, "the order did not survive a save round trip")
+            expectEqual(list[1].name, "Saver", "the regular's name did not survive")
+            expectEqual(list[1].category, "gem", "the wanted shelf did not survive")
+
+            local snapshot = ns.DB.Snapshot()
+            expectEqual(#snapshot.shop.orders, 0, "the journal snapshot carries order names")
+        end)
+    end)
+
     return results
 end
 

@@ -94,6 +94,7 @@ local function defaults()
             encounterRecent = {},
             recentLines = {},
             regulars = {},
+            orders = {},
             wholesale = {
                 lots = {},
                 nextRestock = 0,
@@ -258,6 +259,35 @@ local function normalize(db)
         end
     end
     db.shop.regulars = cleanRegulars
+
+    -- Special orders: capped, shelf-checked and dropped when unreadable, so an
+    -- old or hand-edited save can never grow the list or point at a category
+    -- that does not exist. Additive: a save without the field gets {}.
+    local rawOrders = db.shop.orders
+    local cleanOrders = {}
+    local orderCap = (ns.Data and ns.Data.Regulars and ns.Data.Regulars.maxOrders) or 3
+    local categoryNames = (ns.Data and ns.Data.CategoryNames) or {}
+    local orderFaces = (ns.Data and ns.Data.PersonalityByKey) or {}
+    if type(rawOrders) == "table" then
+        for _, entry in ipairs(rawOrders) do
+            if #cleanOrders >= orderCap then break end
+            if type(entry) == "table" and type(entry.name) == "string" and entry.name ~= ""
+                and categoryNames[entry.category] and orderFaces[entry.personality] then
+                local placed = math.max(0, math.floor(tonumber(entry.placedDay) or 0))
+                local due = math.max(placed, math.floor(tonumber(entry.dueDay) or placed))
+                cleanOrders[#cleanOrders + 1] = {
+                    name = entry.name:sub(1, 40),
+                    personality = orderFaces[entry.personality].key,
+                    category = entry.category,
+                    label = categoryNames[entry.category],
+                    budget = U.clamp(math.floor(tonumber(entry.budget) or 0), 1, 10000000),
+                    placedDay = placed,
+                    dueDay = due,
+                }
+            end
+        end
+    end
+    db.shop.orders = cleanOrders
     if type(db.shop.wholesale) ~= "table" then db.shop.wholesale = { lots = {}, nextRestock = 0, restocks = 0 } end
     if type(db.shop.wholesale.lots) ~= "table" then db.shop.wholesale.lots = {} end
     if type(db.stats) ~= "table" then db.stats = defaults().stats end
@@ -639,6 +669,7 @@ function DB.Snapshot()
     -- the fallback journal keeps the shop and the regulars come back with the
     -- next ordinary SavedVariables save.
     shop.regulars = {}
+    shop.orders = {}
     shop.encounter = nil
     shop.encounterResult = nil
     shop.wholesale = {
