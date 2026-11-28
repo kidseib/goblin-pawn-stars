@@ -57,6 +57,57 @@
 - [x] Three new headless tests (83 total), new UI smoke assertions, a six-seed
       on/off/ignored/patron-disabled probe and both sims re-run (numbers in PROGRESS).
 
+### Iteration 6 — streak, ceremony and the ten-feature plan
+
+- [x] **Counter streak ("clean deal").** Landed counters in a row fill a meter in the
+      negotiation title bar; five in a row arms a clean deal that pays +10% on the next
+      landed counter plus 2 reputation, then resets. Session-only (never saved), resets on
+      a botched counter, and an already-earned perk survives the reset.
+- [x] **Deed and tier ceremony.** Crossing a reputation tier or completing a deed fires a
+      1.25 s celebration (three-icon burst + pulse + native achievement fanfare) and lights
+      one permanent **shop standing** pip in the sidebar. `db.shop.celebratedTier` is saved
+      so a relog restores the pips without replaying the fanfare.
+- [x] Six new headless tests (89 total), new UI-smoke assertions and a headless benchmark
+      comparing this build to the previous head (no measurable refresh cost).
+
+### The ten-feature plan (persistent roadmap)
+
+Ordered by value for the player per unit of risk. Inspiration column is what the top
+CurseForge minigames sell (Peggle/Bejeweled downtime loops, Peg'Gul/balatro run structure,
+Cross Gambling dice, All The Things completion sets, shared leaderboards).
+
+1. [x] **Counter streak / clean deal** — a 30-second hot-hand loop with visible escalation
+       and one bounded reward. *Shipped in iteration 6.*
+2. [x] **Deed and tier ceremony** — milestones with a flourish and a permanent visual
+       change. *Shipped in iteration 6.*
+3. [ ] **Desperate customer's double-or-nothing** — one archetype offers to gamble the
+       difference at stated odds (win: their ceiling; lose: a nominal discount and a small
+       reputation sting). Gambling is the biggest minigame category by downloads; bounded
+       to once per customer with slightly negative EV.
+4. [ ] **Daily specials board** — one advertised deal per shop day ("today: rings +15%")
+       on the existing door/arrival card, so there is a reason to return and a plan for
+       stock. Rides the existing day clock and market events.
+5. [ ] **Weekly Curator's Request** — the museum asks for a themed three-item set;
+       completing it pays a display and a small permanent perk. Bounded completion (3 of 3)
+       is the stickiest collection pattern.
+6. [ ] **Named rival pawnbroker** — a recurring competitor who outbids at the wholesaler,
+       snipes the occasional patron order and keeps a running tally. The leaderboard hook
+       that keeps score-based minigames installed.
+7. [ ] **Market Week run mode** — an optional seven-day run with three drafted shop quirks
+       and a scored tally saved to a local best list. Run structure + modifiers over the
+       existing economy, no new simulation.
+8. [ ] **Apprentice with a personality** — a hireable goblin who levels from watching
+       deals, comments on them and eventually runs one category of auto-sales.
+9. [ ] **Appraisal skill round** — replace the passive appraise click with a short
+       "what's it worth?" gauge; accuracy reveals a hidden fact or nudges the opening offer.
+10. [ ] **"Beat my shop" async duel** — export a shop code, a guildmate imports it as a
+        ten-minute scored scenario, both compare takings. Uses the existing backup codec
+        and a scratch database only.
+
+Not planned, on purpose: a literal match-3/Peggle clone (off-theme and the market is
+saturated), real player-to-player networking (an addon cannot), and any reward that pays
+credits outside a completed sale.
+
 ### Next up (planned order)
 
 Honest read after this pass: the order loop is complete and visible from every tab, and

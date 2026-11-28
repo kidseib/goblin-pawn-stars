@@ -53,6 +53,23 @@ below is released yet.
 
 ### Added
 
+- **Counter streak — the clean deal.** Every counteroffer that lands now fills a small
+  meter in the negotiation window's title bar (`STREAK 3/5`, gold from the first landed
+  counter, then `CLEAN DEAL +10% next` when the perk arms). Five landed counters in a row arm one clean deal: the next
+  counter that lands pays 10% over the agreed price (the customer rounds up), adds 2
+  reputation, flashes the payout banner and reads `Clean deal!` in the feedback line —
+  then the meter resets to zero. The streak is session-only and deliberately not saved,
+  so it cannot be banked across a relog; a botched counter clears the meter but keeps a
+  perk that was already earned. The bonus only ever rides on a completed sale (the unit
+  still leaves through `Inventory.Remove`), is clamped by `Data/Streak.maxBonus`, and is
+  spent exactly once — roughly one sale in five good haggles, never stackable.
+- **Deed and reputation ceremony.** Crossing a reputation tier, and completing any deed,
+  now fires a 1.25-second celebration — three pulsing icons on the existing toast panel,
+  the native achievement fanfare and a one-line toast — instead of only a chat message.
+  The shop also gains a permanent visual flag: one **SHOP STANDING** pip in the sidebar
+  per tier reached, with a tooltip listing every tier earned or missing. The flag travels
+  in `db.shop.celebratedTier` (additive, clamped, 0 on old saves), so a relog restores the
+  pips and never replays the fanfare.
 - **Patron status is a relationship now, not a footnote.** Two delivered orders
   still make a regular a patron, but what that buys has teeth: their orders carry a
   23% larger implied budget (3.2x the tier budget instead of 2.6x), one extra shop day

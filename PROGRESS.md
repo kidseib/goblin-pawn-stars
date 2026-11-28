@@ -785,6 +785,84 @@ Known issues:
 - Nothing here has run inside World of Warcraft: the "Returning visitor (N)" line in the
   Customers tab, the new greeting pool and the whole loop are mock-only.
 
+### Iteration 6 — the clean deal and the ceremony
+
+Two features from the ten-feature plan, chosen because they cost almost nothing per frame
+and change how the moment-to-moment haggling *feels*: a hot hand you can lose, and a
+milestone you can see. Nothing here is saved except one integer.
+
+**The counter streak.** `Data/Streak.lua` holds the tuning (threshold 5, +10% on the next
+sale, +2 reputation, clamp 0.10) and `Modules/Streak.lua` holds the state in two module
+locals. It is session-only on purpose:
+
+- saving it would let a player park four wins, log out, and carry an armed perk into any
+  later sale — an unlimited, if slow, money channel;
+- it would need a save migration for a number that is more fun when it can be lost;
+- with no `db` field there is nothing to corrupt, trim, explode or exploit. A relog is a
+  clean streak by definition, so "reload restores a streak-free state" needs no code.
+
+The state machine is one counter and one boolean: `Hit()` (landed counter) increments
+until the ceiling, `Miss()` (declined/insulted/walked) zeroes the counter, `Consume()`
+spends the armed perk inside `completeSale` and resets. `Miss` deliberately keeps an
+armed perk: a streak is a hot hand, but confiscating a reward the player already earned
+reads as punishment, not difficulty.
+
+The perk pays through the bonus ratio `completeSale` already used for the daily request,
+so it cannot create money outside a real sale: the item still leaves stock, the credits
+still come from a customer, and the sale still writes one ledger line. It is clamped to
+`maxBonus` so future tuning cannot stack two armed deals, and it is spent before `Hit()`
+for that same sale, so the winning sale cannot re-arm it. Pricing in `/gps`-visible terms:
+five good counters in a row pay one sale an extra 10% of its agreed price, roughly one
+sale in five — a visible reward that is smaller than the reputation and regular-visit
+effects already in the game, which is what keeps it from being the optimal strategy.
+
+**The ceremony.** `Modules/Ceremony.lua` compares the reached reputation tier with
+`db.shop.celebratedTier`, celebrates at most one newly crossed tier, and never repeats one.
+Because the flag is saved and clamped in `Persist.normalize`, a relog restores the pips and
+stays quiet; only a tier crossed *after* this build fires, and jumping two tiers in one
+gain announces only the top one. Deeds reuse the list `Achievements.Check` already returns
+(already persisted) and celebrate quietly, because that screen already prints and toasts
+the unlock itself. Presentation reuses the existing toast panel, `ns.Anim.Reveal/Pulse`
+and the native `achievement` fanfare: three icons, one pulse each, a one-shot 1.25 s hide
+behind a revision counter so overlapping milestones cannot strand a panel on screen.
+
+**What it cost.** Both features hook events that already fire (a landed counter, a
+reputation change from `AddReputation`, the once-a-second header refresh) and do integer
+comparisons. No new timer, no `OnUpdate`, no frame work, no table growth. The only new
+widgets are one label and one bar in the negotiation title bar, four static pips and a
+caption in the sidebar, and one lazily built celebration panel reused forever.
+
+**Measurement.** `tools/` benchmark (temporary, `/gps profile`'s counter is in-client
+only) driving the same workload on this build and on the previous head `c987eac`, headless
+under fengari:
+
+| path | previous head | iteration 6 |
+| --- | --- | --- |
+| negotiation refresh, 8,000 calls | 0.013–0.014 ms/call | 0.013–0.015 ms/call |
+| main-frame refresh, 800 calls | 0.95–1.03 ms/call (3 runs) | 0.94–1.05 ms/call (3 runs) |
+| celebration panel, 200 builds | n/a | 0.28 ms/call (event only) |
+
+Ranges are three runs each; the two builds overlap, so no measurable regression. The
+header refresh runs once a second, not per frame; the streak work is three number reads
+on the same refresh the window already did. This is VM CPU only — no GPU, no widget
+layout, no client frame time, and no in-game FPS claim is made.
+
+**Tests.** Six new headless tests in `Modules/Diagnostics.lua` (89 total): the streak arms
+at the threshold, pays once, cannot be spent twice, resets on a botched counter while
+keeping the armed perk, pays over the agreed price from the completed sale only, restarts
+from the winning sale, never reaches `Export()`, and leaves a fresh `Normalize({})` with no
+streak field; the tier ceremony fires exactly once, does not repeat on a second gain or
+after an Export/Import round trip, and a deed unlock fires one celebration per unlock but
+not again. `tools/smoke_ui.lua` asserts the meter text (`NO STREAK` → `2/5` → `CLEAN
+DEAL`), that the celebration panel builds, and that the standing pips follow the flag in
+both directions.
+
+**Known issues / not verified.** No WoW client here: the meter's fit in the title bar at
+small UI scales, the pip tooltip and the sound choice are harness-only claims. The streak
+is not part of `/gps export` by design, so a bug report about it will not reproduce from a
+save. The perk's 10% was chosen against the existing reputation/regular-visit effects on
+paper, not against live player earnings; it is one constant in `Data/Streak.lua` to retune.
+
 ## Notes for the next agent
 
 - `Modules/Diagnostics.lua` is the shared test surface for both `/gps test` and the
