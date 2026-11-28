@@ -6,7 +6,7 @@
 ## X-Credits: ErrorSeib & Buffy (Codebuff)
 ## Version: 1.7.9
 ## SavedVariables: GoblinPawnStarsDB, GoblinPawnStarsBackups
-## IconTexture: Interface\\Icons\\INV_Misc_Coin_01
+## IconTexture: Interface\Icons\INV_Misc_Coin_01
 ## AddonCompartmentFunc: GoblinPawnStars_CompartmentClick
 ## AddonCompartmentFuncOnEnter: GoblinPawnStars_CompartmentEnter
 ## AddonCompartmentFuncOnLeave: GoblinPawnStars_CompartmentLeave
@@ -19,67 +19,67 @@
 # No Classic-only globals are used; every risky API call is pcall-guarded.
 # ---------------------------------------------------------------------------
 
-Core\\Bootstrap.lua
-Core\\Compat.lua
-Core\\Perf.lua
-Core\\Persist.lua
-Core\\Backups.lua
-Core\\Journal.lua
-Core\\Slash.lua
+Core\Bootstrap.lua
+Core\Compat.lua
+Core\Perf.lua
+Core\Persist.lua
+Core\Backups.lua
+Core\Journal.lua
+Core\Slash.lua
 
-Data\\Items.lua
-Data\\Names.lua
-Data\\Personalities.lua
-Data\\Upgrades.lua
-Data\\Employees.lua
-Data\\Wholesale.lua
-Data\\MarketEvents.lua
-Data\\Encounters.lua
-Data\\Achievements.lua
-Data\\Deed.lua
+Data\Items.lua
+Data\Names.lua
+Data\Personalities.lua
+Data\Upgrades.lua
+Data\Employees.lua
+Data\Wholesale.lua
+Data\MarketEvents.lua
+Data\Encounters.lua
+Data\Achievements.lua
+Data\Deed.lua
 
-Modules\\Clock.lua
-Modules\\Market.lua
-Modules\\Inventory.lua
-Modules\\Loot.lua
-Modules\\Shop.lua
-Modules\\Wholesaler.lua
-Modules\\Staff.lua
-Modules\\Customers.lua
-Modules\\Negotiation.lua
-Modules\\Encounters.lua
-Modules\\Achievements.lua
-Modules\\History.lua
-Modules\\Throughput.lua
-Modules\\Goals.lua
-Modules\\Museum.lua
-Modules\\Regular.lua
-Modules\\Campaign.lua
-Modules\\Sound.lua
-Modules\\Report.lua
-Modules\\Diagnostics.lua
+Modules\Clock.lua
+Modules\Market.lua
+Modules\Inventory.lua
+Modules\Loot.lua
+Modules\Shop.lua
+Modules\Wholesaler.lua
+Modules\Staff.lua
+Modules\Customers.lua
+Modules\Negotiation.lua
+Modules\Encounters.lua
+Modules\Achievements.lua
+Modules\History.lua
+Modules\Throughput.lua
+Modules\Goals.lua
+Modules\Museum.lua
+Modules\Regular.lua
+Modules\Campaign.lua
+Modules\Sound.lua
+Modules\Report.lua
+Modules\Diagnostics.lua
 
-UI\\Theme.lua
-UI\\Widgets.lua
-UI\\Anim.lua
-UI\\CustomerModel.lua
-UI\\CustomerArrival.lua
-UI\\Tabs\\Dashboard.lua
-UI\\Tabs\\Deed.lua
-UI\\Tabs\\Customers.lua
-UI\\Tabs\\Inventory.lua
-UI\\Tabs\\Market.lua
-UI\\Tabs\\Upgrades.lua
-UI\\Tabs\\Employees.lua
-UI\\Tabs\\Achievements.lua
-UI\\Tabs\\History.lua
-UI\\Tabs\\Settings.lua
-UI\\NegotiationFrame.lua
-UI\\EventFrame.lua
-UI\\WholesalerFrame.lua
-UI\\BackupFrame.lua
-UI\\MainFrame.lua
-UI\\Tour.lua
-UI\\WelcomeFrame.lua
-UI\\MinimapButton.lua
-UI\\OptionsPanel.lua
+UI\Theme.lua
+UI\Widgets.lua
+UI\Anim.lua
+UI\CustomerModel.lua
+UI\CustomerArrival.lua
+UI\Tabs\Dashboard.lua
+UI\Tabs\Deed.lua
+UI\Tabs\Customers.lua
+UI\Tabs\Inventory.lua
+UI\Tabs\Market.lua
+UI\Tabs\Upgrades.lua
+UI\Tabs\Employees.lua
+UI\Tabs\Achievements.lua
+UI\Tabs\History.lua
+UI\Tabs\Settings.lua
+UI\NegotiationFrame.lua
+UI\EventFrame.lua
+UI\WholesalerFrame.lua
+UI\BackupFrame.lua
+UI\MainFrame.lua
+UI\Tour.lua
+UI\WelcomeFrame.lua
+UI\MinimapButton.lua
+UI\OptionsPanel.lua
