@@ -1,0 +1,57 @@
+name: iter3
+on:
+  push:
+    paths:
+      - '.github/workflows/iter3-deliver.yml'
+      - '.github/scripts/iter3-*.b64'
+permissions:
+  contents: write
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: c
+        run: test -f .github/scripts/iter3-n.b64 && echo "go=1" >> "$GITHUB_OUTPUT" || echo "go=0" >> "$GITHUB_OUTPUT"
+      - if: steps.c.outputs.go == '1'
+        run: |
+          set -euo pipefail
+          cd .github/scripts
+          a=$(tr -d '\n' < iter3-a.b64)
+          m=$(tr -d '\n' < iter3-m.b64)
+          b=$(tr -d '\n' < iter3-b.b64)
+          n=$(tr -d '\n' < iter3-n.b64)
+          f="$a${m:0:1686}$b${m:1686}$n"
+          echo "joined ${#f}"
+          echo "$f" | base64 -d | xz -dc > /tmp/p.patch
+          echo "46409c90ef04d8bbe3b6db7ea1da8df6cd20b9da6f2e269b4bb855c6f0e9ca93  /tmp/p.patch" | sha256sum -c -
+          cd "$GITHUB_WORKSPACE"
+          git apply --check /tmp/p.patch
+          git apply /tmp/p.patch
+      - if: steps.c.outputs.go == '1'
+        run: |
+          npm ci
+          npm run check
+          npm test
+          node tools/sim_30min.js
+          node tools/sim_campaign.js --hours 4 --seeds 4
+      - if: steps.c.outputs.go == '1'
+        run: |
+          set -euo pipefail
+          git config user.name "Error.Seib"
+          git config user.email "kidseib@gmail.com"
+          git rm -q .github/scripts/iter3-*.b64 .github/workflows/iter3-deliver.yml
+          git add -A
+          printf '%s\n' \
+            "refinement: regulars who come back" \
+            "" \
+            "Adds visit memory for up to three remembered faces: they keep name," \
+            "race, class, occupation and personality, gain patience from the second" \
+            "visit and offer more from the fourth, with a returning-visitor greeting" \
+            "pool and queue labels. Tuning in Data/Regulars.lua, state in" \
+            "db.shop.regulars behind Persist normalization and stripped from journal" \
+            "snapshots. Four new diagnostics tests (75 total)." > /tmp/msg
+          git commit -q -F /tmp/msg
+          git push origin HEAD:refinement-polish
+      - if: steps.c.outputs.go == '0'
+        run: echo "delivered already"
