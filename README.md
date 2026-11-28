@@ -142,9 +142,9 @@ shasum -a 256 GoblinPawnStars-1.7.9.zip
 
 Compare the result with the
 [`GoblinPawnStars-1.7.9.zip.sha256`](https://github.com/kidseib/goblin-pawn-stars/releases/download/v1.7.9/GoblinPawnStars-1.7.9.zip.sha256)
-attached to the same release. The local build of `GoblinPawnStars-1.7.9.zip` is
-3,335,096 bytes with SHA-256
-`4afff19964f94f182827001e94d25d5cfcb175c9308d725bf10616446fe81ba3`.
+attached to the same release. The published `GoblinPawnStars-1.7.9.zip` is
+3,336,136 bytes with SHA-256
+`c116e68c371e6c6e1e221d02b69bbebc097e47ed3b3bd7a8aad8891e7bc2b006`.
 
 ---
 
